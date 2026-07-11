@@ -1,0 +1,174 @@
+You are acting as a Senior Backend Engineer, Database Architect, and Technical Lead for our AI Academic Copilot university project.
+
+Project context:
+We are building an AI Academic Copilot for tutor teachers. The system simulates our university’s Peppi Student Information System because we do not have access to the real university database. No real student data must be used. Only fake/test data is allowed.
+
+The backend stack is:
+
+* Python
+* FastAPI
+* PostgreSQL
+* Supabase or PostgreSQL-compatible setup
+* Docker
+* LangGraph
+* MCP
+* RAG
+* Qdrant
+* Telegram Bot API
+
+My responsibility is the database and Peppi simulation environment.
+
+I need you to help me complete the database-related work in a clean, production-inspired but achievable way for a university project.
+
+Main goal:
+Design and implement the simulated Peppi database so that the FastAPI backend, MCP tools, and AI agents can use it later.
+
+Important architecture rule:
+The database stores structured academic data.
+RAG is only for unstructured documents such as tutoring calendar documents and academic policies.
+Do not mix database responsibilities with RAG responsibilities.
+
+My tasks are mainly from:
+
+EPIC 1 – Research & Technology Evaluation:
+
+* Research PostgreSQL
+* Research Supabase
+* Create Architecture Decision Record (ADR) for database choice
+
+EPIC 2 – Peppi Simulation Environment:
+
+* Design ER Diagram
+* Create Students Table
+* Create Study Rights Table
+* Create Curriculum Table
+* Create Course Completions Table
+* Create Tutor Meetings Table
+* Create Academic Events Table
+* Create Risk Events Table
+* Generate Fake Student Data
+* Generate Study Rights Data
+* Generate Course Completion Data
+* Seed Database
+* Create Database Documentation
+
+Possible deployment context:
+Our university may provide access to CSC Finland cloud services. We may create a shared virtual machine on CSC Pouta/cPouta and run PostgreSQL there using Docker, so all team members can connect to the same shared development database. Please guide me with this in mind, but keep secrets, passwords, and credentials out of GitHub.
+
+Please help me step by step.
+
+First, do not start coding immediately.
+Start with database design.
+
+I need the following outputs:
+
+1. Database Architecture Explanation
+   Explain why PostgreSQL is suitable for this project.
+   Explain why structured academic data should be stored in PostgreSQL instead of RAG.
+   Explain the difference between PostgreSQL, Supabase, and running PostgreSQL on a VM.
+
+2. ER Diagram Design
+   Design the relationships between these entities:
+
+* students
+* study_rights
+* curriculum
+* course_completions
+* tutor_meetings
+* academic_events
+* risk_events
+
+The relationships should support questions like:
+
+* Show student information
+* Show academic progress
+* Compare expected vs actual ECTS
+* Detect students at academic risk
+* Explain why a student is at risk
+* Show study right status
+* Show upcoming tutoring events
+* Generate tutor reports
+* Generate weekly summaries
+
+3. Table Definitions
+   For each table, define:
+
+* table name
+* purpose
+* columns
+* data types
+* primary key
+* foreign keys
+* constraints
+* indexes if useful
+
+Use PostgreSQL-friendly naming:
+
+* snake_case
+* plural table names
+* UUID or serial IDs where appropriate
+* created_at and updated_at timestamps where useful
+
+4. Initial SQL Schema
+   Generate clean PostgreSQL SQL scripts for creating all tables.
+   Include foreign key relationships.
+   Use realistic constraints.
+   Do not over-engineer.
+
+5. Fake Data Plan
+   Create a fake data strategy with:
+
+* at least 10–20 fake students
+* different programmes/groups
+* different study right statuses
+* different ECTS progress levels
+* some students on track
+* some delayed students
+* some students close to graduation
+* some students with study rights expiring soon
+
+No real student information must be used.
+
+6. Seed Data
+   Generate SQL INSERT statements or a Python seed script to populate the database with realistic fake data.
+
+7. Database Documentation
+   Create documentation that explains:
+
+* what each table does
+* how tables relate to each other
+* example queries
+* how the backend should connect to the database
+* how developers should configure DATABASE_URL using .env
+
+8. Shared Development Database Plan
+   If we use CSC Finland VM:
+   Explain how to run PostgreSQL using Docker on a shared VM.
+   Explain what environment variables the FastAPI backend needs.
+   Explain how each team member should connect safely.
+   Explain basic security rules:
+
+* do not commit .env
+* do not expose passwords
+* use strong passwords
+* restrict access if possible
+* keep test data fake
+
+9. Architecture Decision Record
+   Create ADR-001: Database Choice
+   Decision:
+   Use PostgreSQL as the main relational database for the simulated Peppi environment.
+
+Alternatives:
+
+* SQLite
+* Supabase
+* PostgreSQL on shared VM
+* NoSQL database
+
+Explain why PostgreSQL is selected.
+
+Important:
+Please explain everything clearly and step by step.
+Do not give beginner-level toy solutions.
+Use clean architecture thinking, but keep it realistic for a 3-student, 6-week university project.
