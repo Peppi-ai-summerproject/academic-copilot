@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.dependencies import HealthServiceDep
 from app.core.logger import logger
 
 router = APIRouter(
@@ -9,6 +10,8 @@ router = APIRouter(
 
 
 @router.get("/")
-def health_check():
+def health_check(
+    health_service: HealthServiceDep,
+) -> dict[str, str]:
     logger.info("Health check endpoint called")
-    return {"status": "healthy"}
+    return health_service.get_status()
