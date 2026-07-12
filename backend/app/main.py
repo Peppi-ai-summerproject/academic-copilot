@@ -8,12 +8,19 @@ from app.core.exception_handlers import (
 )
 from app.core.exceptions import AppException
 from app.core.logger import logger
+from app.api.routes.chat import router as chat_router
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Backend API for the AI Academic Copilot project",
     debug=settings.debug,
+)
+
+app.include_router(
+    chat_router,
+    prefix="/api/v1/chat",
+    tags=["Chat"],
 )
 
 app.add_exception_handler(AppException, app_exception_handler)

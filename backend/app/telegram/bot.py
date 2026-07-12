@@ -5,7 +5,7 @@ from telegram.ext import (
     filters,
 )
 
-from app.core.settings import settings
+from app.core.config import settings
 from app.telegram.commands import (
     help_command,
     placeholder_command,
