@@ -1,5 +1,3 @@
-import logging
-
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -7,8 +5,11 @@ from app.telegram.backend_client import (
     BackendClientError,
     backend_client,
 )
-
-logger = logging.getLogger(__name__)
+from app.telegram.logger import (
+    log_incoming_message,
+    log_outgoing_message,
+    log_telegram_error,
+)
 
 
 async def handle_message(
@@ -23,15 +24,13 @@ async def handle_message(
         return
 
     if user is None or chat is None:
-        logger.warning(
-            "Telegram update has no user or chat information."
-        )
         return
 
-    logger.info(
-        "Telegram message received: user_id=%s chat_id=%s",
-        user.id,
-        chat.id,
+    log_incoming_message(
+        user_id=user.id,
+        chat_id=chat.id,
+        username=user.username,
+        message_text=message.text,
     )
 
     await message.reply_chat_action("typing")
@@ -44,11 +43,49 @@ async def handle_message(
             username=user.username,
         )
 
-    except BackendClientError:
-        await message.reply_text(
+    except BackendClientError as exc:
+        log_telegram_error(
+            error=exc,
+            user_id=user.id,
+            chat_id=chat.id,
+        )
+
+        error_message = (
             "I could not connect to the Academic Copilot backend.\n"
             "Please try again shortly."
         )
+
+        await message.reply_text(error_message)
         return
 
     await message.reply_text(reply)
+
+    log_outgoing_message(
+        user_id=user.id,
+        chat_id=chat.id,
+        reply_text=reply,
+    )
+
+
+async def handle_error(
+    update: object,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    user_id = None
+    chat_id = None
+
+    if isinstance(update, Update):
+        user = update.effective_user
+        chat = update.effective_chat
+
+        user_id = user.id if user else None
+        chat_id = chat.id if chat else None
+
+    error = context.error
+
+    if isinstance(error, Exception):
+        log_telegram_error(
+            error=error,
+            user_id=user_id,
+            chat_id=chat_id,
+        )

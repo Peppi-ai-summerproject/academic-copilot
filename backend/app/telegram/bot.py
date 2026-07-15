@@ -13,7 +13,10 @@ from app.telegram.commands import (
     status_command,
     unknown_command,
 )
-from app.telegram.handlers import handle_message
+from app.telegram.handlers import (
+    handle_error,
+    handle_message,
+)
 
 
 def create_bot() -> Application:
@@ -55,5 +58,7 @@ def create_bot() -> Application:
             unknown_command,
         )
     )
+
+    application.add_error_handler(handle_error)
 
     return application

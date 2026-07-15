@@ -1,4 +1,9 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -8,12 +13,11 @@ class Settings(BaseSettings):
     debug: bool = True
 
     database_url: str
-
     telegram_bot_token: str
     backend_base_url: str = "http://127.0.0.1:8000"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
