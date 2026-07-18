@@ -37,11 +37,7 @@ class ChatService:
             telegram_user_id=request.telegram_user_id,
             reply=reply,
         )
-
-        logger.info(
-            "Conversation history size=%s",
-            len(session.history),
-        )
+        
 
         return ChatResponse(reply=reply)
 
