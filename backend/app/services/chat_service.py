@@ -33,6 +33,11 @@ class ChatService:
             f"Session message count: {session.message_count}"
         )
 
+        session_service.add_assistant_message(
+            telegram_user_id=request.telegram_user_id,
+            reply=reply,
+        )
+
         return ChatResponse(reply=reply)
 
 
