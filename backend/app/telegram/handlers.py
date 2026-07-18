@@ -71,15 +71,15 @@ async def handle_error(
     update: object,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    user_id = None
-    chat_id = None
+    user_id: int | None = None
+    chat_id: int | None = None
 
     if isinstance(update, Update):
         user = update.effective_user
         chat = update.effective_chat
 
-        user_id = user.id if user else None
-        chat_id = chat.id if chat else None
+        user_id = user.id if user is not None else None
+        chat_id = chat.id if chat is not None else None
 
     error = context.error
 
