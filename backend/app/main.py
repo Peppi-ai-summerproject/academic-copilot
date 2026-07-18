@@ -9,12 +9,30 @@ from app.core.exception_handlers import (
 from app.core.exceptions import AppException
 from app.core.logger import logger
 
+from contextlib import asynccontextmanager
+
+from app.api.routes.telegram import (
+    initialize_telegram_application,
+    shutdown_telegram_application,
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.telegram_webhook_enabled:
+        await initialize_telegram_application()
+
+    yield
+
+    if settings.telegram_webhook_enabled:
+        await shutdown_telegram_application()
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Backend API for the AI Academic Copilot project",
     debug=settings.debug,
+    lifespan=lifespan,
 )
 
 app.add_exception_handler(
