@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 
-from app.schemas.session import UserSession
+from app.schemas.session import ConversationMessage, UserSession
+
+
+MAX_HISTORY_MESSAGES = 20
 
 
 class SessionService:
@@ -28,6 +31,7 @@ class SessionService:
             message_count=0,
             last_message=None,
             current_context=None,
+            history=[],
             created_at=now,
             updated_at=now,
         )
@@ -56,7 +60,52 @@ class SessionService:
         session.last_message = message
         session.updated_at = datetime.now(UTC)
 
+        self.add_history_message(
+            session=session,
+            role="user",
+            content=message,
+        )
+
         return session
+
+    def add_assistant_message(
+        self,
+        *,
+        telegram_user_id: int,
+        reply: str,
+    ) -> UserSession | None:
+        session = self.get_session(telegram_user_id)
+
+        if session is None:
+            return None
+
+        self.add_history_message(
+            session=session,
+            role="assistant",
+            content=reply,
+        )
+
+        return session
+
+    def add_history_message(
+        self,
+        *,
+        session: UserSession,
+        role: str,
+        content: str,
+    ) -> None:
+        session.history.append(
+            ConversationMessage(
+                role=role,
+                content=content,
+                created_at=datetime.now(UTC),
+            )
+        )
+
+        if len(session.history) > MAX_HISTORY_MESSAGES:
+            session.history = session.history[-MAX_HISTORY_MESSAGES:]
+
+        session.updated_at = datetime.now(UTC)
 
     def get_session(
         self,
