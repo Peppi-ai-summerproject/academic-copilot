@@ -13,11 +13,11 @@ def log_incoming_message(
 ) -> None:
     telegram_logger.info(
         "Telegram message received | "
-        "user_id=%s | chat_id=%s | username=%s | message=%r",
+        "user_id=%s | chat_id=%s | username=%s | message_length=%s",
         user_id,
         chat_id,
         username,
-        message_text,
+        len(message_text),
     )
 
 
@@ -29,10 +29,10 @@ def log_outgoing_message(
 ) -> None:
     telegram_logger.info(
         "Telegram response sent | "
-        "user_id=%s | chat_id=%s | reply=%r",
+        "user_id=%s | chat_id=%s | reply_length=%s",
         user_id,
         chat_id,
-        reply_text,
+        len(reply_text),
     )
 
 
@@ -43,8 +43,8 @@ def log_telegram_error(
     chat_id: int | None = None,
 ) -> None:
     telegram_logger.exception(
-        "Telegram error | user_id=%s | chat_id=%s | error=%s",
+        "Telegram error | user_id=%s | chat_id=%s | error_type=%s",
         user_id,
         chat_id,
-        error,
+        type(error).__name__,
     )
