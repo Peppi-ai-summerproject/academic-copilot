@@ -38,6 +38,11 @@ class ChatService:
             reply=reply,
         )
 
+        logger.info(
+            "Conversation history size=%s",
+            len(session.history),
+        )
+
         return ChatResponse(reply=reply)
 
 
