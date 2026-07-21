@@ -6,11 +6,12 @@ from app.mcp.tools.health import ping
 
 
 def register_tools(server: FastMCP) -> None:
-    """Register the MCP tools supported by this server.
+    """Register all tools exposed by the Academic Copilot MCP server.
 
-    Add future tool functions here. Tool implementations must remain decoupled
-    from the server and delegate academic work to application services.
+    Tool implementations should remain independent from the MCP server and
+    delegate academic business logic to application services.
     """
+
     server.add_tool(
         ping,
         name="ping",
