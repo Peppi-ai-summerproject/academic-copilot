@@ -1,6 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from app.mcp.tools.health import ping
+from app.mcp.tools.progress import get_progress
 from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
 
@@ -20,6 +21,15 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Retrieve a student profile from the simulated Peppi database "
             "using the student's numeric database ID."
+        ),
+    )
+
+    server.add_tool(
+        get_progress,
+        name="get_progress",
+        description=(
+            "Calculate a student's completed ECTS, compare it with the "
+            "curriculum expectation, and return an academic progress summary."
         ),
     )
 

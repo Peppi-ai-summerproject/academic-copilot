@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from app.mcp.registry import register_tools
 
+
 def test_register_tools_registers_ping() -> None:
     server = FastMCP(name="test-mcp-server")
 
@@ -39,6 +40,7 @@ def test_register_tools_registers_get_student() -> None:
 
     assert "get_student" in tool_names
 
+
 def test_registered_get_student_has_description() -> None:
     server = FastMCP(name="test-mcp-server")
 
@@ -59,6 +61,32 @@ def test_registered_get_student_has_description() -> None:
     )
 
 
+def test_register_tools_registers_get_progress() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "get_progress" in tool_names
+
+
+def test_registered_get_progress_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    progress_tool = next(
+        tool for tool in tools if tool.name == "get_progress"
+    )
+
+    assert progress_tool.description
+    assert "completed ects" in progress_tool.description.lower()
+    assert "curriculum" in progress_tool.description.lower()
+
+
 def test_register_tools_registers_get_study_right() -> None:
     server = FastMCP(name="test-mcp-server")
 
@@ -76,9 +104,9 @@ def test_registered_get_study_right_has_description() -> None:
     register_tools(server)
 
     tools = asyncio.run(server.list_tools())
-    tool = next(
+    study_right_tool = next(
         tool for tool in tools if tool.name == "get_study_right"
     )
 
-    assert tool.description
-    assert "expiration" in tool.description.lower()
+    assert study_right_tool.description
+    assert "expiration" in study_right_tool.description.lower()
