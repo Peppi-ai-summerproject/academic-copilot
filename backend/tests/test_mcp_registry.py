@@ -28,3 +28,34 @@ def test_registered_ping_has_description() -> None:
 
     assert ping_tool.description
     assert ping_tool.description == "Simple health check for the MCP server."
+
+
+def test_register_tools_registers_get_student() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "get_student" in tool_names
+
+
+def test_registered_get_student_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    get_student_tool = next(
+        tool for tool in tools if tool.name == "get_student"
+    )
+
+    assert get_student_tool.description
+    assert (
+        get_student_tool.description
+        == (
+            "Retrieve a student profile from the simulated Peppi database "
+            "using the student's numeric database ID."
+        )
+    )
