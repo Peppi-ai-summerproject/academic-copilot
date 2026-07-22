@@ -6,7 +6,6 @@ from mcp.server.fastmcp import FastMCP
 
 from app.mcp.registry import register_tools
 
-
 def test_register_tools_registers_ping() -> None:
     server = FastMCP(name="test-mcp-server")
 
@@ -40,7 +39,6 @@ def test_register_tools_registers_get_student() -> None:
 
     assert "get_student" in tool_names
 
-
 def test_registered_get_student_has_description() -> None:
     server = FastMCP(name="test-mcp-server")
 
@@ -59,3 +57,28 @@ def test_registered_get_student_has_description() -> None:
             "using the student's numeric database ID."
         )
     )
+
+
+def test_register_tools_registers_get_study_right() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "get_study_right" in tool_names
+
+
+def test_registered_get_study_right_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool = next(
+        tool for tool in tools if tool.name == "get_study_right"
+    )
+
+    assert tool.description
+    assert "expiration" in tool.description.lower()
