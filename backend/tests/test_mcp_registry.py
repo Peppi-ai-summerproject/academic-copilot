@@ -98,6 +98,35 @@ def test_registered_get_curriculum_has_description() -> None:
     assert "expected ects" in curriculum_tool.description.lower()
 
 
+def test_register_tools_registers_get_upcoming_events() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "get_upcoming_events" in tool_names
+
+
+def test_registered_get_upcoming_events_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    events_tool = next(
+        tool for tool in tools
+        if tool.name == "get_upcoming_events"
+    )
+
+    assert events_tool.description
+    assert "upcoming" in events_tool.description.lower()
+    assert "events" in events_tool.description.lower()
+    assert "dates" in events_tool.description.lower()
+
+    
+
 def test_registered_get_progress_has_description() -> None:
     server = FastMCP(name="test-mcp-server")
 
