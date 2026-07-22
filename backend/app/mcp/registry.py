@@ -4,6 +4,7 @@ from app.mcp.tools.health import ping
 from app.mcp.tools.progress import get_progress
 from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
+from app.mcp.tools.curriculum import get_curriculum
 
 
 def register_tools(server: FastMCP) -> None:
@@ -39,5 +40,14 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Retrieve a student's study right status, expiration date, "
             "and whether the study right is expiring soon."
+        ),
+    )
+
+    server.add_tool(
+        get_curriculum,
+        name="get_curriculum",
+        description=(
+            "Retrieve curriculum requirements for a programme, "
+            "including expected ECTS for each semester."
         ),
     )
