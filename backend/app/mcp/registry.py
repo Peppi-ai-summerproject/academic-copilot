@@ -5,6 +5,7 @@ from app.mcp.tools.progress import get_progress
 from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
+from app.mcp.tools.events import get_upcoming_events
 
 
 def register_tools(server: FastMCP) -> None:
@@ -49,5 +50,15 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Retrieve curriculum requirements for a programme, "
             "including expected ECTS for each semester."
+        ),
+    )
+
+
+    server.add_tool(
+        get_upcoming_events,
+        name="get_upcoming_events",
+        description=(
+            "Retrieve upcoming tutoring activities and academic events, "
+            "optionally filtered by start and end dates."
         ),
     )
