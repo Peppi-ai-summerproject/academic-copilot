@@ -1,0 +1,947 @@
+{
+  "version": "1.0",
+  "description": "Benchmark dataset for RAG pipeline testing \u2014 AI Academic Copilot",
+  "issue": "#64",
+  "compatible_with": "Issue #63 evaluation framework",
+  "knowledge_base_sources": [
+    "Tutoring_Calendar_2025_2026.docx",
+    "Academic_Policy_Document.docx"
+  ],
+  "cases": [
+    {
+      "id": "RAG-001",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When does the autumn semester begin?",
+      "expected_answer": "The autumn semester begins on 1 September 2025.",
+      "expected_keywords": [
+        "September",
+        "autumn",
+        "semester",
+        "2025"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "All first-year students must attend the mandatory orientation session.",
+      "notes": "Direct factual question about semester start"
+    },
+    {
+      "id": "RAG-002",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When is the spring semester course registration deadline?",
+      "expected_answer": "The spring semester course registration deadline is 15 December 2025.",
+      "expected_keywords": [
+        "December",
+        "registration",
+        "spring",
+        "deadline",
+        "15"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx",
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Spring semester course registration deadline",
+      "notes": "Direct calendar date question"
+    },
+    {
+      "id": "RAG-003",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When is the graduation application deadline?",
+      "expected_answer": "The graduation application deadline is 1 April 2026.",
+      "expected_keywords": [
+        "April",
+        "graduation",
+        "deadline",
+        "application"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx",
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Graduation application deadline",
+      "notes": "Direct factual deadline question"
+    },
+    {
+      "id": "RAG-004",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When is the study right renewal deadline?",
+      "expected_answer": "The study right renewal application deadline is 1 March 2026.",
+      "expected_keywords": [
+        "March",
+        "renewal",
+        "deadline",
+        "study right"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx",
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "study right renewal deadline",
+      "notes": "Direct deadline question"
+    },
+    {
+      "id": "RAG-005",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What important things happen in October for tutor teachers?",
+      "expected_answer": "In October, tutor teachers must conduct individual check-in meetings with all first-year students and document the meeting notes in the tutoring system.",
+      "expected_keywords": [
+        "October",
+        "check-in",
+        "first-year",
+        "individual",
+        "meetings"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "October is the most important month for first-year student check-ins",
+      "notes": "Paraphrased question requiring semantic understanding of October activities"
+    },
+    {
+      "id": "RAG-006",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What should a tutor do in January at the start of spring semester?",
+      "expected_answer": "In January, tutor teachers should review autumn semester results, update student progress data, schedule spring check-in meetings, and complete the mid-year progress review by January 15th.",
+      "expected_keywords": [
+        "January",
+        "spring",
+        "progress",
+        "review",
+        "check-in"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "January is the start of the spring semester",
+      "notes": "Seasonal activity question requiring synthesis"
+    },
+    {
+      "id": "RAG-007",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When should students register for practical training?",
+      "expected_answer": "Students must register for practical training by 1 November 2025.",
+      "expected_keywords": [
+        "November",
+        "practical training",
+        "registration",
+        "deadline"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx",
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Practical Training registration",
+      "notes": "Direct deadline question"
+    },
+    {
+      "id": "RAG-008",
+      "category": "Academic Calendar",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When must bachelor thesis topics be submitted?",
+      "expected_answer": "Bachelor thesis topics must be submitted by 1 February 2026.",
+      "expected_keywords": [
+        "February",
+        "thesis",
+        "topic",
+        "submission",
+        "deadline"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx",
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Bachelor Thesis topic submission",
+      "notes": "Direct calendar date question"
+    },
+    {
+      "id": "RAG-009",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "What is a study right?",
+      "expected_answer": "A study right is the official permission granted to a student to pursue a degree at the university. Every student must have a valid study right to attend courses, complete examinations, and receive academic credits.",
+      "expected_keywords": [
+        "study right",
+        "permission",
+        "degree",
+        "courses",
+        "credits"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "A study right is the official permission granted to a student to pursue a degree",
+      "notes": "Definition question \u2014 direct factual"
+    },
+    {
+      "id": "RAG-010",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "How long does a study right last?",
+      "expected_answer": "The standard study right duration for a Bachelor's degree is seven years from the date of enrolment.",
+      "expected_keywords": [
+        "seven",
+        "7",
+        "years",
+        "duration",
+        "Bachelor"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "standard study right duration for a Bachelor's degree is seven (7) years",
+      "notes": "Direct factual duration question"
+    },
+    {
+      "id": "RAG-011",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What happens to a student whose study right has expired?",
+      "expected_answer": "If a study right expires, the student loses the right to attend courses and examinations, cannot receive new academic credits, but previously earned credits remain on their transcript. The student may reapply through normal admissions.",
+      "expected_keywords": [
+        "expires",
+        "cannot",
+        "attend",
+        "credits",
+        "transcript",
+        "reapply"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "If a student's study right expires before they have completed their degree",
+      "notes": "Consequence question requiring synthesis"
+    },
+    {
+      "id": "RAG-012",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "How many times can a student extend their study right?",
+      "expected_answer": "A student may apply for a maximum of two extensions to their study right, each for a maximum of one academic year.",
+      "expected_keywords": [
+        "two",
+        "2",
+        "extensions",
+        "maximum",
+        "one year"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Maximum of two (2) extensions may be granted per student",
+      "notes": "Numerical limit question"
+    },
+    {
+      "id": "RAG-013",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What does a student need to do to get a study right extension?",
+      "expected_answer": "A student must contact their tutor teacher at least three months before their study right expires and provide a credible study plan showing how they will complete remaining credits.",
+      "expected_keywords": [
+        "three months",
+        "tutor",
+        "contact",
+        "study plan",
+        "extension"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "contact their tutor teacher at least three months before",
+      "notes": "Procedure question"
+    },
+    {
+      "id": "RAG-014",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "What does EXPIRES_SOON study right status mean?",
+      "expected_answer": "EXPIRES_SOON means the student's study right expires within 12 months. The student must contact their tutor teacher immediately.",
+      "expected_keywords": [
+        "EXPIRES_SOON",
+        "12 months",
+        "contact",
+        "tutor"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "EXPIRES_SOON - expires within 12 months",
+      "notes": "Status definition question"
+    },
+    {
+      "id": "RAG-015",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "hard",
+      "question": "A student has been extended twice and their right expires in 3 months. What are their options?",
+      "expected_answer": "Since the student has already received the maximum two extensions, they cannot apply for a third. They should contact their tutor teacher urgently and may need to consider reapplying for admission if they cannot graduate in time.",
+      "expected_keywords": [
+        "two",
+        "maximum",
+        "cannot",
+        "third",
+        "reapply"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Students who have already received two extensions cannot apply for a third",
+      "notes": "Hard case requiring combining two pieces of information"
+    },
+    {
+      "id": "RAG-016",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "How many ECTS credits are needed to graduate?",
+      "expected_answer": "A Bachelor's degree requires 240 ECTS credits.",
+      "expected_keywords": [
+        "240",
+        "ECTS",
+        "graduate",
+        "degree"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Bachelor's degree requires 240 ECTS credits",
+      "notes": "Direct numerical question"
+    },
+    {
+      "id": "RAG-017",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "How many ECTS should a student complete per year?",
+      "expected_answer": "Students are expected to complete 60 ECTS credits per academic year, which is 30 ECTS per semester.",
+      "expected_keywords": [
+        "60",
+        "year",
+        "30",
+        "semester",
+        "expected"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "expected to complete 60 ECTS credits per academic year",
+      "notes": "Direct pace requirement question"
+    },
+    {
+      "id": "RAG-018",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "How many credits should a student have by the end of semester 4?",
+      "expected_answer": "By the end of semester 4, a student should have completed 120 ECTS credits.",
+      "expected_keywords": [
+        "120",
+        "semester 4",
+        "fourth",
+        "expected"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Semester 4 - 120 ECTS",
+      "notes": "Specific semester milestone question"
+    },
+    {
+      "id": "RAG-019",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "How many ECTS credits does practical training give?",
+      "expected_answer": "Practical training is worth 30 ECTS credits.",
+      "expected_keywords": [
+        "30",
+        "practical training",
+        "credits",
+        "ECTS"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Practical Training - 30 credits",
+      "notes": "Direct credit value question"
+    },
+    {
+      "id": "RAG-020",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What are the different course categories in the degree programme?",
+      "expected_answer": "The degree programme consists of Basic and Professional Studies (180 ECTS), Practical Training (30 ECTS), Bachelor's Thesis (15 ECTS), and Free choice/External studies (15 ECTS).",
+      "expected_keywords": [
+        "Basic and Professional Studies",
+        "Practical Training",
+        "Bachelor's Thesis",
+        "External studies"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "course categories",
+      "notes": "Category overview question"
+    },
+    {
+      "id": "RAG-021",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "How many credits are required before a student can start practical training?",
+      "expected_answer": "Students must have completed at least 90 ECTS credits before starting practical training.",
+      "expected_keywords": [
+        "90",
+        "prerequisite",
+        "practical training",
+        "before"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "completed at least 90 ECTS before starting practical training",
+      "notes": "Prerequisite requirement question"
+    },
+    {
+      "id": "RAG-022",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What is the minimum number of credits needed before writing the thesis?",
+      "expected_answer": "Students must have completed at least 150 ECTS credits before starting their Bachelor's Thesis.",
+      "expected_keywords": [
+        "150",
+        "thesis",
+        "before",
+        "Bachelor"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "completed at least 150 ECTS before starting the thesis",
+      "notes": "Thesis prerequisite question"
+    },
+    {
+      "id": "RAG-023",
+      "category": "Graduation",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "How many credits is the Bachelor's thesis worth?",
+      "expected_answer": "The Bachelor's Thesis is worth 15 ECTS credits.",
+      "expected_keywords": [
+        "15",
+        "thesis",
+        "ECTS",
+        "Bachelor"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Bachelor's Thesis - 15 credits",
+      "notes": "Direct credit value question"
+    },
+    {
+      "id": "RAG-024",
+      "category": "Graduation",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What does a student need to complete to graduate?",
+      "expected_answer": "To graduate, a student must complete all 240 ECTS credits including Basic and Professional Studies, Practical Training, and a Bachelor's Thesis, and submit a graduation application before the April 1st deadline.",
+      "expected_keywords": [
+        "240",
+        "thesis",
+        "practical training",
+        "application",
+        "April"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Completion of all required course categories",
+      "notes": "Comprehensive graduation requirements question"
+    },
+    {
+      "id": "RAG-025",
+      "category": "Graduation",
+      "question_type": "answerable",
+      "difficulty": "hard",
+      "question": "A student has 220 ECTS and is finishing their thesis. What steps remain before graduation?",
+      "expected_answer": "The student must complete the remaining 20 ECTS, finish and submit the Bachelor's Thesis, ensure their study right is valid, and submit a graduation application by April 1st.",
+      "expected_keywords": [
+        "240",
+        "thesis",
+        "graduation application",
+        "April",
+        "study right"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "graduation application",
+      "notes": "Complex scenario requiring combining multiple facts"
+    },
+    {
+      "id": "RAG-026",
+      "category": "Tutoring and Student Guidance",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "When should first-year check-in discussions happen?",
+      "expected_answer": "First-year check-in discussions should happen during October. Every first-year student must have an individual meeting with their tutor teacher during October.",
+      "expected_keywords": [
+        "October",
+        "check-in",
+        "first-year",
+        "individual"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "October is the most important month for first-year student check-ins",
+      "notes": "Direct timing question"
+    },
+    {
+      "id": "RAG-027",
+      "category": "Tutoring and Student Guidance",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What topics should a tutor cover during an October first-year meeting?",
+      "expected_answer": "Topics should include how the student is finding their studies, course attendance, understanding of ECTS credits, study right expiry date, any personal challenges, and what support the student needs.",
+      "expected_keywords": [
+        "ECTS",
+        "study right",
+        "courses",
+        "attendance",
+        "challenges",
+        "support"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "What to Discuss in October Meetings",
+      "notes": "Content of meeting question"
+    },
+    {
+      "id": "RAG-028",
+      "category": "Tutoring and Student Guidance",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "When should a tutor escalate a student case to student services?",
+      "expected_answer": "A tutor should escalate when a student has 0 credits after first semester, has not responded to 3 contact attempts, has a study right expiring in less than 6 months, is more than 40 ECTS behind, has failed the same course 3 times, or shows signs of personal crisis.",
+      "expected_keywords": [
+        "escalate",
+        "student services",
+        "0 credits",
+        "not responded",
+        "40 ECTS"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "When to Escalate a Student Case",
+      "notes": "Escalation criteria question"
+    },
+    {
+      "id": "RAG-029",
+      "category": "Tutoring and Student Guidance",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "How long does a tutor have to document a meeting after it happens?",
+      "expected_answer": "Meeting documentation must be stored in the tutoring system within 48 hours of each meeting.",
+      "expected_keywords": [
+        "48 hours",
+        "documentation",
+        "meeting",
+        "tutoring system"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "Documentation must be stored in the tutoring system within 48 hours",
+      "notes": "Administrative procedure question"
+    },
+    {
+      "id": "RAG-030",
+      "category": "Tutoring and Student Guidance",
+      "question_type": "answerable",
+      "difficulty": "hard",
+      "question": "I have a student who hasn't replied to my 3 emails and has only 5 credits after 2 semesters. What should I do?",
+      "expected_answer": "This student meets two escalation criteria: no response after 3 contact attempts and significantly behind on ECTS progress. The tutor should immediately escalate the case to student services.",
+      "expected_keywords": [
+        "escalate",
+        "student services",
+        "not responded",
+        "behind",
+        "credits"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "has not responded to 3 contact attempts",
+      "notes": "Complex scenario matching escalation criteria"
+    },
+    {
+      "id": "RAG-031",
+      "category": "Academic Policies",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "What is plagiarism and what are the consequences?",
+      "expected_answer": "Plagiarism means presenting another person's work as your own without proper attribution. Consequences can include failure of the course, suspension, or expulsion from the university.",
+      "expected_keywords": [
+        "plagiarism",
+        "failure",
+        "suspension",
+        "expulsion",
+        "attribution"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Plagiarism: presenting another person's work as your own",
+      "notes": "Direct policy definition question"
+    },
+    {
+      "id": "RAG-032",
+      "category": "Academic Policies",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What happens if a student misses more than 25% of contact teaching?",
+      "expected_answer": "Students who miss more than 25% of contact hours may be required to complete additional work to compensate for the absences.",
+      "expected_keywords": [
+        "25%",
+        "contact hours",
+        "additional work",
+        "absence"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "miss more than 25% of contact hours",
+      "notes": "Attendance policy question"
+    },
+    {
+      "id": "RAG-033",
+      "category": "Academic Policies",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "What is the grading scale used at the university?",
+      "expected_answer": "Courses are graded on a scale of 1 to 5, where 5 is Excellent, 4 is Very Good, 3 is Good, 2 is Satisfactory, and 1 is Sufficient. Non-graded courses use PASS or FAIL.",
+      "expected_keywords": [
+        "1",
+        "5",
+        "PASS",
+        "FAIL",
+        "grade",
+        "Excellent"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "grading scale",
+      "notes": "Direct grading policy question"
+    },
+    {
+      "id": "RAG-034",
+      "category": "Academic Policies",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What academic integrity violations are there besides plagiarism?",
+      "expected_answer": "Besides plagiarism, academic integrity violations include cheating (using unauthorized materials in exams), fabrication (inventing or falsifying data), and collusion (working with others on individual assessments).",
+      "expected_keywords": [
+        "cheating",
+        "fabrication",
+        "collusion",
+        "integrity",
+        "violations"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "academic integrity policy",
+      "notes": "Comprehensive policy knowledge question"
+    },
+    {
+      "id": "RAG-035",
+      "category": "Student Services",
+      "question_type": "answerable",
+      "difficulty": "easy",
+      "question": "What support services are available for students with personal difficulties?",
+      "expected_answer": "Support services include counselling for mental health, financial guidance, disability support for learning difficulties, and international student support.",
+      "expected_keywords": [
+        "counselling",
+        "mental health",
+        "financial",
+        "disability",
+        "support"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "welfare support for students experiencing personal difficulties",
+      "notes": "Student services overview question"
+    },
+    {
+      "id": "RAG-036",
+      "category": "Student Services",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "Where should I direct a student who needs help finding a practical training placement?",
+      "expected_answer": "Students should contact Career Services for help finding practical training placements. They should reach out at least three months before their intended start date.",
+      "expected_keywords": [
+        "Career Services",
+        "practical training",
+        "placement",
+        "three months"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx",
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "Career Services office provides support for finding practical training placements",
+      "notes": "Referral question"
+    },
+    {
+      "id": "RAG-037",
+      "category": "Student Services",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "Which office handles questions about studying abroad or exchange programmes?",
+      "expected_answer": "The International Office handles exchange student questions and provides international student support.",
+      "expected_keywords": [
+        "International Office",
+        "exchange",
+        "international",
+        "abroad"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "International Office - Exchange student questions",
+      "notes": "Service referral question"
+    },
+    {
+      "id": "RAG-038",
+      "category": "Registration",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "What should a tutor remind students about in December?",
+      "expected_answer": "In December, tutors should remind students about the spring semester course registration deadline of December 15th, and conduct urgent meetings with at-risk students.",
+      "expected_keywords": [
+        "December",
+        "spring",
+        "registration",
+        "15",
+        "remind"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "Spring Registration Deadline: December 15th",
+      "notes": "Seasonal reminder question"
+    },
+    {
+      "id": "RAG-039",
+      "category": "Registration",
+      "question_type": "answerable",
+      "difficulty": "hard",
+      "question": "A student missed the spring registration deadline. What are the consequences?",
+      "expected_answer": "Students who fail to register by the deadline may lose their place in courses for the spring semester. The tutor should help the student contact the relevant administration immediately.",
+      "expected_keywords": [
+        "deadline",
+        "lose",
+        "place",
+        "courses",
+        "spring"
+      ],
+      "expected_sources": [
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "fail to register may lose their place in courses",
+      "notes": "Consequence of missed deadline"
+    },
+    {
+      "id": "RAG-040",
+      "category": "Course Completion",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "How is practical training graded?",
+      "expected_answer": "Practical training is graded as PASS or FAIL, not on the numeric 1-5 scale.",
+      "expected_keywords": [
+        "PASS",
+        "FAIL",
+        "practical training",
+        "graded"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Practical training is graded as PASS or FAIL",
+      "notes": "Grading format question"
+    },
+    {
+      "id": "RAG-041",
+      "category": "Course Completion",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "How long must practical training last?",
+      "expected_answer": "Practical training must last a minimum of 5 months full-time or the equivalent part-time.",
+      "expected_keywords": [
+        "5 months",
+        "minimum",
+        "full-time",
+        "part-time",
+        "duration"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Minimum duration: 5 months full-time",
+      "notes": "Duration requirement question"
+    },
+    {
+      "id": "RAG-042",
+      "category": "Student Progress",
+      "question_type": "unanswerable",
+      "difficulty": "hard",
+      "question": "What is the exact GPA cutoff for academic probation?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "GPA/academic probation not mentioned in source documents"
+    },
+    {
+      "id": "RAG-043",
+      "category": "Leave of Absence",
+      "question_type": "unanswerable",
+      "difficulty": "medium",
+      "question": "How do I apply for a leave of absence?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "Leave of absence procedure not covered in current documents"
+    },
+    {
+      "id": "RAG-044",
+      "category": "Exchange Studies",
+      "question_type": "unanswerable",
+      "difficulty": "medium",
+      "question": "Which partner universities are available for exchange studies?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "Partner universities not listed in source documents"
+    },
+    {
+      "id": "RAG-045",
+      "category": "Academic Policies",
+      "question_type": "unanswerable",
+      "difficulty": "hard",
+      "question": "What is the university's policy on retaking failed exams and how many times can a student retry?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "Exam retake policy not specified in source documents"
+    },
+    {
+      "id": "RAG-046",
+      "category": "Student Services",
+      "question_type": "unanswerable",
+      "difficulty": "medium",
+      "question": "What is the phone number for the student welfare office?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "Specific contact numbers not provided in documents"
+    },
+    {
+      "id": "RAG-047",
+      "category": "Curriculum",
+      "question_type": "unanswerable",
+      "difficulty": "hard",
+      "question": "Can a student switch from Business IT to Data Engineering mid-degree and how would their credits transfer?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "Programme transfer procedure not documented"
+    },
+    {
+      "id": "RAG-048",
+      "category": "Academic Calendar",
+      "question_type": "unanswerable",
+      "difficulty": "medium",
+      "question": "What are the exact dates of the Christmas holiday break?",
+      "expected_answer": "This information is not available in the current knowledge base.",
+      "expected_keywords": [],
+      "expected_sources": [],
+      "expected_relevant_text": "",
+      "notes": "Holiday break dates not specified in documents"
+    },
+    {
+      "id": "RAG-049",
+      "category": "Study Rights",
+      "question_type": "answerable",
+      "difficulty": "medium",
+      "question": "My student's enrollment permission is about to run out. What should I do?",
+      "expected_answer": "If the student's study right is expiring, the tutor should contact the student immediately and guide them to apply for an extension at least three months before expiry. The student must provide a credible study plan.",
+      "expected_keywords": [
+        "study right",
+        "extension",
+        "three months",
+        "study plan"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx",
+        "Tutoring_Calendar_2025_2026.docx"
+      ],
+      "expected_relevant_text": "contact their tutor teacher at least three months before",
+      "notes": "Paraphrased using synonym 'enrollment permission'"
+    },
+    {
+      "id": "RAG-050",
+      "category": "ECTS and Credit Requirements",
+      "question_type": "answerable",
+      "difficulty": "hard",
+      "question": "A 3rd year student has only completed 60 credits. How far behind are they?",
+      "expected_answer": "By semester 6 (3rd year end), a student should have 180 ECTS. With only 60 credits they are 120 ECTS behind schedule, which is a critical situation requiring immediate tutor intervention.",
+      "expected_keywords": [
+        "180",
+        "60",
+        "behind",
+        "third year",
+        "semester 6"
+      ],
+      "expected_sources": [
+        "Academic_Policy_Document.docx"
+      ],
+      "expected_relevant_text": "Semester 6 - 180 ECTS",
+      "notes": "Calculation question requiring combining curriculum milestones"
+    }
+  ]
+}
