@@ -1,0 +1,277 @@
+{
+  "version": "1.0",
+  "description": "Evaluation dataset for AI Academic Copilot RAG pipeline",
+  "queries": [
+    {
+      "id": "q01",
+      "question": "What is a study right?",
+      "category": "study_rights",
+      "expected_keywords": [
+        "study right",
+        "permission",
+        "enrolled",
+        "degree"
+      ]
+    },
+    {
+      "id": "q02",
+      "question": "How long does a study right last?",
+      "category": "study_rights",
+      "expected_keywords": [
+        "seven",
+        "7",
+        "years",
+        "duration"
+      ]
+    },
+    {
+      "id": "q03",
+      "question": "What happens if my study right expires?",
+      "category": "study_rights",
+      "expected_keywords": [
+        "expires",
+        "cannot",
+        "attend",
+        "courses"
+      ]
+    },
+    {
+      "id": "q04",
+      "question": "How can I extend my study right?",
+      "category": "study_rights",
+      "expected_keywords": [
+        "extension",
+        "apply",
+        "application",
+        "extend"
+      ]
+    },
+    {
+      "id": "q05",
+      "question": "What does EXPIRES_SOON status mean?",
+      "category": "study_rights",
+      "expected_keywords": [
+        "expires",
+        "12 months",
+        "contact",
+        "tutor"
+      ]
+    },
+    {
+      "id": "q06",
+      "question": "How many ECTS credits are required to graduate?",
+      "category": "ects_requirements",
+      "expected_keywords": [
+        "240",
+        "credits",
+        "ECTS",
+        "degree"
+      ]
+    },
+    {
+      "id": "q07",
+      "question": "How many ECTS should a second-year student have?",
+      "category": "ects_requirements",
+      "expected_keywords": [
+        "60",
+        "semester",
+        "expected",
+        "progress"
+      ]
+    },
+    {
+      "id": "q08",
+      "question": "What is the expected ECTS after semester 4?",
+      "category": "ects_requirements",
+      "expected_keywords": [
+        "120",
+        "semester 4",
+        "expected"
+      ]
+    },
+    {
+      "id": "q09",
+      "question": "How many ECTS does practical training give?",
+      "category": "ects_requirements",
+      "expected_keywords": [
+        "30",
+        "practical training",
+        "credits"
+      ]
+    },
+    {
+      "id": "q10",
+      "question": "How many credits is the Bachelor thesis worth?",
+      "category": "graduation",
+      "expected_keywords": [
+        "15",
+        "thesis",
+        "credits",
+        "bachelor"
+      ]
+    },
+    {
+      "id": "q11",
+      "question": "When is the graduation application deadline?",
+      "category": "graduation",
+      "expected_keywords": [
+        "April",
+        "graduation",
+        "deadline",
+        "application"
+      ]
+    },
+    {
+      "id": "q12",
+      "question": "What are the requirements for graduating?",
+      "category": "graduation",
+      "expected_keywords": [
+        "240",
+        "thesis",
+        "credits",
+        "complete"
+      ]
+    },
+    {
+      "id": "q13",
+      "question": "When is the spring semester registration deadline?",
+      "category": "academic_calendar",
+      "expected_keywords": [
+        "December",
+        "registration",
+        "spring",
+        "deadline"
+      ]
+    },
+    {
+      "id": "q14",
+      "question": "When do first-year student orientations happen?",
+      "category": "academic_calendar",
+      "expected_keywords": [
+        "September",
+        "orientation",
+        "first-year"
+      ]
+    },
+    {
+      "id": "q15",
+      "question": "When is the study right renewal deadline?",
+      "category": "academic_calendar",
+      "expected_keywords": [
+        "March",
+        "renewal",
+        "deadline",
+        "extension"
+      ]
+    },
+    {
+      "id": "q16",
+      "question": "When should I register for practical training?",
+      "category": "academic_calendar",
+      "expected_keywords": [
+        "November",
+        "practical training",
+        "registration"
+      ]
+    },
+    {
+      "id": "q17",
+      "question": "When are first-year check-in discussions?",
+      "category": "tutoring_meetings",
+      "expected_keywords": [
+        "October",
+        "check-in",
+        "first-year",
+        "meeting"
+      ]
+    },
+    {
+      "id": "q18",
+      "question": "What happens in a tutor check-in meeting?",
+      "category": "tutoring_meetings",
+      "expected_keywords": [
+        "meeting",
+        "progress",
+        "discuss",
+        "study"
+      ]
+    },
+    {
+      "id": "q19",
+      "question": "When should I contact my tutor about study rights?",
+      "category": "tutoring_meetings",
+      "expected_keywords": [
+        "three months",
+        "expires",
+        "tutor",
+        "contact"
+      ]
+    },
+    {
+      "id": "q20",
+      "question": "What is plagiarism and what are the consequences?",
+      "category": "academic_policies",
+      "expected_keywords": [
+        "plagiarism",
+        "violation",
+        "failure",
+        "suspension"
+      ]
+    },
+    {
+      "id": "q21",
+      "question": "What support services are available for students?",
+      "category": "student_support",
+      "expected_keywords": [
+        "welfare",
+        "counselling",
+        "support",
+        "services"
+      ]
+    },
+    {
+      "id": "q22",
+      "question": "What are the grading rules at the university?",
+      "category": "academic_policies",
+      "expected_keywords": [
+        "grade",
+        "1",
+        "5",
+        "pass",
+        "fail"
+      ]
+    },
+    {
+      "id": "q23",
+      "question": "How many credits must I have before practical training?",
+      "category": "ects_requirements",
+      "expected_keywords": [
+        "90",
+        "prerequisite",
+        "practical training"
+      ]
+    },
+    {
+      "id": "q24",
+      "question": "What is the mid-year progress review?",
+      "category": "tutoring_meetings",
+      "expected_keywords": [
+        "January",
+        "progress",
+        "review",
+        "mid-year"
+      ]
+    },
+    {
+      "id": "q25",
+      "question": "What happens if a student misses too many classes?",
+      "category": "academic_policies",
+      "expected_keywords": [
+        "absence",
+        "25%",
+        "contact",
+        "additional"
+      ]
+    }
+  ]
+}
