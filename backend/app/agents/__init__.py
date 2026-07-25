@@ -1,4 +1,5 @@
 from app.agents.base import AcademicAgent, AgentResult
+from app.agents.calendar_agent import CalendarAgent
 from app.agents.registry import AgentRegistry
 from app.agents.reducers import (
     append_completed_agents,
@@ -14,6 +15,7 @@ __all__ = [
     "AcademicAgent",
     "AgentResult",
     "AgentRegistry",
+    "CalendarAgent",
     "AgentRoute",
     "AgentState",
     "AgentStatus",
