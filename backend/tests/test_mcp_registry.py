@@ -24,10 +24,15 @@ def test_registered_ping_has_description() -> None:
     register_tools(server)
 
     tools = asyncio.run(server.list_tools())
-    ping_tool = next(tool for tool in tools if tool.name == "ping")
+    ping_tool = next(
+        tool for tool in tools
+        if tool.name == "ping"
+    )
 
     assert ping_tool.description
-    assert ping_tool.description == "Simple health check for the MCP server."
+    assert ping_tool.description == (
+        "Simple health check for the MCP server."
+    )
 
 
 def test_register_tools_registers_get_student() -> None:
@@ -48,16 +53,14 @@ def test_registered_get_student_has_description() -> None:
 
     tools = asyncio.run(server.list_tools())
     get_student_tool = next(
-        tool for tool in tools if tool.name == "get_student"
+        tool for tool in tools
+        if tool.name == "get_student"
     )
 
     assert get_student_tool.description
-    assert (
-        get_student_tool.description
-        == (
-            "Retrieve a student profile from the simulated Peppi database "
-            "using the student's numeric database ID."
-        )
+    assert get_student_tool.description == (
+        "Retrieve a student profile from the simulated Peppi database "
+        "using the student's numeric database ID."
     )
 
 
@@ -70,6 +73,48 @@ def test_register_tools_registers_get_progress() -> None:
     tool_names = {tool.name for tool in tools}
 
     assert "get_progress" in tool_names
+
+
+def test_registered_get_progress_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    progress_tool = next(
+        tool for tool in tools
+        if tool.name == "get_progress"
+    )
+
+    assert progress_tool.description
+    assert "completed ects" in progress_tool.description.lower()
+    assert "curriculum" in progress_tool.description.lower()
+
+
+def test_register_tools_registers_get_study_right() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "get_study_right" in tool_names
+
+
+def test_registered_get_study_right_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    study_right_tool = next(
+        tool for tool in tools
+        if tool.name == "get_study_right"
+    )
+
+    assert study_right_tool.description
+    assert "expiration" in study_right_tool.description.lower()
 
 
 def test_register_tools_registers_get_curriculum() -> None:
@@ -90,7 +135,8 @@ def test_registered_get_curriculum_has_description() -> None:
 
     tools = asyncio.run(server.list_tools())
     curriculum_tool = next(
-        tool for tool in tools if tool.name == "get_curriculum"
+        tool for tool in tools
+        if tool.name == "get_curriculum"
     )
 
     assert curriculum_tool.description
@@ -125,24 +171,8 @@ def test_registered_get_upcoming_events_has_description() -> None:
     assert "events" in events_tool.description.lower()
     assert "dates" in events_tool.description.lower()
 
-    
 
-def test_registered_get_progress_has_description() -> None:
-    server = FastMCP(name="test-mcp-server")
-
-    register_tools(server)
-
-    tools = asyncio.run(server.list_tools())
-    progress_tool = next(
-        tool for tool in tools if tool.name == "get_progress"
-    )
-
-    assert progress_tool.description
-    assert "completed ects" in progress_tool.description.lower()
-    assert "curriculum" in progress_tool.description.lower()
-
-
-def test_register_tools_registers_get_study_right() -> None:
+def test_register_tools_registers_find_students_at_risk() -> None:
     server = FastMCP(name="test-mcp-server")
 
     register_tools(server)
@@ -150,18 +180,21 @@ def test_register_tools_registers_get_study_right() -> None:
     tools = asyncio.run(server.list_tools())
     tool_names = {tool.name for tool in tools}
 
-    assert "get_study_right" in tool_names
+    assert "find_students_at_risk" in tool_names
 
 
-def test_registered_get_study_right_has_description() -> None:
+def test_registered_find_students_at_risk_has_description() -> None:
     server = FastMCP(name="test-mcp-server")
 
     register_tools(server)
 
     tools = asyncio.run(server.list_tools())
-    study_right_tool = next(
-        tool for tool in tools if tool.name == "get_study_right"
+    risk_tool = next(
+        tool for tool in tools
+        if tool.name == "find_students_at_risk"
     )
 
-    assert study_right_tool.description
-    assert "expiration" in study_right_tool.description.lower()
+    assert risk_tool.description
+    assert "academic risk" in risk_tool.description.lower()
+    assert "risk levels" in risk_tool.description.lower()
+    assert "explanations" in risk_tool.description.lower()

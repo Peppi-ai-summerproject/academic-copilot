@@ -6,10 +6,21 @@ from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
+from app.mcp.tools.risk import find_students_at_risk
+
 
 
 def register_tools(server: FastMCP) -> None:
     """Register all available MCP tools."""
+
+    server.add_tool(
+        find_students_at_risk,
+        name="find_students_at_risk",
+        description=(
+            "Identify students at academic risk based on ECTS progress "
+            "and study right status, including risk levels and explanations."
+        ),
+    )
 
     server.add_tool(
         ping,
