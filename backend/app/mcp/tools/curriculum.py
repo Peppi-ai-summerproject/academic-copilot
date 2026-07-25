@@ -2,7 +2,6 @@ from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db.database import SessionLocal
 from app.repositories.curriculum_repository import CurriculumRepository
 from app.services.curriculum_service import CurriculumService
 
@@ -11,6 +10,8 @@ def get_curriculum(programme: str) -> dict[str, Any]:
     """
     Retrieve curriculum information for a programme.
     """
+
+    from app.db.database import SessionLocal
 
     db = SessionLocal()
 

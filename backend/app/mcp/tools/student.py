@@ -1,6 +1,5 @@
 from typing import Any
 
-from app.db.database import SessionLocal
 from app.repositories.student_repository import StudentRepository
 from app.services.student_service import StudentService
 
@@ -16,6 +15,8 @@ def get_student(student_id: int) -> dict[str, Any]:
         A structured response containing either the student profile
         or an error describing why the student could not be returned.
     """
+
+    from app.db.database import SessionLocal
 
     database_session = SessionLocal()
 
