@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.mcp.tools.events import get_upcoming_events
 
 
-@patch("app.mcp.tools.events.SessionLocal")
+@patch("app.db.database.SessionLocal")
 @patch("app.mcp.tools.events.EventRepository")
 @patch("app.mcp.tools.events.EventService")
 def test_get_upcoming_events_success(
@@ -46,7 +46,7 @@ def test_get_upcoming_events_success(
     session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.events.SessionLocal")
+@patch("app.db.database.SessionLocal")
 @patch("app.mcp.tools.events.EventRepository")
 @patch("app.mcp.tools.events.EventService")
 def test_get_upcoming_events_returns_validation_error(
@@ -78,7 +78,7 @@ def test_get_upcoming_events_returns_validation_error(
     session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.events.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_upcoming_events_database_error(
     mock_session_local,
 ) -> None:

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("TELEGRAM_WEBHOOK_SECRET", "test-secret")
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 
 from mcp.server.fastmcp import FastMCP
 
@@ -70,6 +75,30 @@ def test_register_tools_registers_get_progress() -> None:
     tool_names = {tool.name for tool in tools}
 
     assert "get_progress" in tool_names
+
+
+def test_register_tools_registers_generate_report() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "generate_report" in tool_names
+
+
+def test_registered_generate_report_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    report_tool = next(tool for tool in tools if tool.name == "generate_report")
+
+    assert report_tool.description
+    assert "academic report" in report_tool.description.lower()
+    assert "student" in report_tool.description.lower()
 
 
 def test_register_tools_registers_get_curriculum() -> None:
