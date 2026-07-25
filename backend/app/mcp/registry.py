@@ -7,6 +7,7 @@ from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
 from app.mcp.tools.search_students import search_students
+from app.mcp.tools.student_dashboard import get_student_dashboard
 
 
 def register_tools(server: FastMCP) -> None:
@@ -70,6 +71,16 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Search student profiles using partial identity information "
             "and optional academic filters."
+        ),
+    )
+
+    server.add_tool(
+        get_student_dashboard,
+        name="get_student_dashboard",
+        description=(
+            "Return a complete student overview including profile, academic "
+            "progress, study right status, risk information, and upcoming "
+            "academic or tutor actions."
         ),
     )
 
