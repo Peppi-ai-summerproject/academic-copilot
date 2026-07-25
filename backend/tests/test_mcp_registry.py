@@ -165,3 +165,30 @@ def test_registered_get_study_right_has_description() -> None:
 
     assert study_right_tool.description
     assert "expiration" in study_right_tool.description.lower()
+
+
+def test_register_tools_registers_search_students() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "search_students" in tool_names
+
+
+def test_registered_search_students_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    search_tool = next(
+        tool for tool in tools if tool.name == "search_students"
+    )
+
+    assert search_tool.description
+    assert "search" in search_tool.description.lower()
+    assert "student" in search_tool.description.lower()
+

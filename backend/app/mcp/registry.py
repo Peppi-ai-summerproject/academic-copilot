@@ -6,6 +6,7 @@ from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
+from app.mcp.tools.search_students import search_students
 
 
 def register_tools(server: FastMCP) -> None:
@@ -62,3 +63,13 @@ def register_tools(server: FastMCP) -> None:
             "optionally filtered by start and end dates."
         ),
     )
+
+    server.add_tool(
+        search_students,
+        name="search_students",
+        description=(
+            "Search student profiles using partial identity information "
+            "and optional academic filters."
+        ),
+    )
+
