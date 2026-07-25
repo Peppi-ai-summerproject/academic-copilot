@@ -192,3 +192,29 @@ def test_registered_search_students_has_description() -> None:
     assert "search" in search_tool.description.lower()
     assert "student" in search_tool.description.lower()
 
+
+def test_register_tools_registers_get_student_dashboard() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    tool_names = {tool.name for tool in tools}
+
+    assert "get_student_dashboard" in tool_names
+
+
+def test_registered_get_student_dashboard_has_description() -> None:
+    server = FastMCP(name="test-mcp-server")
+
+    register_tools(server)
+
+    tools = asyncio.run(server.list_tools())
+    dashboard_tool = next(
+        tool for tool in tools if tool.name == "get_student_dashboard"
+    )
+
+    assert dashboard_tool.description
+    assert "student" in dashboard_tool.description.lower()
+    assert "profile" in dashboard_tool.description.lower() or            "overview" in dashboard_tool.description.lower()
+
