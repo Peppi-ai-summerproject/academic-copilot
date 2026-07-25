@@ -1,0 +1,295 @@
+{
+  "generated_at": "2026-07-25T18:46:59.986968+00:00",
+  "summary": {
+    "total_queries": 25,
+    "successful_retrievals": 25,
+    "failed_retrievals": 0,
+    "success_rate": 1.0,
+    "top_1_accuracy": 1.0,
+    "top_3_accuracy": 1.0,
+    "top_5_accuracy": 1.0,
+    "average_similarity": 0.791,
+    "average_keyword_match_rate": 0.94
+  },
+  "failure_analysis": {},
+  "recommendations": [
+    "Retrieval performance is good. Consider adding more diverse documents to improve coverage."
+  ],
+  "results": [
+    {
+      "id": "q01",
+      "question": "What is a study right?",
+      "category": "study_rights",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.737,
+      "keyword_matches": 3,
+      "keyword_match_rate": 0.75,
+      "failure_reasons": []
+    },
+    {
+      "id": "q02",
+      "question": "How long does a study right last?",
+      "category": "study_rights",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.769,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q03",
+      "question": "What happens if my study right expires?",
+      "category": "study_rights",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.826,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q04",
+      "question": "How can I extend my study right?",
+      "category": "study_rights",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.763,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q05",
+      "question": "What does EXPIRES_SOON status mean?",
+      "category": "study_rights",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.676,
+      "keyword_matches": 3,
+      "keyword_match_rate": 0.75,
+      "failure_reasons": []
+    },
+    {
+      "id": "q06",
+      "question": "How many ECTS credits are required to graduate?",
+      "category": "ects_requirements",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.852,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q07",
+      "question": "How many ECTS should a second-year student have?",
+      "category": "ects_requirements",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.816,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q08",
+      "question": "What is the expected ECTS after semester 4?",
+      "category": "ects_requirements",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.828,
+      "keyword_matches": 1,
+      "keyword_match_rate": 0.333,
+      "failure_reasons": []
+    },
+    {
+      "id": "q09",
+      "question": "How many ECTS does practical training give?",
+      "category": "ects_requirements",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.813,
+      "keyword_matches": 3,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q10",
+      "question": "How many credits is the Bachelor thesis worth?",
+      "category": "graduation",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.837,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q11",
+      "question": "When is the graduation application deadline?",
+      "category": "graduation",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.784,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q12",
+      "question": "What are the requirements for graduating?",
+      "category": "graduation",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.802,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q13",
+      "question": "When is the spring semester registration deadline?",
+      "category": "academic_calendar",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.779,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q14",
+      "question": "When do first-year student orientations happen?",
+      "category": "academic_calendar",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.772,
+      "keyword_matches": 3,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q15",
+      "question": "When is the study right renewal deadline?",
+      "category": "academic_calendar",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.78,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q16",
+      "question": "When should I register for practical training?",
+      "category": "academic_calendar",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.78,
+      "keyword_matches": 3,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q17",
+      "question": "When are first-year check-in discussions?",
+      "category": "tutoring_meetings",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.795,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q18",
+      "question": "What happens in a tutor check-in meeting?",
+      "category": "tutoring_meetings",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.849,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q19",
+      "question": "When should I contact my tutor about study rights?",
+      "category": "tutoring_meetings",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.805,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q20",
+      "question": "What is plagiarism and what are the consequences?",
+      "category": "academic_policies",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.759,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q21",
+      "question": "What support services are available for students?",
+      "category": "student_support",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.789,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q22",
+      "question": "What are the grading rules at the university?",
+      "category": "academic_policies",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.807,
+      "keyword_matches": 5,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q23",
+      "question": "How many credits must I have before practical training?",
+      "category": "ects_requirements",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.811,
+      "keyword_matches": 2,
+      "keyword_match_rate": 0.667,
+      "failure_reasons": []
+    },
+    {
+      "id": "q24",
+      "question": "What is the mid-year progress review?",
+      "category": "tutoring_meetings",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.774,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    },
+    {
+      "id": "q25",
+      "question": "What happens if a student misses too many classes?",
+      "category": "academic_policies",
+      "top_k_hit": true,
+      "first_hit_rank": 1,
+      "average_similarity": 0.776,
+      "keyword_matches": 4,
+      "keyword_match_rate": 1.0,
+      "failure_reasons": []
+    }
+  ]
+}
