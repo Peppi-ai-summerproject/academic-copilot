@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from app.mcp.tools.study_right import get_study_right
 
 
-@patch("app.mcp.tools.study_right.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_study_right_tool_returns_record(
     session_local_mock: Mock,
 ) -> None:
@@ -30,7 +30,7 @@ def test_get_study_right_tool_returns_record(
     database_session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.study_right.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_study_right_tool_detects_expiring_status(
     session_local_mock: Mock,
 ) -> None:
@@ -54,7 +54,7 @@ def test_get_study_right_tool_detects_expiring_status(
     database_session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.study_right.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_study_right_tool_handles_missing_record(
     session_local_mock: Mock,
 ) -> None:
@@ -71,7 +71,7 @@ def test_get_study_right_tool_handles_missing_record(
     database_session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.study_right.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_study_right_tool_handles_database_error(
     session_local_mock: Mock,
 ) -> None:

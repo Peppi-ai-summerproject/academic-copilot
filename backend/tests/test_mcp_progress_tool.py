@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from app.mcp.tools.progress import get_progress
 
 
-@patch("app.mcp.tools.progress.SessionLocal")
+@patch("app.db.database.SessionLocal")
 @patch("app.mcp.tools.progress.ProgressService")
 @patch("app.mcp.tools.progress.ProgressRepository")
 def test_get_progress_tool_returns_progress(
@@ -46,7 +46,7 @@ def test_get_progress_tool_returns_progress(
     session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.progress.SessionLocal")
+@patch("app.db.database.SessionLocal")
 @patch("app.mcp.tools.progress.ProgressService")
 @patch("app.mcp.tools.progress.ProgressRepository")
 def test_get_progress_tool_handles_missing_student(
@@ -80,7 +80,7 @@ def test_get_progress_tool_handles_missing_student(
     session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.progress.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_progress_tool_handles_database_error(
     mock_session_local: MagicMock,
 ) -> None:

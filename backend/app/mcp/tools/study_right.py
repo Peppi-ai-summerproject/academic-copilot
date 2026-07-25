@@ -1,12 +1,13 @@
 from typing import Any
 
-from app.db.database import SessionLocal
 from app.repositories.study_right_repository import StudyRightRepository
 from app.services.study_right_service import StudyRightService
 
 
 def get_study_right(student_id: int) -> dict[str, Any]:
     """Retrieve a student's study right information and status."""
+
+    from app.db.database import SessionLocal
 
     database_session = SessionLocal()
 

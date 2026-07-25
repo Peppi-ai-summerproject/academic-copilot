@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.mcp.tools.curriculum import get_curriculum
 
 
-@patch("app.mcp.tools.curriculum.SessionLocal")
+@patch("app.db.database.SessionLocal")
 @patch("app.mcp.tools.curriculum.CurriculumRepository")
 @patch("app.mcp.tools.curriculum.CurriculumService")
 def test_get_curriculum_success(
@@ -38,7 +38,7 @@ def test_get_curriculum_success(
     session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.curriculum.SessionLocal")
+@patch("app.db.database.SessionLocal")
 @patch("app.mcp.tools.curriculum.CurriculumRepository")
 @patch("app.mcp.tools.curriculum.CurriculumService")
 def test_get_curriculum_not_found(
@@ -66,7 +66,7 @@ def test_get_curriculum_not_found(
     session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.curriculum.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_curriculum_database_error(
     mock_session_local,
 ) -> None:
