@@ -2,6 +2,7 @@ from mcp.server.fastmcp import FastMCP
 
 from app.mcp.tools.health import ping
 from app.mcp.tools.progress import get_progress
+from app.mcp.tools.report import generate_report
 from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
@@ -32,6 +33,16 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Calculate a student's completed ECTS, compare it with the "
             "curriculum expectation, and return an academic progress summary."
+        ),
+    )
+
+    server.add_tool(
+        generate_report,
+        name="generate_report",
+        description=(
+            "Generate a structured academic report for a student by "
+            "combining profile, progress, study-right, curriculum, and "
+            "upcoming event information."
         ),
     )
 

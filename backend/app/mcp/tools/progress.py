@@ -1,12 +1,13 @@
 from typing import Any
 
-from app.db.database import SessionLocal
 from app.repositories.progress_repository import ProgressRepository
 from app.services.progress_service import ProgressService
 
 
 def get_progress(student_id: int) -> dict[str, Any]:
     """Calculate and return a student's academic progress."""
+
+    from app.db.database import SessionLocal
 
     database_session = SessionLocal()
 
