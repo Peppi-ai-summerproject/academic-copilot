@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 from pydantic import BaseModel, Field, field_validator
-from app.agents.types import AgentResult, WorkflowStatus
+from app.agents.types import WorkflowStatus
 
 
 class AgentState(BaseModel):
@@ -37,7 +37,7 @@ class AgentState(BaseModel):
     max_steps: int = Field(default=10, ge=1)
 
     # Collaboration context
-    agent_results: dict[str, AgentResult] = Field(default_factory=dict)
+    agent_results: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 
@@ -64,7 +64,7 @@ class AgentState(BaseModel):
     def is_step_limit_reached(self) -> bool:
         return self.step_count >= self.max_steps
 
-    def get_agent_result(self, agent_name: str) -> AgentResult | None:
+    def get_agent_result(self, agent_name: str) -> Any | None:
         return self.agent_results.get(agent_name)
 
     def has_errors(self) -> bool:
