@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 from app.mcp.tools.student import get_student
 
 
-@patch("app.mcp.tools.student.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_student_tool_returns_student_profile(
     session_local_mock: Mock,
 ) -> None:
@@ -34,7 +34,7 @@ def test_get_student_tool_returns_student_profile(
     database_session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.student.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_student_tool_handles_missing_record(
     session_local_mock: Mock,
 ) -> None:
@@ -51,7 +51,7 @@ def test_get_student_tool_handles_missing_record(
     database_session.close.assert_called_once()
 
 
-@patch("app.mcp.tools.student.SessionLocal")
+@patch("app.db.database.SessionLocal")
 def test_get_student_tool_handles_database_error(
     session_local_mock: Mock,
 ) -> None:
