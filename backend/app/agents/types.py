@@ -1,9 +1,24 @@
-"""Common types for the multi-agent system — Issue #87."""
+"""Common types for the multi-agent system — Issues #87, #81, #82."""
 
 from __future__ import annotations
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
+
+# ── AgentRoute — matches routing.py SUPPORTED_ROUTES ──────────────────────────
+AgentRoute = Literal[
+    "calendar",
+    "progress",
+    "study_rights",
+    "risk",
+    "recommendation",
+    "reporting",
+    "communication",
+    "finish",
+]
+
+# ── AgentStatus — Literal to match base.py get_args() usage ───────────────────
+AgentStatus = Literal["SUCCESS", "PARTIAL", "FAILED", "SKIPPED"]
 
 
 class AgentName(str, Enum):
@@ -14,13 +29,6 @@ class AgentName(str, Enum):
     COMMUNICATION = "communication"
     RISK = "risk"
     REPORTING = "reporting"
-
-
-class AgentStatus(str, Enum):
-    SUCCESS = "success"
-    PARTIAL = "partial"
-    FAILED = "failed"
-    SKIPPED = "skipped"
 
 
 class WorkflowStatus(str, Enum):
@@ -41,22 +49,14 @@ class EvidenceItem(BaseModel):
     model_config = {"frozen": True}
 
 
-class AgentResult(BaseModel):
-    """Structured result produced by a single agent during workflow execution."""
-    agent_name: str
-    status: AgentStatus
-    summary: str = ""
-    data: dict[str, Any] = Field(default_factory=dict)
-    evidence: list[EvidenceItem] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    model_config = {"frozen": True}
+# ── AgentState forward reference for base.py Protocol ─────────────────────────
+# base.py imports AgentState from here for the AcademicAgent Protocol.
+# The full implementation is in app.agents.state to avoid circular imports.
+# Agents import AgentState from app.agents.state directly.
+class AgentState:
+    """Minimal AgentState for Protocol type checking.
 
-    def is_successful(self) -> bool:
-        return self.status in (AgentStatus.SUCCESS, AgentStatus.PARTIAL)
-
-    def has_warnings(self) -> bool:
-        return len(self.warnings) > 0
-
-    def has_errors(self) -> bool:
-        return len(self.errors) > 0
+    Full implementation: app.agents.state.AgentState
+    Agents must import from app.agents.state, not from here.
+    """
+    pass
