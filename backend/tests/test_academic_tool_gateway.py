@@ -47,6 +47,17 @@ def test_gateway_delegates_study_right_lookup() -> None:
     study_right_tool.assert_called_once_with(9)
 
 
+def test_gateway_delegates_upcoming_events_lookup() -> None:
+    response = {"success": True, "events": []}
+    events_tool = Mock(return_value=response)
+    gateway = MCPAcademicToolGateway(upcoming_events_tool=events_tool)
+
+    result = asyncio.run(gateway.get_upcoming_events())
+
+    assert result is response
+    events_tool.assert_called_once_with()
+
+
 def test_gateway_implements_protocol() -> None:
     assert isinstance(MCPAcademicToolGateway(), AcademicToolGateway)
 
