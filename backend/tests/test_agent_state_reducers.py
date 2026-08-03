@@ -2,11 +2,16 @@
 
 import pytest
 from app.agents.reducers import append_all, append_unique, merge_agent_results
-from app.agents.types import AgentResult, AgentStatus
+from app.agents.types import AgentResult
 
 
 def _r(name, summary=""):
-    return AgentResult(agent_name=name, status=AgentStatus.SUCCESS, summary=summary)
+    return AgentResult(
+        agent_name=name,
+        route=name,
+        status="SUCCESS",
+        summary=summary,
+    )
 
 
 def test_merge_adds_new_agent_result():
@@ -85,8 +90,17 @@ def test_shared_state_exchange_between_fake_nodes():
 
     state = create_initial_state(user_message="How is S001?", student_id=1, request_id="test-001")
 
-    progress_result = AgentResult(agent_name="progress", status=AgentStatus.SUCCESS,
-                                   summary="30 ECTS behind.", data={"completed_ects": 90, "expected_ects": 120, "status": "BEHIND"})
+    progress_result = AgentResult(
+        agent_name="progress",
+        route="progress",
+        status="SUCCESS",
+        summary="30 ECTS behind.",
+        data={
+            "completed_ects": 90,
+            "expected_ects": 120,
+            "status": "BEHIND",
+        },
+    )
     state.agent_results = merge_agent_results(state.agent_results, {"progress": progress_result})
     state.completed_agents = append_unique(state.completed_agents, ["progress"])
     state.step_count += 1
@@ -97,8 +111,16 @@ def test_shared_state_exchange_between_fake_nodes():
     assert state.step_count == 1
 
     progress_data = state.agent_results.get("progress")
-    rec_result = AgentResult(agent_name="recommendation", status=AgentStatus.SUCCESS,
-                              summary="Schedule meeting.", data={"action": "schedule_meeting", "priority": "HIGH"})
+    rec_result = AgentResult(
+        agent_name="recommendation",
+        route="recommendation",
+        status="SUCCESS",
+        summary="Schedule meeting.",
+        data={
+            "action": "schedule_meeting",
+            "priority": "HIGH",
+        },
+    )
     state.agent_results = merge_agent_results(state.agent_results, {"recommendation": rec_result})
     state.completed_agents = append_unique(state.completed_agents, ["recommendation"])
     state.step_count += 1
