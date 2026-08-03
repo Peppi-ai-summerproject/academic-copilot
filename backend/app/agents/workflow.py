@@ -126,11 +126,13 @@ class AcademicAgentWorkflow:
 def create_default_agent_registry() -> AgentRegistry:
     """Create the production registry for agents supported by Issue #167."""
     from app.agents.progress_analysis_agent import ProgressAnalysisAgent
+    from app.agents.risk_detection_agent import RiskDetectionAgent
     from app.agents.study_rights_agent import StudyRightsAgent
 
     registry = AgentRegistry()
     registry.register("progress", ProgressAnalysisAgent)
     registry.register("study_rights", StudyRightsAgent)
+    registry.register("risk", RiskDetectionAgent)
     return registry
 
 

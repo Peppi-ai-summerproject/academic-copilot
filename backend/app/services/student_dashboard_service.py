@@ -11,6 +11,11 @@ from app.services.student_service import StudentService
 from app.services.progress_service import ProgressService
 from app.services.study_right_service import StudyRightService
 from app.services.event_service import EventService
+from app.services.risk_policy import (
+    highest_risk_level,
+    progress_risk_factors,
+    study_right_risk_factors,
+)
 
 
 class StudentDashboardService:
@@ -187,41 +192,13 @@ class StudentDashboardService:
         Risk is computed deterministically from current data.
         Persisted events list is empty until a risk repository is implemented.
         """
-        reasons: list[str] = []
-        risk_level = "LOW"
-
-        # Progress-based risk
+        factors: list[dict[str, Any]] = []
         if academic_progress.get("available"):
-            status = academic_progress.get("status")
-            diff = academic_progress.get("difference_ects", 0) or 0
-            if status == "BEHIND":
-                behind = abs(diff)
-                if behind >= 30:
-                    reasons.append(
-                        f"Student is {behind} ECTS behind expected progress."
-                    )
-                    risk_level = "HIGH" if behind >= 60 else "MEDIUM"
-                else:
-                    reasons.append(
-                        f"Student is {behind} ECTS behind expected progress."
-                    )
-                    if risk_level == "LOW":
-                        risk_level = "LOW"
-
-        # Study right-based risk
+            factors.extend(progress_risk_factors(academic_progress))
         if study_right.get("available"):
-            sr_status = study_right.get("status")
-            if sr_status == "EXPIRES_SOON":
-                reasons.append("Study right is expiring soon.")
-                if risk_level == "LOW":
-                    risk_level = "MEDIUM"
-            elif sr_status == "EXTENDED":
-                reasons.append("Study right has been extended.")
-                if risk_level == "LOW":
-                    risk_level = "MEDIUM"
-            elif sr_status == "EXPIRED":
-                reasons.append("Study right has expired.")
-                risk_level = "HIGH"
+            factors.extend(study_right_risk_factors(study_right))
+        reasons = [factor["reason"] for factor in factors]
+        risk_level = highest_risk_level(factors, default="LOW")
 
         if not reasons:
             reasons.append("No immediate risks detected.")
