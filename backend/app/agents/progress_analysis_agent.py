@@ -11,11 +11,7 @@ from __future__ import annotations
 from app.agents.base import AcademicAgent
 from app.agents.types import AgentResult
 from app.agents.state import AgentState as FullAgentState  # noqa
-from app.db.database import SessionLocal
-from app.repositories.progress_repository import ProgressRepository
-from app.repositories.student_repository import StudentRepository
-from app.services.progress_service import ProgressService
-from app.services.student_service import StudentService
+from app.gateways.academic_tools import AcademicToolGateway, MCPAcademicToolGateway
 
 
 class ProgressAnalysisAgent:
@@ -41,6 +37,10 @@ class ProgressAnalysisAgent:
         "requirements. Detects delayed students and generates progress summaries."
     )
 
+    def __init__(self, gateway: AcademicToolGateway | None = None) -> None:
+        """Create the agent with an injectable academic tool boundary."""
+        self._gateway = gateway or MCPAcademicToolGateway()
+
     async def run(self, state: FullAgentState) -> AgentResult:
         """Analyze academic progress for the student in the current state.
 
@@ -65,13 +65,9 @@ class ProgressAnalysisAgent:
                 errors=["student_id is None — cannot analyse progress."],
             )
 
-        db = SessionLocal()
         try:
-            student_service = StudentService(StudentRepository(db))
-            progress_service = ProgressService(ProgressRepository(db))
-
             # Verify student exists
-            student_result = student_service.get_student(student_id)
+            student_result = await self._gateway.get_student(student_id)
             if not student_result.get("success"):
                 return AgentResult(
                     agent_name=self.name,
@@ -86,7 +82,7 @@ class ProgressAnalysisAgent:
             programme = student.get("programme", "Unknown")
 
             # Get academic progress
-            progress_result = progress_service.get_progress(student_id)
+            progress_result = await self._gateway.get_progress(student_id)
             if not progress_result.get("success"):
                 return AgentResult(
                     agent_name=self.name,
@@ -156,8 +152,6 @@ class ProgressAnalysisAgent:
                 summary="Progress analysis could not be completed due to a system error.",
                 errors=[f"Unexpected error: {exc}"],
             )
-        finally:
-            db.close()
 
 
 def _build_summary(

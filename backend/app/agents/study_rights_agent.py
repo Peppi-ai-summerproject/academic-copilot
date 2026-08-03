@@ -11,11 +11,7 @@ from __future__ import annotations
 from app.agents.base import AcademicAgent
 from app.agents.types import AgentResult
 from app.agents.state import AgentState as FullAgentState
-from app.db.database import SessionLocal
-from app.repositories.study_right_repository import StudyRightRepository
-from app.repositories.student_repository import StudentRepository
-from app.services.study_right_service import StudyRightService
-from app.services.student_service import StudentService
+from app.gateways.academic_tools import AcademicToolGateway, MCPAcademicToolGateway
 
 
 # Status values that indicate a student needs attention
@@ -46,6 +42,10 @@ class StudyRightsAgent:
         "generates actionable summaries for tutor teachers."
     )
 
+    def __init__(self, gateway: AcademicToolGateway | None = None) -> None:
+        """Create the agent with an injectable academic tool boundary."""
+        self._gateway = gateway or MCPAcademicToolGateway()
+
     async def run(self, state: FullAgentState) -> AgentResult:
         """Analyse study right status for the student in the current state.
 
@@ -70,13 +70,9 @@ class StudyRightsAgent:
                 errors=["student_id is None — cannot retrieve study right."],
             )
 
-        db = SessionLocal()
         try:
-            student_service = StudentService(StudentRepository(db))
-            study_right_service = StudyRightService(StudyRightRepository(db))
-
             # Verify student exists
-            student_result = student_service.get_student(student_id)
+            student_result = await self._gateway.get_student(student_id)
             if not student_result.get("success"):
                 return AgentResult(
                     agent_name=self.name,
@@ -91,7 +87,7 @@ class StudyRightsAgent:
             programme = student.get("programme", "Unknown")
 
             # Get study right
-            study_right_result = study_right_service.get_study_right(student_id)
+            study_right_result = await self._gateway.get_study_right(student_id)
             if not study_right_result.get("success"):
                 return AgentResult(
                     agent_name=self.name,
@@ -170,8 +166,6 @@ class StudyRightsAgent:
                 summary="Study right analysis could not be completed due to a system error.",
                 errors=[f"Unexpected error: {exc}"],
             )
-        finally:
-            db.close()
 
 
 def _calculate_urgency(sr_status: str, extension_count: int) -> str:
