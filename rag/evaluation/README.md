@@ -27,24 +27,19 @@ rag/evaluation/
 ## How to Run
 
 ### Prerequisites
-- Qdrant running on localhost:6333
-- Documents ingested: `python3 rag/ingest_pipeline.py`
-- GEMINI_API_KEY set in environment
+- Qdrant running at the configured `QDRANT_URL`
+- Documents ingested: `python -m rag.ingest_pipeline`
+- `GEMINI_API_KEY` set in `backend/.env` or the environment
 
 ### Run full evaluation
 ```bash
-cd /opt/academic-copilot/academic-copilot
-source rag_env/bin/activate
-
-GEMINI_API_KEY="your-key" \
-PYTHONPATH="/opt/academic-copilot/academic-copilot" \
-python3 rag/evaluation/run_evaluation.py
+cd academic-copilot
+python -m rag.evaluation.run_evaluation
 ```
 
 ### Run unit tests only (no API needed)
 ```bash
-PYTHONPATH="/opt/academic-copilot/academic-copilot" \
-python3 -m pytest rag/tests/test_evaluation.py -v
+python -m pytest rag/tests/test_evaluation.py -v
 ```
 
 ## How to Interpret Metrics
