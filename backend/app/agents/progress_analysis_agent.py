@@ -8,8 +8,8 @@ Implements the AcademicAgent Protocol defined in base.py.
 """
 
 from __future__ import annotations
-
-from app.agents.base import AgentResult, AcademicAgent
+from app.agents.base import AcademicAgent
+from app.agents.types import AgentResult
 from app.agents.state import AgentState as FullAgentState  # noqa
 from app.db.database import SessionLocal
 from app.repositories.progress_repository import ProgressRepository
