@@ -1,8 +1,9 @@
-"""Common types for the multi-agent system — Issues #87, #81, #82."""
-
 from __future__ import annotations
+
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, get_args
+
 from pydantic import BaseModel, Field
 
 # ── AgentRoute — matches routing.py SUPPORTED_ROUTES ──────────────────────────
@@ -49,14 +50,26 @@ class EvidenceItem(BaseModel):
     model_config = {"frozen": True}
 
 
-# ── AgentState forward reference for base.py Protocol ─────────────────────────
-# base.py imports AgentState from here for the AcademicAgent Protocol.
-# The full implementation is in app.agents.state to avoid circular imports.
-# Agents import AgentState from app.agents.state directly.
-class AgentState:
-    """Minimal AgentState for Protocol type checking.
+# ────────────────────────── AgentResult ─────────────────────────────
+@dataclass
+class AgentResult:
+    """Standard result returned by every academic agent."""
 
-    Full implementation: app.agents.state.AgentState
-    Agents must import from app.agents.state, not from here.
-    """
-    pass
+    agent_name: str
+    route: AgentRoute
+    status: AgentStatus
+    summary: str
+    data: dict[str, Any] = field(default_factory=dict)
+    evidence: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        valid_routes = get_args(AgentRoute)
+        valid_statuses = get_args(AgentStatus)
+
+        if self.route not in valid_routes:
+            raise ValueError(f"Invalid agent route: {self.route}")
+
+        if self.status not in valid_statuses:
+            raise ValueError(f"Invalid agent status: {self.status}")
