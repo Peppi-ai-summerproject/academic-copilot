@@ -60,16 +60,14 @@ All answerable cases are grounded in:
 ## Validation
 
 ```bash
-cd /opt/academic-copilot/academic-copilot
-source rag_env/bin/activate
-PYTHONPATH="." python3 rag/evaluation/validate_dataset.py
+cd academic-copilot
+python -m rag.evaluation.validate_dataset
 ```
 
 ## Running Tests
 
 ```bash
-PYTHONPATH="/opt/academic-copilot/academic-copilot" \
-python3 -m pytest rag/tests/test_rag_dataset.py -v
+python -m pytest rag/tests/test_rag_dataset.py -v
 ```
 
 ## Adding New Cases
