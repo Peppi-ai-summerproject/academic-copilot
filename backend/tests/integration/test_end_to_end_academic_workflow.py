@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 from app.agents.progress_analysis_agent import ProgressAnalysisAgent
+from app.agents.risk_detection_agent import RiskDetectionAgent
 from app.agents.study_rights_agent import StudyRightsAgent
 from app.agents.workflow import create_academic_agent_workflow, create_default_agent_registry
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -20,6 +21,7 @@ class RecordingAcademicToolGateway:
         student: dict[str, Any] | None = None,
         progress: dict[str, Any] | None = None,
         study_right: dict[str, Any] | None = None,
+        events: dict[str, Any] | None = None,
         errors: dict[str, Exception] | None = None,
     ) -> None:
         self.student = student or {
@@ -46,6 +48,7 @@ class RecordingAcademicToolGateway:
                 "expiration_date": "2028-07-31",
             },
         }
+        self.events = events or {"success": True, "events": []}
         self.errors = errors or {}
         self.calls: list[tuple[str, int]] = []
 
@@ -57,6 +60,9 @@ class RecordingAcademicToolGateway:
 
     async def get_study_right(self, student_id: int) -> dict[str, Any]:
         return self._result("get_study_right", student_id, self.study_right)
+
+    async def get_upcoming_events(self) -> dict[str, Any]:
+        return self._result("get_upcoming_events", 0, self.events)
 
     def _result(
         self,
@@ -76,6 +82,7 @@ def make_service(
     registry = create_default_agent_registry()
     assert registry.get("progress") is ProgressAnalysisAgent
     assert registry.get("study_rights") is StudyRightsAgent
+    assert registry.get("risk") is RiskDetectionAgent
     sessions = SessionService()
     workflow = create_academic_agent_workflow(registry=registry, gateway=gateway)
     return ChatService(session_service=sessions, workflow=workflow), sessions
@@ -233,3 +240,21 @@ def test_unexpected_gateway_exception_returns_safe_final_chat_response():
     assert session.history[-1].role == "assistant"
     assert session.history[-1].content == response.reply
     assert gateway.calls == [("get_student", 42), ("get_progress", 42)]
+
+
+def test_risk_request_runs_real_agent_without_external_services():
+    gateway = RecordingAcademicToolGateway()
+    service, _ = make_service(gateway)
+
+    response = process(service, request(selected_agents=["risk"]))
+
+    assert response.reply == (
+        "Academic analysis completed.\n\n"
+        "- Ada Student has no confirmed academic risk factors."
+    )
+    assert gateway.calls == [
+        ("get_student", 42),
+        ("get_progress", 42),
+        ("get_study_right", 42),
+        ("get_upcoming_events", 0),
+    ]
