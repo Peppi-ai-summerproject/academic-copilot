@@ -1,9 +1,12 @@
+from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+PROJECT_DIR = BACKEND_DIR.parent
 
 
 class Settings(BaseSettings):
@@ -12,19 +15,50 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = True
 
-    database_url: str
+    database_url: str = "sqlite:///./academic_copilot.db"
     telegram_webhook_url: str | None = None
-    telegram_webhook_secret: str
+    telegram_webhook_secret: str = ""
     telegram_webhook_enabled: bool = False
-    telegram_bot_token: str
+    telegram_bot_token: str = ""
     backend_base_url: str = "http://127.0.0.1:8000"
-
+    gemini_api_key: str = ""
+    qdrant_url: str = "http://127.0.0.1:6333"
+    qdrant_collection_name: str = "academic_knowledge"
+    knowledge_base_dir: Path = PROJECT_DIR / "docs" / "knowledge_base"
+    rag_evaluation_dataset: Path = (
+        PROJECT_DIR / "rag" / "evaluation" / "evaluation_dataset.json"
+    )
+    rag_evaluation_reports_dir: Path = PROJECT_DIR / "rag" / "evaluation" / "reports"
 
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env",
+        env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
+    @model_validator(mode="after")
+    def validate_enabled_integrations(self) -> "Settings":
+        if self.telegram_webhook_enabled:
+            missing = [
+                name
+                for name, value in (
+                    ("TELEGRAM_BOT_TOKEN", self.telegram_bot_token),
+                    ("TELEGRAM_WEBHOOK_SECRET", self.telegram_webhook_secret),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    "Telegram webhook is enabled but required settings are missing: "
+                    + ", ".join(missing)
+                )
+        return self
 
-settings = Settings()
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return the process-wide application settings instance."""
+    return Settings()
+
+
+settings = get_settings()
