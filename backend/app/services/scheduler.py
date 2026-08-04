@@ -126,7 +126,9 @@ class Scheduler:
 
     @property
     def timezone(self) -> str:
-        return self._tz.key
+        # ZoneInfo objects expose a 'key' attribute. datetime.timezone fallback
+        # objects do not, so use a safe getattr with default.
+        return getattr(self._tz, "key", "UTC")
 
     @property
     def running(self) -> bool:
@@ -138,7 +140,7 @@ class Scheduler:
                 self._logger.info("Scheduler already running")
                 return
 
-            self._logger.info("Starting scheduler (tz=%s)", self._tz.key)
+            self._logger.info("Starting scheduler (tz=%s)", getattr(self._tz, "key", "UTC"))
             self._running = True
             self._stopped.clear()
 
