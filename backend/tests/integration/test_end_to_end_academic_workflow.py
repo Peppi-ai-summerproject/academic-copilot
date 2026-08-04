@@ -7,6 +7,7 @@ from app.agents.progress_analysis_agent import ProgressAnalysisAgent
 from app.agents.communication_agent import CommunicationAgent
 from app.agents.risk_detection_agent import RiskDetectionAgent
 from app.agents.recommendation_agent import RecommendationAgent
+from app.agents.reporting_agent import ReportingAgent
 from app.agents.study_rights_agent import StudyRightsAgent
 from app.agents.workflow import create_academic_agent_workflow, create_default_agent_registry
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -109,6 +110,7 @@ def make_service(
     assert registry.get("risk") is RiskDetectionAgent
     assert registry.get("recommendation") is RecommendationAgent
     assert registry.get("communication") is CommunicationAgent
+    assert registry.get("reporting") is ReportingAgent
     sessions = SessionService()
     workflow = create_academic_agent_workflow(
         registry=registry,
@@ -339,6 +341,28 @@ def test_real_communication_agent_formats_final_chat_response_without_delivery()
     assert "active study right" in response.reply
     assert "no confirmed academic risk factors" in response.reply
     assert "NOT_SENT" not in response.reply
+    session = sessions.get_session(7001)
+    assert session is not None
+    assert session.history[-1].content == response.reply
+
+
+def test_reporting_precedes_communication_in_real_end_to_end_workflow():
+    gateway = RecordingAcademicToolGateway()
+    service, sessions = make_service(gateway)
+
+    response = process(
+        service,
+        request(selected_agents=[
+            "progress", "study_rights", "risk", "recommendation", "reporting", "communication",
+        ]),
+    )
+
+    assert response.reply.startswith("Tutor summary:")
+    assert "Verified facts" in response.reply
+    assert "Ada Student (Computer Science) is on track" in response.reply
+    assert "active study right" in response.reply
+    assert "no confirmed academic risk factors" in response.reply
+    assert "structured_data" not in response.reply
     session = sessions.get_session(7001)
     assert session is not None
     assert session.history[-1].content == response.reply

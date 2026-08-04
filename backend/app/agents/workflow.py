@@ -144,6 +144,7 @@ def create_default_agent_registry() -> AgentRegistry:
     from app.agents.progress_analysis_agent import ProgressAnalysisAgent
     from app.agents.communication_agent import CommunicationAgent
     from app.agents.recommendation_agent import RecommendationAgent
+    from app.agents.reporting_agent import ReportingAgent
     from app.agents.risk_detection_agent import RiskDetectionAgent
     from app.agents.study_rights_agent import StudyRightsAgent
 
@@ -152,6 +153,7 @@ def create_default_agent_registry() -> AgentRegistry:
     registry.register("study_rights", StudyRightsAgent)
     registry.register("risk", RiskDetectionAgent)
     registry.register("recommendation", RecommendationAgent)
+    registry.register("reporting", ReportingAgent)
     registry.register("communication", CommunicationAgent)
     return registry
 
