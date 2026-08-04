@@ -91,6 +91,9 @@ class ChatService:
 
 
 def _format_workflow_reply(state: AgentState) -> str:
+    if isinstance(state.final_response, str) and state.final_response.strip():
+        return state.final_response.strip()
+
     summaries = [
         result.summary.strip()
         for route in state.selected_agents
