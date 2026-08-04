@@ -107,7 +107,17 @@ class Job:
 
 class Scheduler:
     def __init__(self, timezone: str = "UTC", logger_: Optional[logging.Logger] = None):
-        self._tz = ZoneInfo(timezone)
+        try:
+            self._tz = ZoneInfo(timezone)
+        except Exception:
+            # zoneinfo may be unavailable in minimal environments (no tzdata)
+            # Fall back to a simple UTC tzinfo to keep scheduler functional in
+            # test or developer environments without requiring extra packages.
+            logger.warning("ZoneInfo(%s) not available, falling back to UTC", timezone)
+            from datetime import timezone as _dt_timezone
+
+            self._tz = _dt_timezone.utc
+
         self._jobs: Dict[str, Job] = {}
         self._running = False
         self._lock = asyncio.Lock()
