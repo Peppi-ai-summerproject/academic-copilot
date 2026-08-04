@@ -31,10 +31,15 @@ class BackendClient:
             "telegram_chat_id": telegram_chat_id,
             "username": username,
         }
+        headers = (
+            {"X-Internal-Service-Key": settings.internal_service_key}
+            if settings.internal_service_key
+            else {}
+        )
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(url, json=payload)
+                response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
 
         except httpx.HTTPError as exc:

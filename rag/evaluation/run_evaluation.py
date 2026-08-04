@@ -1,16 +1,21 @@
 """Run the full retrieval evaluation pipeline."""
 
-import os
 import sys
-sys.path.insert(0, "/opt/academic-copilot/academic-copilot")
+from pathlib import Path
 
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+BACKEND_DIR = PROJECT_DIR / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from app.core.config import settings
 from rag.evaluation.metrics import RetrievalMetrics
 from rag.evaluation.evaluator import RetrievalEvaluator
 from rag.evaluation.report_generator import ReportGenerator
 
 
 def main():
-    gemini_key = os.getenv("GEMINI_API_KEY")
+    gemini_key = settings.gemini_api_key
     if not gemini_key:
         print("ERROR: GEMINI_API_KEY not set.")
         sys.exit(1)
@@ -24,19 +29,19 @@ def main():
     print("Setting up pipeline...")
     provider = GeminiEmbeddingProvider(api_key=gemini_key)
     embedding_service = EmbeddingService(provider=provider)
-    qdrant_client = QdrantClient(url="http://localhost:6333")
+    qdrant_client = QdrantClient(url=settings.qdrant_url)
     retriever = QdrantRetriever(
         embedding_service=embedding_service,
         qdrant_client=qdrant_client,
-        collection_name="academic_knowledge",
+        collection_name=settings.qdrant_collection_name,
     )
     retrieval_service = RetrievalService(retriever=retriever)
 
     metrics = RetrievalMetrics()
     evaluator = RetrievalEvaluator(retrieval_service=retrieval_service, metrics=metrics, top_k=5)
-    report_gen = ReportGenerator(output_dir="rag/evaluation/reports")
+    report_gen = ReportGenerator(output_dir=settings.rag_evaluation_reports_dir)
 
-    dataset_path = "rag/evaluation/evaluation_dataset.json"
+    dataset_path = settings.rag_evaluation_dataset
     print(f"Running evaluation on {dataset_path}...")
     report = evaluator.evaluate_dataset(dataset_path)
 
