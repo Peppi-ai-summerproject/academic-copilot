@@ -36,7 +36,7 @@ class AgentRegistry:
         agent_type = self.get(route)
         if agent_type is None:
             return None
-        if route == "communication":
+        if route in {"reporting", "communication"}:
             return agent_type()
         if route == "recommendation":
             return agent_type(academic_gateway, policy_gateway)

@@ -145,3 +145,25 @@ def test_agent_has_no_gateway_or_telegram_client_dependency():
     agent = CommunicationAgent()
 
     assert vars(agent) == {}
+
+
+def test_formats_structured_reporting_result_for_tutor_delivery():
+    report = result(
+        "reporting",
+        "Partial report: verified risk requires review.",
+        performance={"status": "available", "summary": "90 of 120 ECTS completed."},
+        study_right={"status": "available", "summary": "Study right is active."},
+        risks={"status": "available", "summary": "HIGH risk is verified."},
+        upcoming_actions={
+            "status": "available",
+            "items": [{"priority": "HIGH", "action": "Review the study plan.", "advisory": True}],
+        },
+    )
+
+    output = run_agent(report, selected_agents=["reporting", "communication"])
+
+    message = output.data["formatted_message"]
+    assert "90 of 120 ECTS completed." in message
+    assert "Study right is active." in message
+    assert "HIGH risk is verified." in message
+    assert "HIGH priority: Review the study plan. (advisory)" in message

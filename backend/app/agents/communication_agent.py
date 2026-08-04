@@ -8,7 +8,7 @@ from app.agents.state import AgentState
 from app.agents.types import AgentResult
 
 
-_SOURCE_ORDER = ("progress", "study_rights", "risk", "recommendation")
+_SOURCE_ORDER = ("progress", "study_rights", "risk", "recommendation", "reporting")
 _FACT_ROUTES = ("progress", "study_rights", "risk")
 
 
@@ -32,8 +32,15 @@ class CommunicationAgent:
             for route, result in sources.items()
             if result.status != "FAILED" and result.summary.strip()
         }
-        facts = [usable[route].summary.strip() for route in _FACT_ROUTES if route in usable]
-        recommendations = _recommendations(usable.get("recommendation"))
+        report = usable.get("reporting")
+        facts = _report_facts(report) if report else [
+            usable[route].summary.strip() for route in _FACT_ROUTES if route in usable
+        ]
+        recommendations = (
+            _report_recommendations(report)
+            if report
+            else _recommendations(usable.get("recommendation"))
+        )
         incomplete = _is_incomplete(state, sources, usable)
 
         sections: list[str] = ["summary"]
@@ -106,6 +113,28 @@ def _recommendations(result: AgentResult | None) -> list[str]:
         label = str(priority).upper() if priority else "UNSPECIFIED"
         formatted.append(f"- {label} priority: {action.strip()} (advisory)")
     return formatted
+
+
+def _report_facts(result: AgentResult) -> list[str]:
+    facts: list[str] = []
+    for section_name in ("performance", "study_right", "risks"):
+        section = result.data.get(section_name)
+        if isinstance(section, dict) and isinstance(section.get("summary"), str):
+            facts.append(section["summary"].strip())
+    return facts
+
+
+def _report_recommendations(result: AgentResult) -> list[str]:
+    section = result.data.get("upcoming_actions")
+    items = section.get("items") if isinstance(section, dict) else None
+    proxy = AgentResult(
+        agent_name="ReportingAgent",
+        route="recommendation",
+        status=result.status,
+        summary=result.summary,
+        data={"recommendations": items if isinstance(items, list) else []},
+    )
+    return _recommendations(proxy)
 
 
 def _is_incomplete(
