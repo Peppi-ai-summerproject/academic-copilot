@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 from pydantic import BaseModel, Field, field_validator
 from app.agents.types import WorkflowStatus
+from app.schemas.memory import ConversationMemorySnapshot
 
 
 class AgentState(BaseModel):
@@ -21,6 +22,7 @@ class AgentState(BaseModel):
     user_message: str = Field(description="Original message from the tutor teacher.")
     telegram_user_id: int | None = Field(default=None)
     telegram_chat_id: int | None = Field(default=None)
+    memory: ConversationMemorySnapshot | None = Field(default=None)
 
     # Academic context
     student_id: int | None = Field(default=None)
@@ -79,6 +81,7 @@ def create_initial_state(
     conversation_id: str | None = None,
     telegram_user_id: int | None = None,
     telegram_chat_id: int | None = None,
+    memory: ConversationMemorySnapshot | None = None,
     max_steps: int = 10,
 ) -> AgentState:
     """Create a fresh initial AgentState for a new workflow execution."""
@@ -88,6 +91,7 @@ def create_initial_state(
         user_message=user_message,
         telegram_user_id=telegram_user_id,
         telegram_chat_id=telegram_chat_id,
+        memory=memory,
         student_id=student_id,
         student_name=None,
         programme=None,

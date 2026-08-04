@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str = ""
     telegram_webhook_enabled: bool = False
     telegram_bot_token: str = ""
+    internal_service_key: str = ""
     backend_base_url: str = "http://127.0.0.1:8000"
     gemini_api_key: str = ""
     qdrant_url: str = "http://127.0.0.1:6333"
