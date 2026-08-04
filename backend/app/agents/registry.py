@@ -4,6 +4,8 @@ from typing import Dict, Type
 
 from app.agents.base import AcademicAgent
 from app.agents.types import AgentRoute
+from app.gateways.academic_tools import AcademicToolGateway
+from app.gateways.policy_context import PolicyContextGateway
 
 
 class AgentRegistry:
@@ -23,3 +25,17 @@ class AgentRegistry:
 
     def all(self) -> Dict[AgentRoute, Type[AcademicAgent]]:
         return dict(self._agents)
+
+    def create(
+        self,
+        route: AgentRoute,
+        *,
+        academic_gateway: AcademicToolGateway,
+        policy_gateway: PolicyContextGateway,
+    ) -> AcademicAgent | None:
+        agent_type = self.get(route)
+        if agent_type is None:
+            return None
+        if route == "recommendation":
+            return agent_type(academic_gateway, policy_gateway)
+        return agent_type(academic_gateway)
