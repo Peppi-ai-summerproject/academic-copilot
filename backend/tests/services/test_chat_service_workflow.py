@@ -16,10 +16,12 @@ class FakeWorkflow:
         status: WorkflowStatus = WorkflowStatus.COMPLETED,
         results: dict[str, AgentResult] | None = None,
         error: Exception | None = None,
+        final_response: str | None = None,
     ) -> None:
         self.status = status
         self.results = results or {}
         self.error = error
+        self.final_response = final_response
         self.states: list[AgentState] = []
 
     async def run(self, state: AgentState) -> AgentState:
@@ -28,6 +30,7 @@ class FakeWorkflow:
             raise self.error
         state.workflow_status = self.status
         state.agent_results = self.results
+        state.final_response = self.final_response
         return state
 
 
@@ -98,6 +101,16 @@ def test_completed_single_agent_workflow_formats_summary():
     response = process(service, request(selected_agents=["progress"]))
 
     assert response.reply == "Academic analysis completed.\n\n- On track"
+
+
+def test_workflow_final_response_is_returned_for_existing_telegram_flow():
+    workflow = FakeWorkflow(final_response="Tutor-ready Telegram response")
+    service, sessions = make_service(workflow)
+
+    response = process(service, request(selected_agents=["communication"]))
+
+    assert response.reply == "Tutor-ready Telegram response"
+    assert sessions.get_session(101).history[-1].content == response.reply
 
 
 def test_multi_agent_summaries_follow_selected_agent_order():

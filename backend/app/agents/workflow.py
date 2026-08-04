@@ -108,7 +108,7 @@ class AcademicAgentWorkflow:
             except Exception as exc:
                 errors.append(f"Agent '{route_name}' raised an exception: {exc}")
 
-        return {
+        update = {
             "pending_agents": remaining,
             "completed_agents": completed,
             "current_agent": route_name,
@@ -117,6 +117,13 @@ class AcademicAgentWorkflow:
             "warnings": warnings,
             "errors": errors,
         }
+        if route_name == "communication" and isinstance(
+            results.get(route_name), AgentResult
+        ):
+            formatted = results[route_name].data.get("formatted_message")
+            if isinstance(formatted, str) and formatted.strip():
+                update["final_response"] = formatted
+        return update
 
     @staticmethod
     def _next_after_execution(state: AgentState) -> str:
@@ -135,6 +142,7 @@ class AcademicAgentWorkflow:
 def create_default_agent_registry() -> AgentRegistry:
     """Create the production registry for agents supported by Issue #167."""
     from app.agents.progress_analysis_agent import ProgressAnalysisAgent
+    from app.agents.communication_agent import CommunicationAgent
     from app.agents.recommendation_agent import RecommendationAgent
     from app.agents.risk_detection_agent import RiskDetectionAgent
     from app.agents.study_rights_agent import StudyRightsAgent
@@ -144,6 +152,7 @@ def create_default_agent_registry() -> AgentRegistry:
     registry.register("study_rights", StudyRightsAgent)
     registry.register("risk", RiskDetectionAgent)
     registry.register("recommendation", RecommendationAgent)
+    registry.register("communication", CommunicationAgent)
     return registry
 
 
