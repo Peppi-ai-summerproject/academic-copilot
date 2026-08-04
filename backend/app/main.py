@@ -19,13 +19,43 @@ from app.api.routes.telegram import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize Telegram application if enabled in settings
     if settings.telegram_webhook_enabled:
         await initialize_telegram_application()
 
-    yield
+    # Initialize scheduler if enabled. The scheduler is created and started
+    # here to ensure it is bound to the FastAPI application lifecycle and not
+    # started at import time.
+    scheduler = None
+    if settings.scheduler_enabled:
+        from app.services.scheduler import Scheduler
 
-    if settings.telegram_webhook_enabled:
-        await shutdown_telegram_application()
+        try:
+            scheduler = Scheduler(timezone=settings.scheduler_timezone)
+            await scheduler.start()
+            # keep a reference on the app so other parts of the code can access it
+            app.state.scheduler = scheduler
+        except Exception:
+            # Log and re-raise to prevent partially initialized app
+            from app.core.logger import logger as _logger
+
+            _logger.exception("Failed to start scheduler")
+            raise
+
+    try:
+        yield
+    finally:
+        # Shutdown scheduler if it was started
+        if scheduler is not None:
+            try:
+                await scheduler.stop()
+            except Exception:
+                from app.core.logger import logger as _logger
+
+                _logger.exception("Failed to stop scheduler")
+
+        if settings.telegram_webhook_enabled:
+            await shutdown_telegram_application()
 
 app = FastAPI(
     title=settings.app_name,
