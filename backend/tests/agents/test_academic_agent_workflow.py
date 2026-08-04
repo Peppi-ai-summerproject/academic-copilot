@@ -174,3 +174,25 @@ def test_duplicate_routes_execute_only_once():
 
     assert result.selected_agents == ["progress"]
     assert result.step_count == 1
+
+
+def test_communication_result_sets_final_response_through_workflow_state():
+    class CommunicationAgent:
+        def __init__(self) -> None:
+            pass
+
+        async def run(self, state: AgentState) -> AgentResult:
+            return AgentResult(
+                agent_name="CommunicationAgent",
+                route="communication",
+                status="SUCCESS",
+                summary="Response formatted.",
+                data={"formatted_message": "Tutor-ready response"},
+            )
+
+    state = create_initial_state(user_message="format")
+    state.selected_agents = ["communication"]
+    result = run(make_workflow(("communication", CommunicationAgent)), state)
+
+    assert result.final_response == "Tutor-ready response"
+    assert result.workflow_status is WorkflowStatus.COMPLETED
