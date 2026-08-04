@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from app.agents.registry import AgentRegistry
+from app.agents.reporting_agent import ReportingAgent
 from app.agents.state import AgentState, create_initial_state
 from app.agents.types import AgentResult, WorkflowStatus
 from app.agents.workflow import AcademicAgentWorkflow
@@ -196,3 +197,15 @@ def test_communication_result_sets_final_response_through_workflow_state():
 
     assert result.final_response == "Tutor-ready response"
     assert result.workflow_status is WorkflowStatus.COMPLETED
+
+
+def test_reporting_before_upstream_agents_is_partial_and_does_not_set_final_response():
+    state = create_initial_state(user_message="report", student_id=42)
+    state.selected_agents = ["reporting"]
+
+    result = run(make_workflow(("reporting", ReportingAgent)), state)
+
+    assert result.agent_results["reporting"].status == "PARTIAL"
+    assert result.agent_results["reporting"].data["overall_status"] == "unavailable"
+    assert result.final_response is None
+    assert result.workflow_status is WorkflowStatus.PARTIAL
