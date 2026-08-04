@@ -10,6 +10,10 @@ from app.agents.registry import AgentRegistry
 from app.agents.state import AgentState
 from app.agents.types import AgentResult, AgentRoute, WorkflowStatus
 from app.gateways.academic_tools import AcademicToolGateway, MCPAcademicToolGateway
+from app.gateways.policy_context import (
+    PolicyContextGateway,
+    UnavailablePolicyContextGateway,
+)
 
 
 class AcademicAgentWorkflow:
@@ -24,9 +28,11 @@ class AcademicAgentWorkflow:
         self,
         registry: AgentRegistry,
         gateway: AcademicToolGateway | None = None,
+        policy_gateway: PolicyContextGateway | None = None,
     ) -> None:
         self._registry = registry
         self._gateway = gateway or MCPAcademicToolGateway()
+        self._policy_gateway = policy_gateway or UnavailablePolicyContextGateway()
         self._graph = self._build_graph()
 
     async def run(self, state: AgentState) -> AgentState:
@@ -81,12 +87,15 @@ class AcademicAgentWorkflow:
         warnings = list(state.warnings)
         errors = list(state.errors)
 
-        agent_type = self._registry.get(cast(AgentRoute, route_name))
-        if agent_type is None:
+        agent = self._registry.create(
+            cast(AgentRoute, route_name),
+            academic_gateway=self._gateway,
+            policy_gateway=self._policy_gateway,
+        )
+        if agent is None:
             errors.append(f"No registered agent for route '{route_name}'.")
         else:
             try:
-                agent = agent_type(self._gateway)
                 result = await agent.run(state)
                 if not isinstance(result, AgentResult):
                     raise TypeError(
@@ -126,6 +135,7 @@ class AcademicAgentWorkflow:
 def create_default_agent_registry() -> AgentRegistry:
     """Create the production registry for agents supported by Issue #167."""
     from app.agents.progress_analysis_agent import ProgressAnalysisAgent
+    from app.agents.recommendation_agent import RecommendationAgent
     from app.agents.risk_detection_agent import RiskDetectionAgent
     from app.agents.study_rights_agent import StudyRightsAgent
 
@@ -133,6 +143,7 @@ def create_default_agent_registry() -> AgentRegistry:
     registry.register("progress", ProgressAnalysisAgent)
     registry.register("study_rights", StudyRightsAgent)
     registry.register("risk", RiskDetectionAgent)
+    registry.register("recommendation", RecommendationAgent)
     return registry
 
 
@@ -140,11 +151,13 @@ def create_academic_agent_workflow(
     *,
     registry: AgentRegistry | None = None,
     gateway: AcademicToolGateway | None = None,
+    policy_gateway: PolicyContextGateway | None = None,
 ) -> AcademicAgentWorkflow:
     """Build the production workflow with replaceable dependencies."""
     return AcademicAgentWorkflow(
         registry=registry or create_default_agent_registry(),
         gateway=gateway,
+        policy_gateway=policy_gateway,
     )
 
 

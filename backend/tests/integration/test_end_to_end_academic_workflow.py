@@ -5,11 +5,13 @@ from typing import Any
 
 from app.agents.progress_analysis_agent import ProgressAnalysisAgent
 from app.agents.risk_detection_agent import RiskDetectionAgent
+from app.agents.recommendation_agent import RecommendationAgent
 from app.agents.study_rights_agent import StudyRightsAgent
 from app.agents.workflow import create_academic_agent_workflow, create_default_agent_registry
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 from app.services.session_service import SessionService
+from app.gateways.policy_context import PolicyContextResult, PolicyEvidenceCandidate
 
 
 class RecordingAcademicToolGateway:
@@ -76,15 +78,41 @@ class RecordingAcademicToolGateway:
         return result
 
 
+class RecordingPolicyContextGateway:
+    def __init__(self) -> None:
+        self.queries: list[tuple[str, int]] = []
+
+    async def retrieve_policy(self, query: str, *, top_k: int = 3):
+        self.queries.append((query, top_k))
+        return PolicyContextResult(
+            query=query,
+            candidates=(
+                PolicyEvidenceCandidate(
+                    chunk_id="policy-1",
+                    text="Tutors should review study plans for students at risk.",
+                    score=0.9,
+                    source="Academic Policy",
+                    metadata={"source": "Academic Policy"},
+                ),
+            ),
+        )
+
+
 def make_service(
     gateway: RecordingAcademicToolGateway,
+    policy_gateway: RecordingPolicyContextGateway | None = None,
 ) -> tuple[ChatService, SessionService]:
     registry = create_default_agent_registry()
     assert registry.get("progress") is ProgressAnalysisAgent
     assert registry.get("study_rights") is StudyRightsAgent
     assert registry.get("risk") is RiskDetectionAgent
+    assert registry.get("recommendation") is RecommendationAgent
     sessions = SessionService()
-    workflow = create_academic_agent_workflow(registry=registry, gateway=gateway)
+    workflow = create_academic_agent_workflow(
+        registry=registry,
+        gateway=gateway,
+        policy_gateway=policy_gateway,
+    )
     return ChatService(session_service=sessions, workflow=workflow), sessions
 
 
@@ -257,4 +285,38 @@ def test_risk_request_runs_real_agent_without_external_services():
         ("get_progress", 42),
         ("get_study_right", 42),
         ("get_upcoming_events", 0),
+    ]
+
+
+def test_recommendation_runs_after_real_prerequisite_agents_end_to_end():
+    gateway = RecordingAcademicToolGateway(
+        progress={
+            "success": True,
+            "progress": {
+                "completed_ects": 50,
+                "expected_ects": 120,
+                "difference_ects": -70,
+                "status": "BEHIND",
+                "current_semester": 4,
+                "progress_percentage": 41.67,
+            },
+        }
+    )
+    policies = RecordingPolicyContextGateway()
+    service, _ = make_service(gateway, policies)
+
+    response = process(
+        service,
+        request(selected_agents=["progress", "study_rights", "risk", "recommendation"]),
+    )
+
+    assert "Policy-grounded advisory recommendations: 2 action(s)." in response.reply
+    assert policies.queries == [
+        ("academic progress deficit tutor support policy", 3)
+    ]
+    assert gateway.calls == [
+        ("get_student", 42), ("get_progress", 42),
+        ("get_student", 42), ("get_study_right", 42),
+        ("get_student", 42), ("get_progress", 42),
+        ("get_study_right", 42), ("get_upcoming_events", 0),
     ]
