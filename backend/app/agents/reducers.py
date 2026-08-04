@@ -1,61 +1,32 @@
-from __future__ import annotations
+"""State reducers for the multi-agent workflow — Issue #87."""
 
-from app.agents.base import AgentResult
-from app.agents.types import AgentRoute
+from __future__ import annotations
+from app.agents.types import AgentResult
 
 
 def merge_agent_results(
-    current: dict[AgentRoute, AgentResult] | None,
-    update: dict[AgentRoute, AgentResult] | None,
-) -> dict[AgentRoute, AgentResult]:
-    if current is None:
-        current = {}
-    if update is None:
-        update = {}
-
-    merged = {**current, **update}
-    return merged
-
-
-def append_warnings(
-    current: list[str] | None,
-    new_warnings: list[str] | None,
-) -> list[str]:
-    if current is None:
-        current = []
-    if new_warnings is None:
-        new_warnings = []
-
-    return [*current, *new_warnings]
+    current: dict[str, AgentResult],
+    update: dict[str, AgentResult],
+) -> dict[str, AgentResult]:
+    """Merge agent results — last-write-wins on collision."""
+    if not update:
+        return dict(current)
+    if not current:
+        return dict(update)
+    return {**current, **update}
 
 
-def append_errors(
-    current: list[str] | None,
-    new_errors: list[str] | None,
-) -> list[str]:
-    if current is None:
-        current = []
-    if new_errors is None:
-        new_errors = []
-
-    return [*current, *new_errors]
-
-
-def append_completed_agents(
-    current: list[AgentRoute] | None,
-    new_agents: list[AgentRoute] | None,
-) -> list[AgentRoute]:
-    if current is None:
-        current = []
-    if new_agents is None:
+def append_unique(current: list[str], update: list[str]) -> list[str]:
+    """Append items skipping duplicates. Used for completed_agents."""
+    if not update:
         return list(current)
+    seen = set(current)
+    new_items = [item for item in update if item not in seen]
+    return list(current) + new_items
 
-    seen: set[AgentRoute] = set(current)
-    result: list[AgentRoute] = list(current)
 
-    for agent in new_agents:
-        if agent not in seen:
-            seen.add(agent)
-            result.append(agent)
-
-    return result
+def append_all(current: list[str], update: list[str]) -> list[str]:
+    """Append all items including duplicates. Used for warnings/errors."""
+    if not update:
+        return list(current)
+    return list(current) + list(update)
