@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,14 +40,10 @@ class Settings(BaseSettings):
     # valid IANA timezone name (e.g. "UTC", "Europe/Helsinki"). Defaults to UTC.
     scheduler_timezone: str = "UTC"
 
-    # Scheduler configuration
-    # Controls whether the in-process scheduler is enabled. Default is disabled
-    # to avoid starting background jobs during tests or in environments that do
-    # not require scheduled workflows.
-    scheduler_enabled: bool = False
-    # Timezone used by the scheduler for computing job run times. Must be a
-    # valid IANA timezone name (e.g. "UTC", "Europe/Helsinki"). Defaults to UTC.
-    scheduler_timezone: str = "UTC"
+    # Monday workflow schedule. The configured scheduler timezone is used for
+    # interpretation; no server-local timezone is used.
+    monday_workflow_hour: int = Field(default=6, ge=0, le=23)
+    monday_workflow_minute: int = Field(default=0, ge=0, le=59)
 
 
     model_config = SettingsConfigDict(

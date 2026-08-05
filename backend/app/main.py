@@ -33,6 +33,9 @@ async def lifespan(app: FastAPI):
         try:
             scheduler = Scheduler(timezone=settings.scheduler_timezone)
             await scheduler.start()
+            from app.workflows.monday import register_monday_workflow
+
+            await register_monday_workflow(scheduler)
             # keep a reference on the app so other parts of the code can access it
             app.state.scheduler = scheduler
         except Exception:
