@@ -16,7 +16,7 @@ import asyncio
 import inspect
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from zoneinfo import ZoneInfo
 from typing import Any, Awaitable, Callable, Dict, Optional
 
@@ -93,7 +93,13 @@ class DailyTimeTrigger(Trigger):
                 if attempts > 8:
                     raise SchedulerError("DailyTimeTrigger: no matching weekday found")
 
-        delta = (candidate - localized_now).total_seconds()
+        # Convert both values to a fixed-offset timezone before subtracting.
+        # Subtracting two datetimes that share one ZoneInfo object uses wall
+        # time and can be an hour wrong across a daylight-saving transition.
+        delta = (
+            candidate.astimezone(timezone.utc)
+            - localized_now.astimezone(timezone.utc)
+        ).total_seconds()
         return max(0.0, delta)
 
 

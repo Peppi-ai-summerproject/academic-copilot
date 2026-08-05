@@ -55,3 +55,15 @@ def test_enabled_telegram_webhook_requires_credentials(monkeypatch):
 
     with pytest.raises(ValueError, match="TELEGRAM_BOT_TOKEN"):
         Settings(_env_file=None)
+
+
+def test_daily_workflow_schedule_is_configurable(monkeypatch):
+    monkeypatch.setenv("DAILY_WORKFLOW_HOUR", "7")
+    monkeypatch.setenv("DAILY_WORKFLOW_MINUTE", "30")
+    monkeypatch.setenv("DAILY_WORKFLOW_TIMEZONE", "Europe/Helsinki")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.daily_workflow_hour == 7
+    assert settings.daily_workflow_minute == 30
+    assert settings.daily_workflow_timezone == "Europe/Helsinki"

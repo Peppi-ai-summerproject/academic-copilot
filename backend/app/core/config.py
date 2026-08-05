@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     monday_workflow_hour: int = Field(default=6, ge=0, le=23)
     monday_workflow_minute: int = Field(default=0, ge=0, le=59)
 
+    # Daily workflow schedule. This workflow has its own timezone so adding it
+    # does not alter the existing scheduler or Monday-workflow defaults.
+    daily_workflow_hour: int = Field(default=6, ge=0, le=23)
+    daily_workflow_minute: int = Field(default=0, ge=0, le=59)
+    daily_workflow_timezone: str = "Europe/Helsinki"
+
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
