@@ -49,12 +49,23 @@ def event(days, *, applicable=True, kind="DEADLINE", event_id=1):
 
 
 def tutor(points=0):
+    rules = {
+        0: "RECENT_TUTOR_MEETING_COMPLETED",
+        5: "TUTOR_MEETING_UPCOMING_WITHOUT_RECENT_COMPLETION",
+        10: "TUTOR_MEETING_MISSED",
+    }
     return {
         "success": True,
         "evaluation_status": "EVALUATED",
         "assigned_points": points,
-        "matched_rule_code": "FUTURE_VERIFIED_RULE",
-        "normalized_input": {"verified": True},
+        "matched_rule_code": rules[points],
+        "normalized_input": {
+            "meeting_id": 1,
+            "meeting_status": {0: "COMPLETED", 5: "SCHEDULED", 10: "MISSED"}[points],
+            "scheduled_at": "2026-08-05T09:00:00+00:00",
+            "lookback_start": "2026-05-07",
+            "upcoming_end": "2026-09-04",
+        },
     }
 
 
@@ -218,16 +229,103 @@ def test_valid_complete_zero_score_for_future_verified_meeting_adapter():
     assert result["risk_level"] == "LOW"
 
 
+@pytest.mark.parametrize(("points", "expected_score"), [(0, 0), (5, 5), (10, 10)])
+def test_approved_tutor_contributions_affect_complete_score(points, expected_score):
+    result = score(tutor_result=tutor(points))
+    assert result["assessment_status"] == "COMPLETE"
+    assert result["score"] == expected_score
+
+
+def test_unsupported_tutor_rule_is_unavailable():
+    value = tutor(5)
+    value["matched_rule_code"] = "UNAPPROVED_RULE"
+    result = score(tutor_result=value)
+    assert result["assessment_status"] == "PARTIAL"
+    assert result["unavailable_indicators"] == ["tutor_meetings"]
+
+
+def assert_invalid_tutor_evidence_is_partial(value):
+    result = score(tutor_result=value)
+    assert result["assessment_status"] == "PARTIAL"
+    assert result["score"] is None
+    assert result["risk_level"] is None
+    assert result["unavailable_indicators"] == ["tutor_meetings"]
+
+
+@pytest.mark.parametrize("normalized", [None, [], "invalid", 1, {}])
+def test_non_dictionary_or_empty_tutor_normalized_input_is_unavailable(normalized):
+    value = tutor(0)
+    value["normalized_input"] = normalized
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
+@pytest.mark.parametrize(
+    "missing",
+    ["meeting_id", "meeting_status", "scheduled_at", "lookback_start", "upcoming_end"],
+)
+def test_missing_required_tutor_normalized_field_is_unavailable(missing):
+    value = tutor(0)
+    value["normalized_input"].pop(missing)
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
+@pytest.mark.parametrize("meeting_id", [None, True, False, 0, -1, "1", 1.0])
+def test_invalid_tutor_meeting_id_is_unavailable(meeting_id):
+    value = tutor(0)
+    value["normalized_input"]["meeting_id"] = meeting_id
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
+@pytest.mark.parametrize("status", [None, "", "CANCELLED", "ABSENT", "completed"])
+def test_unsupported_tutor_meeting_status_is_unavailable(status):
+    value = tutor(0)
+    value["normalized_input"]["meeting_status"] = status
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
+@pytest.mark.parametrize("field", ["scheduled_at", "lookback_start", "upcoming_end"])
+@pytest.mark.parametrize("invalid", [None, True, "", "not-a-date"])
+def test_malformed_tutor_temporal_field_is_unavailable(field, invalid):
+    value = tutor(0)
+    value["normalized_input"][field] = invalid
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
+def test_tutor_timestamp_requires_iso_datetime_with_timezone():
+    for invalid in ("2026-08-05", "2026-08-05T09:00:00"):
+        value = tutor(0)
+        value["normalized_input"]["scheduled_at"] = invalid
+        assert_invalid_tutor_evidence_is_partial(value)
+
+
+@pytest.mark.parametrize(("points", "wrong_status"), [
+    (0, "SCHEDULED"), (0, "MISSED"),
+    (5, "COMPLETED"), (5, "MISSED"),
+    (10, "COMPLETED"), (10, "SCHEDULED"),
+])
+def test_tutor_rule_status_contradiction_is_unavailable(points, wrong_status):
+    value = tutor(points)
+    value["normalized_input"]["meeting_status"] = wrong_status
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
+def test_unavailable_tutor_rule_cannot_be_marked_evaluated():
+    value = tutor(0)
+    value["matched_rule_code"] = "TUTOR_MEETING_EVIDENCE_UNAVAILABLE"
+    assert_invalid_tutor_evidence_is_partial(value)
+
+
 def test_tutor_adapter_does_not_serialize_private_notes_or_personal_data():
     evaluation = tutor(0)
     evaluation["normalized_input"] = {
+        **tutor(0)["normalized_input"],
         "private_notes": "Sensitive discussion",
         "student_name": "Private Student",
         "verified": True,
     }
     item = contribution(score(tutor_result=evaluation), "tutor_meetings")
     serialized = json.dumps(item)
-    assert item["normalized_input"] == {"evaluation_status": "EVALUATED"}
+    assert item["normalized_input"] == tutor(0)["normalized_input"]
     assert "Sensitive discussion" not in serialized
     assert "Private Student" not in serialized
 
@@ -287,15 +385,20 @@ def test_orchestrator_calls_authoritative_services_with_explicit_date():
     study_service.detect_study_right_risk.return_value = study()
     event_service = Mock()
     event_service.get_upcoming_events.return_value = events()
-    service = AcademicRiskScoringService(delay_service, study_service, event_service)
+    meeting_service = Mock()
+    meeting_service.evaluate_student.return_value = tutor()
+    service = AcademicRiskScoringService(
+        delay_service, study_service, event_service, meeting_service
+    )
 
     result = service.assess_student_risk(1, as_of_date=AS_OF)
 
     delay_service.detect_student_delay.assert_called_once_with(1)
     study_service.detect_study_right_risk.assert_called_once_with(1, as_of_date=AS_OF)
     event_service.get_upcoming_events.assert_called_once_with(start_date="2026-08-05", end_date=None)
-    assert result["assessment_status"] == "PARTIAL"
-    assert result["unavailable_indicators"] == ["tutor_meetings"]
+    meeting_service.evaluate_student.assert_called_once_with(1, as_of_date=AS_OF)
+    assert result["assessment_status"] == "COMPLETE"
+    assert result["unavailable_indicators"] == []
 
 
 def test_pure_scoring_has_no_database_network_llm_or_rag_dependency():

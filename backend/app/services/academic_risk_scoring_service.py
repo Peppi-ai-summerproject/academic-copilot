@@ -5,16 +5,15 @@ Issues #93 and #94.  It never recalculates progress or study-right expiry.
 ``AcademicRiskScoringService`` is a thin orchestrator around those authoritative
 services and the existing academic-event service.
 
-Tutor-meeting scoring is intentionally not implemented: the repository has no
-authoritative student-specific meeting contract.  The optional normalized
-evaluation argument is an adapter boundary for that future contract; production
-orchestration currently always reports the indicator as unavailable.
+Tutor-meeting evidence is supplied by the dedicated deterministic meeting-risk
+service. This module validates its normalized contract but does not duplicate
+its status, history, or window policy.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Protocol
 
 
@@ -47,6 +46,12 @@ class AcademicEventProvider(Protocol):
     ) -> dict[str, Any]: ...
 
 
+class TutorMeetingEvaluator(Protocol):
+    def evaluate_student(
+        self, student_id: int, *, as_of_date: date
+    ) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class IndicatorContribution:
     """Serializable explanation of one verified indicator contribution."""
@@ -74,9 +79,8 @@ def calculate_academic_risk(
 ) -> dict[str, Any]:
     """Calculate an explainable risk result from authoritative evidence.
 
-    ``tutor_meeting_evaluation`` is a normalized future-adapter result, not a
-    database or inferred meeting model.  Until such an adapter exists, callers
-    must omit it and the assessment is PARTIAL.
+    ``tutor_meeting_evaluation`` is the normalized result from the dedicated
+    tutor-meeting risk service.
     """
     base = _base_result(student_id, as_of_date)
     if not isinstance(student_id, int) or isinstance(student_id, bool) or student_id <= 0:
@@ -143,10 +147,12 @@ class AcademicRiskScoringService:
         delay_service: DelayDetector,
         study_right_risk_service: StudyRightRiskDetector,
         event_service: AcademicEventProvider,
+        tutor_meeting_risk_service: TutorMeetingEvaluator,
     ) -> None:
         self._delay_service = delay_service
         self._study_right_risk_service = study_right_risk_service
         self._event_service = event_service
+        self._tutor_meeting_risk_service = tutor_meeting_risk_service
 
     def assess_student_risk(self, student_id: int, *, as_of_date: date) -> dict[str, Any]:
         if not isinstance(student_id, int) or isinstance(student_id, bool) or student_id <= 0:
@@ -171,6 +177,16 @@ class AcademicRiskScoringService:
             )
         except Exception:
             events_result = {"success": False, "error": "EVENT_SERVICE_FAILURE"}
+        try:
+            tutor_result = self._tutor_meeting_risk_service.evaluate_student(
+                student_id, as_of_date=as_of_date
+            )
+        except Exception:
+            tutor_result = {
+                "success": False,
+                "evaluation_status": "UNAVAILABLE",
+                "matched_rule_code": "TUTOR_MEETING_EVIDENCE_UNAVAILABLE",
+            }
 
         return calculate_academic_risk(
             student_id=student_id,
@@ -178,7 +194,7 @@ class AcademicRiskScoringService:
             delay_result=delay_result,
             study_right_result=study_right_result,
             academic_events_result=events_result,
-            tutor_meeting_evaluation=None,
+            tutor_meeting_evaluation=tutor_result,
         )
 
 
@@ -241,7 +257,7 @@ def _evaluate_study_right(result: Any, student_id: int) -> IndicatorContribution
 
 
 def _evaluate_tutor_meetings(value: Any) -> IndicatorContribution | None:
-    """Accept only a future adapter's explicitly verified normalized result."""
+    """Validate the dedicated evaluator's approved normalized contract."""
     if not isinstance(value, dict) or value.get("success") is not True:
         return None
     if value.get("evaluation_status") != "EVALUATED":
@@ -249,13 +265,44 @@ def _evaluate_tutor_meetings(value: Any) -> IndicatorContribution | None:
     points = value.get("assigned_points")
     rule = value.get("matched_rule_code")
     normalized = value.get("normalized_input")
-    if not isinstance(points, int) or isinstance(points, bool) or not 0 <= points <= 10:
+    approved = {
+        "RECENT_TUTOR_MEETING_COMPLETED": (0, "COMPLETED"),
+        "TUTOR_MEETING_UPCOMING_WITHOUT_RECENT_COMPLETION": (5, "SCHEDULED"),
+        "TUTOR_MEETING_MISSED": (10, "MISSED"),
+    }
+    if not isinstance(points, int) or isinstance(points, bool):
         return None
-    if not isinstance(rule, str) or not rule or not isinstance(normalized, dict):
+    if rule not in approved or not isinstance(normalized, dict):
         return None
+    expected_points, expected_status = approved[rule]
+    required = {
+        "meeting_id", "meeting_status", "scheduled_at",
+        "lookback_start", "upcoming_end",
+    }
+    if not required.issubset(normalized) or points != expected_points:
+        return None
+    meeting_id = normalized["meeting_id"]
+    if not isinstance(meeting_id, int) or isinstance(meeting_id, bool) or meeting_id <= 0:
+        return None
+    if normalized["meeting_status"] != expected_status:
+        return None
+    if _parse_iso_datetime(normalized["scheduled_at"]) is None:
+        return None
+    if _parse_iso_date(normalized["lookback_start"]) is None:
+        return None
+    if _parse_iso_date(normalized["upcoming_end"]) is None:
+        return None
+    safe_normalized = {
+        key: normalized[key]
+        for key in (
+            "meeting_id", "meeting_status", "scheduled_at",
+            "lookback_start", "upcoming_end",
+        )
+        if key in normalized
+    }
     return IndicatorContribution(
-        "tutor_meetings", "Verified tutor-meeting adapter",
-        {"evaluation_status": "EVALUATED"}, rule, points, 10,
+        "tutor_meetings", "TutorMeetingRiskService / TutorMeetingRepository",
+        safe_normalized, rule, points, 10,
         f"Verified tutor-meeting evidence contributes {points} points.",
     )
 
@@ -355,3 +402,13 @@ def _parse_iso_date(value: Any) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None

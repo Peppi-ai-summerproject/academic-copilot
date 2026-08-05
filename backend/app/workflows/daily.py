@@ -19,6 +19,7 @@ from app.repositories.event_repository import EventRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.student_repository import StudentRepository
 from app.repositories.study_right_repository import StudyRightRepository
+from app.repositories.tutor_meeting_repository import TutorMeetingRepository
 from app.services.academic_risk_scoring_service import AcademicRiskScoringService
 from app.services.delay_detection_service import DelayDetectionService
 from app.services.event_service import EventService
@@ -27,6 +28,7 @@ from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Schedule
 from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
+from app.services.tutor_meeting_risk_service import TutorMeetingRiskService
 
 
 logger = logging.getLogger("academic-copilot.workflows.daily")
@@ -345,6 +347,7 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
         delay_service,
         study_right_risk_service,
         event_service,
+        TutorMeetingRiskService(TutorMeetingRepository(session)),
     )
     return DailyWorkflow(
         student_directory=StudentRepository(session),
