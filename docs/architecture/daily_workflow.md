@@ -54,6 +54,7 @@ dates, missing records, or any other indirect signal.
 
 - `academic_events`
 - `student_risks`
+- `academic_alerts`
 - `pending_tutor_actions`
 
 Check statuses are `completed`, `partial`, `failed`, or `unavailable`.
@@ -63,6 +64,10 @@ Check statuses are `completed`, `partial`, `failed`, or `unavailable`.
 - A risk result whose authoritative assessment is partial makes the aggregate
   risk check partial. Issue #104 may supply a normalized canonical level, but
   the partial status and unavailable indicators remain explicit.
+- Issue #106 receives the exact #104 result already evaluated by this run and
+  generates structured, non-persistent alerts from established #93 and #94
+  sources. It does not add a scheduler, send Telegram messages, or create
+  event-reminder alerts.
 - The overall workflow is completed only when all checks complete. It is partial
   when one useful check completes while another is partial, failed, or
   unavailable.
@@ -114,5 +119,7 @@ partial and total failure, lifecycle shutdown, and aggregate-only logging.
 
 This workflow does not implement tutor actions, persistent workflow logs,
 Telegram delivery, RAG, MCP tools, LLM decisions, new risk rules, database
-migrations, queues, or distributed coordination. Those responsibilities remain
-with their respective future issues.
+migrations, queues, or distributed coordination. It invokes Issue #106 but
+does not own alert qualification, alert persistence, delivery, recipient
+resolution, acknowledgement, or resolution. Those responsibilities remain with
+their respective issues.

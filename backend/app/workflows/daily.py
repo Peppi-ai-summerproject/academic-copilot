@@ -64,6 +64,15 @@ class RiskDetectionRunner(Protocol):
     def run(self, *, evaluation_time: datetime | None = None) -> Any: ...
 
 
+class AcademicAlertRunner(Protocol):
+    def run(
+        self,
+        *,
+        evaluation_time: datetime,
+        risk_detection_result: Any,
+    ) -> Any: ...
+
+
 @dataclass(frozen=True)
 class DailyCheckResult:
     """Aggregate result for one independent daily check.
@@ -90,6 +99,7 @@ class DailyWorkflowResult:
     execution_key: str
     academic_events: DailyCheckResult
     student_risks: DailyCheckResult
+    academic_alerts: DailyCheckResult
     pending_tutor_actions: DailyCheckResult
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -110,6 +120,7 @@ class DailyWorkflow:
         timezone: str,
         student_page_size: int = 100,
         automatic_risk_detection: RiskDetectionRunner | None = None,
+        academic_alert_generation: AcademicAlertRunner | None = None,
     ) -> None:
         if student_page_size <= 0:
             raise ValueError("student_page_size must be positive")
@@ -120,6 +131,7 @@ class DailyWorkflow:
         self._timezone = _load_timezone(timezone)
         self._student_page_size = student_page_size
         self._automatic_risk_detection = automatic_risk_detection
+        self._academic_alert_generation = academic_alert_generation
 
     def run(self, *, now: datetime | None = None) -> DailyWorkflowResult:
         """Execute all checks for the current local calendar date.
@@ -140,12 +152,22 @@ class DailyWorkflow:
         )
 
         academic_events = self._check_academic_events(execution_date)
-        student_risks = self._check_student_risks(
-            execution_date,
+        risk_detection_result: Any | None = None
+        if self._automatic_risk_detection is not None:
+            student_risks, risk_detection_result = self._check_automatic_risk_detection(
+                local_now
+            )
+        else:
+            student_risks = self._check_student_risks(
+                execution_date,
+                evaluation_time=local_now,
+            )
+        academic_alerts = self._check_academic_alerts(
             evaluation_time=local_now,
+            risk_detection_result=risk_detection_result,
         )
         pending_tutor_actions = _unavailable_tutor_action_check()
-        checks = (academic_events, student_risks, pending_tutor_actions)
+        checks = (academic_events, student_risks, academic_alerts, pending_tutor_actions)
         status = _aggregate_status(checks)
 
         warnings = [
@@ -164,18 +186,22 @@ class DailyWorkflow:
             execution_key=execution_key,
             academic_events=academic_events,
             student_risks=student_risks,
+            academic_alerts=academic_alerts,
             pending_tutor_actions=pending_tutor_actions,
             warnings=warnings,
             errors=errors,
         )
         logger.info(
             "Daily workflow finished: status=%s event_status=%s event_count=%s "
-            "risk_status=%s risk_count=%s tutor_action_status=%s",
+            "risk_status=%s risk_count=%s alert_status=%s alert_count=%s "
+            "tutor_action_status=%s",
             result.status,
             academic_events.status,
             academic_events.count,
             student_risks.status,
             student_risks.count,
+            academic_alerts.status,
+            academic_alerts.count,
             pending_tutor_actions.status,
         )
         return result
@@ -226,7 +252,8 @@ class DailyWorkflow:
         evaluation_time: datetime,
     ) -> DailyCheckResult:
         if self._automatic_risk_detection is not None:
-            return self._check_automatic_risk_detection(evaluation_time)
+            check, _ = self._check_automatic_risk_detection(evaluation_time)
+            return check
         if self._student_directory is None or self._risk_provider is None:
             return DailyCheckResult(
                 name="student_risks",
@@ -319,7 +346,7 @@ class DailyWorkflow:
     def _check_automatic_risk_detection(
         self,
         evaluation_time: datetime,
-    ) -> DailyCheckResult:
+    ) -> tuple[DailyCheckResult, Any | None]:
         """Adapt the reusable Issue #104 result to the existing daily DTO."""
 
         try:
@@ -328,11 +355,14 @@ class DailyWorkflow:
             )
         except Exception:
             logger.exception("Daily workflow automatic risk detection failed")
-            return DailyCheckResult(
-                name="student_risks",
-                status="failed",
-                count=None,
-                reason_codes=["AUTOMATIC_RISK_DETECTION_FAILED"],
+            return (
+                DailyCheckResult(
+                    name="student_risks",
+                    status="failed",
+                    count=None,
+                    reason_codes=["AUTOMATIC_RISK_DETECTION_FAILED"],
+                ),
+                None,
             )
 
         status = getattr(result, "status", None)
@@ -350,11 +380,14 @@ class DailyWorkflow:
             or not isinstance(errors, list)
             or not all(isinstance(error, str) for error in errors)
         ):
-            return DailyCheckResult(
-                name="student_risks",
-                status="failed",
-                count=None,
-                reason_codes=["AUTOMATIC_RISK_DETECTION_MALFORMED"],
+            return (
+                DailyCheckResult(
+                    name="student_risks",
+                    status="failed",
+                    count=None,
+                    reason_codes=["AUTOMATIC_RISK_DETECTION_MALFORMED"],
+                ),
+                None,
             )
         details = {
             "active_students_discovered": active_count,
@@ -365,11 +398,100 @@ class DailyWorkflow:
             "high_risk_students": _risk_level_count(level_counts, "HIGH"),
             "critical_risk_students": _risk_level_count(level_counts, "CRITICAL"),
         }
+        return (
+            DailyCheckResult(
+                name="student_risks",
+                status=status,
+                count=evaluated_count if status in {"completed", "partial"} else None,
+                details=details,
+                reason_codes=_deduplicate(errors),
+            ),
+            result,
+        )
+
+    def _check_academic_alerts(
+        self,
+        *,
+        evaluation_time: datetime,
+        risk_detection_result: Any | None,
+    ) -> DailyCheckResult:
+        if self._academic_alert_generation is None:
+            return DailyCheckResult(
+                name="academic_alerts",
+                status="unavailable",
+                count=None,
+                reason_codes=["ACADEMIC_ALERT_WORKFLOW_UNAVAILABLE"],
+            )
+        if risk_detection_result is None:
+            return DailyCheckResult(
+                name="academic_alerts",
+                status="unavailable",
+                count=None,
+                reason_codes=["RISK_DETECTION_RESULT_UNAVAILABLE"],
+            )
+        try:
+            result = self._academic_alert_generation.run(
+                evaluation_time=evaluation_time,
+                risk_detection_result=risk_detection_result,
+            )
+        except Exception:
+            logger.exception("Daily workflow academic-alert generation failed")
+            return DailyCheckResult(
+                name="academic_alerts",
+                status="failed",
+                count=None,
+                reason_codes=["ACADEMIC_ALERT_GENERATION_FAILED"],
+            )
+
+        status = getattr(result, "status", None)
+        alert_count = getattr(result, "alert_count", None)
+        students_considered = getattr(result, "students_considered", None)
+        alert_type_counts = getattr(result, "alert_type_counts", None)
+        suppressed_count = getattr(result, "suppressed_overall_risk_alert_count", None)
+        errors = getattr(result, "errors", None)
+        if (
+            status not in {"completed", "partial", "failed"}
+            or not _is_nonnegative_int(alert_count)
+            or not _is_nonnegative_int(students_considered)
+            or not isinstance(alert_type_counts, dict)
+            or not all(
+                isinstance(key, str) and _is_nonnegative_int(value)
+                for key, value in alert_type_counts.items()
+            )
+            or not _is_nonnegative_int(suppressed_count)
+            or not isinstance(errors, list)
+            or not all(isinstance(error, str) for error in errors)
+        ):
+            return DailyCheckResult(
+                name="academic_alerts",
+                status="failed",
+                count=None,
+                reason_codes=["ACADEMIC_ALERT_GENERATION_MALFORMED"],
+            )
         return DailyCheckResult(
-            name="student_risks",
+            name="academic_alerts",
             status=status,
-            count=evaluated_count if status in {"completed", "partial"} else None,
-            details=details,
+            count=alert_count if status in {"completed", "partial"} else None,
+            details={
+                "students_considered": students_considered,
+                "delayed_progress_alerts": _alert_type_count(
+                    alert_type_counts,
+                    "DELAYED_PROGRESS",
+                ),
+                "study_right_alerts": sum(
+                    _alert_type_count(alert_type_counts, alert_type)
+                    for alert_type in (
+                        "STUDY_RIGHT_EXPIRED",
+                        "STUDY_RIGHT_EXPIRING_SOON",
+                        "STUDY_RIGHT_EXTENDED",
+                    )
+                ),
+                "overall_risk_alerts": _alert_type_count(
+                    alert_type_counts,
+                    "ACADEMIC_RISK_DETECTED",
+                ),
+                "suppressed_overall_risk_alerts": suppressed_count,
+            },
             reason_codes=_deduplicate(errors),
         )
 
@@ -416,10 +538,17 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
     from app.workflows.automatic_risk_detection import (
         create_database_automatic_risk_detection_workflow,
     )
+    from app.workflows.academic_alerts import create_database_academic_alert_workflow
+
+    automatic_risk_detection = create_database_automatic_risk_detection_workflow(
+        session=session,
+        timezone=timezone,
+    )
     return DailyWorkflow(
         event_provider=event_service,
         timezone=timezone,
-        automatic_risk_detection=create_database_automatic_risk_detection_workflow(
+        automatic_risk_detection=automatic_risk_detection,
+        academic_alert_generation=create_database_academic_alert_workflow(
             session=session,
             timezone=timezone,
         ),
@@ -532,6 +661,11 @@ def _is_nonnegative_int(value: Any) -> bool:
 
 def _risk_level_count(level_counts: dict[str, Any], level: str) -> int:
     value = level_counts.get(level, 0)
+    return value if _is_nonnegative_int(value) else 0
+
+
+def _alert_type_count(alert_type_counts: dict[str, Any], alert_type: str) -> int:
+    value = alert_type_counts.get(alert_type, 0)
     return value if _is_nonnegative_int(value) else 0
 
 

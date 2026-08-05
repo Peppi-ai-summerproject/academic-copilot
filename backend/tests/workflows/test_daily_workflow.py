@@ -28,6 +28,19 @@ class FakeAutomaticRiskDetection:
         return self.result
 
 
+class FakeAcademicAlertGeneration:
+    def __init__(self, result=None, error=None):
+        self.result = result
+        self.error = error
+        self.calls = []
+
+    def run(self, *, evaluation_time, risk_detection_result):
+        self.calls.append((evaluation_time, risk_detection_result))
+        if self.error:
+            raise self.error
+        return self.result
+
+
 class FakeStudentDirectory:
     def __init__(self, students=None, error=None):
         self.students = students or []
@@ -228,6 +241,63 @@ def test_daily_workflow_uses_issue_104_automatic_detection_when_configured():
         "medium_risk_students": 1,
         "high_risk_students": 1,
         "critical_risk_students": 0,
+    }
+
+
+def test_daily_workflow_invokes_issue_106_with_the_existing_risk_result():
+    detection_result = type(
+        "DetectionResult",
+        (),
+        {
+            "status": "completed",
+            "active_student_count": 2,
+            "evaluated_student_count": 2,
+            "at_risk_student_count": 1,
+            "risk_level_counts": {
+                "LOW": 1,
+                "MEDIUM": 1,
+                "HIGH": 0,
+                "CRITICAL": 0,
+            },
+            "errors": [],
+        },
+    )()
+    alert_result = type(
+        "AlertResult",
+        (),
+        {
+            "status": "completed",
+            "alert_count": 2,
+            "students_considered": 2,
+            "alert_type_counts": {
+                "DELAYED_PROGRESS": 1,
+                "STUDY_RIGHT_EXPIRED": 1,
+            },
+            "suppressed_overall_risk_alert_count": 1,
+            "errors": [],
+        },
+    )()
+    detection = FakeAutomaticRiskDetection(detection_result)
+    alerts = FakeAcademicAlertGeneration(alert_result)
+    instance = DailyWorkflow(
+        event_provider=FakeEventProvider(),
+        timezone="Europe/Helsinki",
+        automatic_risk_detection=detection,
+        academic_alert_generation=alerts,
+    )
+    now = datetime(2026, 1, 1, 7, tzinfo=ZoneInfo("Europe/Helsinki"))
+
+    result = instance.run(now=now)
+
+    assert alerts.calls == [(now, detection_result)]
+    assert result.academic_alerts.status == "completed"
+    assert result.academic_alerts.count == 2
+    assert result.academic_alerts.details == {
+        "students_considered": 2,
+        "delayed_progress_alerts": 1,
+        "study_right_alerts": 1,
+        "overall_risk_alerts": 0,
+        "suppressed_overall_risk_alerts": 1,
     }
 
 
