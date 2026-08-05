@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import MagicMock, patch
 
 from app.agents.calendar_agent import CalendarAgent
-from app.agents.types import AgentState
+from app.agents.state import AgentState
 
 
 @patch("app.agents.calendar_agent.CalendarAgent._get_upcoming_events")
@@ -32,8 +32,8 @@ def test_calendar_agent_returns_upcoming_events(mock_get) -> None:
     agent = CalendarAgent()
     state = AgentState(
         request_id="req-123",
+        user_message="Show upcoming tutoring events.",
         intent="upcoming tutoring events",
-        route="calendar",
         student_id=42,
         parameters={
             "start_date": "2026-09-01",
@@ -67,8 +67,8 @@ def test_calendar_agent_returns_no_events(mock_get) -> None:
     agent = CalendarAgent()
     state = AgentState(
         request_id="req-456",
+        user_message="Show the calendar overview.",
         intent="calendar overview",
-        route="calendar",
         parameters={"start_date": "2026-09-01"},
     )
 
@@ -84,8 +84,8 @@ def test_calendar_agent_handles_invalid_student_id() -> None:
     agent = CalendarAgent()
     state = AgentState(
         request_id="req-789",
+        user_message="Show the calendar.",
         intent="calendar query",
-        route="calendar",
         student_id=0,
         parameters={"start_date": "2026-09-01"},
     )
@@ -108,8 +108,8 @@ def test_calendar_agent_handles_tool_failure(mock_get) -> None:
     agent = CalendarAgent()
     state = AgentState(
         request_id="req-321",
+        user_message="Show the calendar.",
         intent="calendar query",
-        route="calendar",
         parameters={"start_date": "2026-09-01"},
     )
 

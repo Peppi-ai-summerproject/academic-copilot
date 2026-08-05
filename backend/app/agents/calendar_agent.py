@@ -4,7 +4,8 @@ from datetime import date, datetime
 from typing import Any
 
 from app.agents.base import AcademicAgent, AgentResult
-from app.agents.types import AgentRoute, AgentState
+from app.agents.state import AgentState
+from app.agents.types import AgentRoute
 from app.core.logger import logger
 
 
@@ -22,7 +23,7 @@ class CalendarAgent(AcademicAgent):
         logger.info(
             "CalendarAgent request received: request_id=%s route=%s student_id=%s",
             state.request_id,
-            state.route,
+            self.route,
             state.student_id,
         )
 
@@ -39,17 +40,16 @@ class CalendarAgent(AcademicAgent):
                 errors=["INVALID_STUDENT_ID"],
             )
 
-        start_date = self._normalize_date_value(
-            state.parameters.get("start_date")
-        )
-        end_date = self._normalize_date_value(state.parameters.get("end_date"))
+        parameters = state.parameters
+        start_date = self._normalize_date_value(parameters.get("start_date"))
+        end_date = self._normalize_date_value(parameters.get("end_date"))
 
-        if start_date is None and state.parameters.get("date") is not None:
-            start_date = self._normalize_date_value(state.parameters.get("date"))
+        if start_date is None and parameters.get("date") is not None:
+            start_date = self._normalize_date_value(parameters.get("date"))
             end_date = start_date
 
-        if start_date is None and state.parameters.get("date_range") is not None:
-            range_value = state.parameters["date_range"]
+        if start_date is None and parameters.get("date_range") is not None:
+            range_value = parameters["date_range"]
             if isinstance(range_value, dict):
                 start_date = start_date or self._normalize_date_value(
                     range_value.get("start_date")
