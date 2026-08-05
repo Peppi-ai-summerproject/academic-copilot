@@ -56,9 +56,12 @@ session for callers such as AI-agent integrations.
 The typed, serializable `RiskDetectionWorkflowResult` contains aggregate counts
 and `StudentRiskDetectionResult` objects only for students requiring tutor
 attention. Each result has a stable internal student ID, canonical score and
-level, contributing indicator codes, unavailable indicator codes, partial or
-complete status, scoring basis, and policy version. It does not include names,
-study records, meeting notes, Telegram information, or credentials.
+level, contributing indicator codes, non-zero `actionable_indicators`,
+unavailable indicator codes, partial or complete status, scoring basis, and
+policy version. It does not include names, study records, meeting notes,
+Telegram information, or credentials. The actionable list preserves existing
+canonical evidence for the deterministic Issue #105 adapter; it does not add a
+new risk rule or recommendation policy.
 
 ## Status, logging, and limitations
 

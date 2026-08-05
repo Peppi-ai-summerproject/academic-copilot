@@ -70,6 +70,7 @@ class StudentRiskDetectionResult:
     unavailable_indicators: list[str]
     score_basis: str
     policy_version: str
+    actionable_indicators: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -345,6 +346,15 @@ def _parse_assessment(value: Any) -> StudentRiskDetectionResult | str:
         for item in contributions
         if isinstance(item, dict) and isinstance(item.get("indicator_code"), str)
     ]
+    actionable_codes = [
+        item.get("indicator_code")
+        for item in contributions
+        if isinstance(item, dict)
+        and isinstance(item.get("indicator_code"), str)
+        and isinstance(item.get("assigned_points"), int)
+        and not isinstance(item.get("assigned_points"), bool)
+        and item["assigned_points"] > 0
+    ]
     unavailable_codes = [item for item in unavailable if isinstance(item, str)]
     if len(indicator_codes) != len(contributions) or len(unavailable_codes) != len(unavailable):
         return "CANONICAL_RISK_ASSESSMENT_MALFORMED"
@@ -358,6 +368,7 @@ def _parse_assessment(value: Any) -> StudentRiskDetectionResult | str:
         unavailable_indicators=unavailable_codes,
         score_basis=score_basis,
         policy_version=policy_version,
+        actionable_indicators=actionable_codes,
     )
 
 

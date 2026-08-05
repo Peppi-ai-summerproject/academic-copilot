@@ -142,6 +142,28 @@ def test_explicit_ids_are_delegated_to_the_active_student_filter():
     assert [item.student_id for item in result.results] == [2]
 
 
+def test_at_risk_result_exposes_only_nonzero_indicators_as_actionable():
+    instance, _, _ = workflow(
+        student_ids=[2],
+        assessments={
+            2: {
+                **assessment(2, level="HIGH", score=55),
+                "indicator_contributions": [
+                    {"indicator_code": "academic_delay", "assigned_points": 30},
+                    {"indicator_code": "study_right", "assigned_points": 0},
+                ],
+            }
+        },
+    )
+
+    result = instance.run(
+        evaluation_time=datetime(2026, 8, 5, 9, tzinfo=ZoneInfo("Europe/Helsinki"))
+    )
+
+    assert result.results[0].contributing_indicators == ["academic_delay", "study_right"]
+    assert result.results[0].actionable_indicators == ["academic_delay"]
+
+
 def test_successful_empty_active_population_is_completed_not_unavailable():
     instance, _, provider = workflow(student_ids=[], assessments={})
 
