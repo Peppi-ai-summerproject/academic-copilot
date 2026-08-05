@@ -31,6 +31,25 @@ class Settings(BaseSettings):
     )
     rag_evaluation_reports_dir: Path = PROJECT_DIR / "rag" / "evaluation" / "reports"
 
+    # Scheduler configuration
+    # Controls whether the in-process scheduler is enabled. Default is disabled
+    # to avoid starting background jobs during tests or in environments that do
+    # not require scheduled workflows.
+    scheduler_enabled: bool = False
+    # Timezone used by the scheduler for computing job run times. Must be a
+    # valid IANA timezone name (e.g. "UTC", "Europe/Helsinki"). Defaults to UTC.
+    scheduler_timezone: str = "UTC"
+
+    # Scheduler configuration
+    # Controls whether the in-process scheduler is enabled. Default is disabled
+    # to avoid starting background jobs during tests or in environments that do
+    # not require scheduled workflows.
+    scheduler_enabled: bool = False
+    # Timezone used by the scheduler for computing job run times. Must be a
+    # valid IANA timezone name (e.g. "UTC", "Europe/Helsinki"). Defaults to UTC.
+    scheduler_timezone: str = "UTC"
+
+
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",

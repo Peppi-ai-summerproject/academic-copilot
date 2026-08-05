@@ -31,6 +31,7 @@ class AgentState(BaseModel):
 
     # Routing context (managed by Supervisor/Router — Issue #79)
     intent: str | None = Field(default=None)
+    parameters: dict[str, Any] = Field(default_factory=dict)
     selected_agents: list[str] = Field(default_factory=list)
     pending_agents: list[str] = Field(default_factory=list)
     completed_agents: list[str] = Field(default_factory=list)
@@ -83,6 +84,7 @@ def create_initial_state(
     telegram_chat_id: int | None = None,
     memory: ConversationMemorySnapshot | None = None,
     max_steps: int = 10,
+    parameters: dict[str, Any] | None = None,
 ) -> AgentState:
     """Create a fresh initial AgentState for a new workflow execution."""
     return AgentState(
@@ -96,6 +98,7 @@ def create_initial_state(
         student_name=None,
         programme=None,
         intent=None,
+        parameters=parameters or {},
         selected_agents=[],
         pending_agents=[],
         completed_agents=[],
