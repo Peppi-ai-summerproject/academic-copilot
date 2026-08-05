@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     daily_workflow_minute: int = Field(default=0, ge=0, le=59)
     daily_workflow_timezone: str = "Europe/Helsinki"
 
+    # Weekly aggregate-report workflow. This timezone is intentionally
+    # independent of the existing scheduler and Monday briefing defaults.
+    weekly_workflow_hour: int = Field(default=6, ge=0, le=23)
+    weekly_workflow_minute: int = Field(default=0, ge=0, le=59)
+    weekly_workflow_timezone: str = "Europe/Helsinki"
+
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

@@ -39,6 +39,9 @@ async def lifespan(app: FastAPI):
             from app.workflows.daily import register_daily_workflow
 
             await register_daily_workflow(scheduler)
+            from app.workflows.weekly import register_weekly_workflow
+
+            await register_weekly_workflow(scheduler)
             # keep a reference on the app so other parts of the code can access it
             app.state.scheduler = scheduler
         except Exception:
