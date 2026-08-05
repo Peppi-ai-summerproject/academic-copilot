@@ -58,7 +58,14 @@ def tutor(points=0):
     }
 
 
-def score(*, delay_result=None, study_result=None, event_result=None, tutor_result=None):
+def score(
+    *,
+    delay_result=None,
+    study_result=None,
+    event_result=None,
+    tutor_result=None,
+    allow_partial_risk_level=False,
+):
     return calculate_academic_risk(
         student_id=1,
         as_of_date=AS_OF,
@@ -66,6 +73,7 @@ def score(*, delay_result=None, study_result=None, event_result=None, tutor_resu
         study_right_result=study() if study_result is None else study_result,
         academic_events_result=events() if event_result is None else event_result,
         tutor_meeting_evaluation=tutor_result,
+        allow_partial_risk_level=allow_partial_risk_level,
     )
 
 
@@ -199,6 +207,35 @@ def test_unavailable_tutor_meetings_produces_partial_without_overall_score():
     assert result["raw_subtotal"] == 0
     assert result["score"] is None
     assert result["risk_level"] is None
+    assert result["available_indicator_maximum"] == 90
+    assert result["score_basis"] is None
+
+
+def test_opt_in_partial_risk_level_normalizes_verified_available_weights():
+    result = score(
+        delay_result=delay(30),
+        study_result=study("EXPIRING_SOON"),
+        allow_partial_risk_level=True,
+    )
+
+    assert result["assessment_status"] == "PARTIAL"
+    assert result["raw_subtotal"] == 50
+    assert result["available_indicator_maximum"] == 90
+    assert result["score"] == 56
+    assert result["risk_level"] == "HIGH"
+    assert result["score_basis"] == "available_indicator_weights"
+    assert result["unavailable_indicators"] == ["tutor_meetings"]
+
+
+def test_opt_in_partial_expired_study_right_preserves_canonical_override():
+    result = score(
+        study_result=study("EXPIRED"),
+        allow_partial_risk_level=True,
+    )
+
+    assert result["raw_subtotal"] == 30
+    assert result["score"] == 78
+    assert result["risk_level"] == "CRITICAL"
 
 
 @pytest.mark.parametrize("mandatory", ["delay", "study"])
@@ -249,7 +286,8 @@ def test_exact_serializable_contract():
     result = score()
     assert list(result) == [
         "success", "student_id", "as_of_date", "assessment_status", "score",
-        "raw_subtotal", "score_range", "score_direction", "risk_level",
+        "raw_subtotal", "available_indicator_maximum", "score_basis",
+        "score_range", "score_direction", "risk_level",
         "indicator_contributions", "unavailable_indicators", "applied_overrides",
         "explanation", "policy_version",
     ]
@@ -296,6 +334,26 @@ def test_orchestrator_calls_authoritative_services_with_explicit_date():
     event_service.get_upcoming_events.assert_called_once_with(start_date="2026-08-05", end_date=None)
     assert result["assessment_status"] == "PARTIAL"
     assert result["unavailable_indicators"] == ["tutor_meetings"]
+
+
+def test_orchestrator_exposes_opt_in_normalized_partial_level():
+    delay_service = Mock()
+    delay_service.detect_student_delay.return_value = delay(30)
+    study_service = Mock()
+    study_service.detect_study_right_risk.return_value = study("EXPIRING_SOON")
+    event_service = Mock()
+    event_service.get_upcoming_events.return_value = events()
+    service = AcademicRiskScoringService(delay_service, study_service, event_service)
+
+    result = service.assess_student_risk(
+        1,
+        as_of_date=AS_OF,
+        allow_partial_risk_level=True,
+    )
+
+    assert result["assessment_status"] == "PARTIAL"
+    assert result["score"] == 56
+    assert result["risk_level"] == "HIGH"
 
 
 def test_pure_scoring_has_no_database_network_llm_or_rag_dependency():

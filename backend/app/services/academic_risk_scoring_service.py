@@ -71,6 +71,7 @@ def calculate_academic_risk(
     study_right_result: dict[str, Any],
     academic_events_result: dict[str, Any] | None,
     tutor_meeting_evaluation: dict[str, Any] | None = None,
+    allow_partial_risk_level: bool = False,
 ) -> dict[str, Any]:
     """Calculate an explainable risk result from authoritative evidence.
 
@@ -108,6 +109,9 @@ def calculate_academic_risk(
 
     contributions.sort(key=lambda item: _INDICATOR_ORDER.index(item.indicator_code))
     raw_subtotal = sum(item.assigned_points for item in contributions)
+    available_indicator_maximum = sum(
+        item.maximum_points for item in contributions
+    )
     applied_overrides: list[dict[str, Any]] = []
     adjusted_score = raw_subtotal
     if study_right.matched_rule_code == "STUDY_RIGHT_EXPIRED":
@@ -120,13 +124,28 @@ def calculate_academic_risk(
             "explanation": "Expired study right applies a minimum final score of 70.",
         })
 
+    assessment_status = "PARTIAL" if unavailable else "COMPLETE"
+    score = None
+    score_basis = None
+    if not unavailable:
+        score = adjusted_score
+        score_basis = "all_indicators"
+    elif allow_partial_risk_level and available_indicator_maximum > 0:
+        score = _normalize_available_indicator_score(
+            adjusted_score,
+            available_indicator_maximum,
+        )
+        score_basis = "available_indicator_weights"
+
     result = {
         **base,
         "success": True,
-        "assessment_status": "PARTIAL" if unavailable else "COMPLETE",
-        "score": None if unavailable else adjusted_score,
+        "assessment_status": assessment_status,
+        "score": score,
         "raw_subtotal": raw_subtotal,
-        "risk_level": None if unavailable else _classify_score(adjusted_score),
+        "available_indicator_maximum": available_indicator_maximum,
+        "score_basis": score_basis,
+        "risk_level": _classify_score(score) if score is not None else None,
         "indicator_contributions": [item.to_dict() for item in contributions],
         "unavailable_indicators": unavailable,
         "applied_overrides": applied_overrides,
@@ -148,7 +167,13 @@ class AcademicRiskScoringService:
         self._study_right_risk_service = study_right_risk_service
         self._event_service = event_service
 
-    def assess_student_risk(self, student_id: int, *, as_of_date: date) -> dict[str, Any]:
+    def assess_student_risk(
+        self,
+        student_id: int,
+        *,
+        as_of_date: date,
+        allow_partial_risk_level: bool = False,
+    ) -> dict[str, Any]:
         if not isinstance(student_id, int) or isinstance(student_id, bool) or student_id <= 0:
             return _unprocessable(_base_result(student_id, as_of_date), ["INVALID_STUDENT_ID"])
         if not isinstance(as_of_date, date):
@@ -179,6 +204,7 @@ class AcademicRiskScoringService:
             study_right_result=study_right_result,
             academic_events_result=events_result,
             tutor_meeting_evaluation=None,
+            allow_partial_risk_level=allow_partial_risk_level,
         )
 
 
@@ -302,6 +328,8 @@ def _base_result(student_id: Any, as_of_date: Any) -> dict[str, Any]:
         "assessment_status": "UNPROCESSABLE",
         "score": None,
         "raw_subtotal": None,
+        "available_indicator_maximum": None,
+        "score_basis": None,
         "score_range": dict(SCORE_RANGE),
         "score_direction": SCORE_DIRECTION,
         "risk_level": None,
@@ -329,6 +357,16 @@ def _classify_score(score: int) -> str:
     if score <= 69:
         return "HIGH"
     return "CRITICAL"
+
+
+def _normalize_available_indicator_score(
+    score: int,
+    available_indicator_maximum: int,
+) -> int:
+    """Normalize a verified partial subtotal onto the canonical 0â€“100 scale."""
+
+    normalized = round((score / available_indicator_maximum) * 100)
+    return max(SCORE_RANGE["minimum"], min(SCORE_RANGE["maximum"], normalized))
 
 
 def _build_explanation(

@@ -173,3 +173,31 @@ def test_search_students_returns_list_of_dicts() -> None:
     assert isinstance(result, list)
     assert isinstance(result[0], dict)
 
+
+def test_list_active_student_ids_uses_canonical_active_status_and_id_order() -> None:
+    session = Mock()
+    session.execute.return_value.mappings.return_value.all.return_value = [
+        {"id": 2},
+        {"id": 5},
+    ]
+    repository = StudentRepository(session)
+
+    result = repository.list_active_student_ids()
+
+    assert result == [2, 5]
+    _, parameters = session.execute.call_args.args
+    assert parameters == {"active_status": "ACTIVE"}
+    assert "status = :active_status" in str(session.execute.call_args.args[0])
+
+
+def test_list_active_student_ids_intersects_requested_ids_with_active_students() -> None:
+    session = Mock()
+    session.execute.return_value.mappings.return_value.all.return_value = [{"id": 3}]
+    repository = StudentRepository(session)
+
+    result = repository.list_active_student_ids([9, 3, 3, 0, True])
+
+    assert result == [3]
+    _, parameters = session.execute.call_args.args
+    assert parameters == {"active_status": "ACTIVE", "student_ids": [3, 9]}
+

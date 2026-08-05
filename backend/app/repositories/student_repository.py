@@ -1,6 +1,7 @@
+from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 
@@ -105,4 +106,54 @@ class StudentRepository:
 
         rows = self._session.execute(rows_sql, params).mappings().all()
         return [dict(row) for row in rows], total
+
+    def list_active_student_ids(
+        self,
+        student_ids: Sequence[int] | None = None,
+    ) -> list[int]:
+        """Return only students with the canonical ``ACTIVE`` status.
+
+        Optional IDs are intersected with the active-student population. This
+        prevents a controlled subset from evaluating inactive, graduated,
+        suspended, archived, or otherwise non-active students.
+        """
+
+        if student_ids is not None:
+            normalized_ids = sorted(
+                {
+                    student_id
+                    for student_id in student_ids
+                    if isinstance(student_id, int)
+                    and not isinstance(student_id, bool)
+                    and student_id > 0
+                }
+            )
+            if not normalized_ids:
+                return []
+            statement = text(
+                """
+                SELECT id
+                FROM students
+                WHERE status = :active_status
+                  AND id IN :student_ids
+                ORDER BY id ASC
+                """
+            ).bindparams(bindparam("student_ids", expanding=True))
+            rows = self._session.execute(
+                statement,
+                {"active_status": "ACTIVE", "student_ids": normalized_ids},
+            ).mappings().all()
+        else:
+            rows = self._session.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM students
+                    WHERE status = :active_status
+                    ORDER BY id ASC
+                    """
+                ),
+                {"active_status": "ACTIVE"},
+            ).mappings().all()
+        return [int(row["id"]) for row in rows]
 

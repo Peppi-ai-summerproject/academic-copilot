@@ -25,6 +25,14 @@ unavailable and normally produces a `PARTIAL` assessment. The normalized tutor
 evaluation accepted by the pure domain function is an adapter boundary for a
 future authoritative service; it is not a meeting repository or scoring rule.
 
+Issue #104 may explicitly opt into `allow_partial_risk_level=True`. Only in
+that mode, the scorer normalizes verified contribution points against the sum
+of verified available indicator maxima, then maps the normalized 0â€“100 score
+through the same canonical levels below. The result remains `PARTIAL` and
+lists every unavailable indicator. This does not treat unavailable data as a
+zero-point or safe condition. The default remains strict: a partial assessment
+has no final score or risk level.
+
 ## Contributions
 
 | Indicator | Verified condition | Points | Maximum |
@@ -61,7 +69,10 @@ All boundaries are inclusive and have no gaps or overlaps.
 - `COMPLETE`: all four indicators were authoritatively evaluated. The result
   contains a final score and risk level.
 - `PARTIAL`: #93 and #94 are valid, but a secondary indicator is unavailable.
-  The result may contain `raw_subtotal`, but `score` and `risk_level` are null.
+  By default, `score` and `risk_level` are null. An explicit Issue #104
+  opt-in can return a normalized canonical score and level, with
+  `score_basis = available_indicator_weights`; it is still not a complete
+  evaluation.
 - `UNPROCESSABLE`: #93 or #94 failed, is missing, malformed, contradictory, or
   unsupported, or mandatory request data is invalid. Score, subtotal, and risk
   level are null.
@@ -74,9 +85,10 @@ are authoritative; explanations are supplemental.
 ## Output
 
 The serializable result contains `success`, `student_id`, `as_of_date`,
-`assessment_status`, `score`, `raw_subtotal`, `score_range`, `score_direction`,
-`risk_level`, ordered `indicator_contributions`, `unavailable_indicators`,
-`applied_overrides`, `explanation`, and `policy_version`.
+`assessment_status`, `score`, `raw_subtotal`, `available_indicator_maximum`,
+`score_basis`, `score_range`, `score_direction`, `risk_level`, ordered
+`indicator_contributions`, `unavailable_indicators`, `applied_overrides`,
+`explanation`, and `policy_version`.
 
 Each contribution records its indicator code, authoritative source, normalized
 input, matched rule code, assigned points, maximum points, and explanation.
