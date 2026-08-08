@@ -5,8 +5,9 @@
 The Daily Workflow is a deterministic application-level orchestrator. It checks
 academic events for the local calendar day and invokes the existing academic
 risk service for every student returned by the existing student-directory
-contract. It does not create academic rules, make LLM decisions, send Telegram
-messages, persist executions, or interpret tutor-meeting free text.
+contract. It does not create academic rules, make LLM decisions, persist
+executions, or interpret tutor-meeting free text. When the Telegram application
+is enabled, it hands the exact structured Issue #106 result to Issue #107.
 
 ## Schedule and configuration
 
@@ -55,6 +56,7 @@ dates, missing records, or any other indirect signal.
 - `academic_events`
 - `student_risks`
 - `academic_alerts`
+- `tutor_notifications`
 - `pending_tutor_actions`
 
 Check statuses are `completed`, `partial`, `failed`, or `unavailable`.
@@ -66,8 +68,11 @@ Check statuses are `completed`, `partial`, `failed`, or `unavailable`.
   the partial status and unavailable indicators remain explicit.
 - Issue #106 receives the exact #104 result already evaluated by this run and
   generates structured, non-persistent alerts from established #93 and #94
-  sources. It does not add a scheduler, send Telegram messages, or create
-  event-reminder alerts.
+  sources. It does not add a scheduler or create event-reminder alerts.
+- Issue #107 receives that same in-memory #106 result immediately after
+  generation. It resolves only administrator-provisioned active Tutor mappings
+  and reports aggregate delivery counts. Delivery is unavailable, rather than
+  silently skipped as success, when the Telegram application is not enabled.
 - The overall workflow is completed only when all checks complete. It is partial
   when one useful check completes while another is partial, failed, or
   unavailable.
@@ -93,8 +98,9 @@ The workflow uses the existing application logger and records only lifecycle,
 status, and aggregate count information. It does not log student names, IDs,
 Telegram details, credentials, tokens, or full result payloads.
 
-Workflow execution records are not persistent. Issue #108 remains responsible
-for persistent workflow logs and cross-process execution keys.
+Workflow execution records and Issue #107 delivery results are not persistent.
+Issue #108 remains responsible for durable workflow logs, delivery history,
+cross-process execution keys, retries, and idempotency.
 
 The stable job ID prevents duplicate registration in a single scheduler
 instance. It does not prevent a same-day rerun after restart, or duplicate
@@ -117,9 +123,9 @@ partial and total failure, lifecycle shutdown, and aggregate-only logging.
 
 ## Deferred responsibilities
 
-This workflow does not implement tutor actions, persistent workflow logs,
-Telegram delivery, RAG, MCP tools, LLM decisions, new risk rules, database
-migrations, queues, or distributed coordination. It invokes Issue #106 but
-does not own alert qualification, alert persistence, delivery, recipient
-resolution, acknowledgement, or resolution. Those responsibilities remain with
-their respective issues.
+This workflow does not implement tutor actions, persistent workflow logs, RAG,
+MCP tools, LLM decisions, new risk rules, database migrations, queues, or
+distributed coordination. It invokes Issue #106 but does not own alert
+qualification, alert persistence, Telegram rendering, recipient resolution,
+provider acknowledgement, or resolution. Those responsibilities remain with
+Issue #107 and future delivery-history work.

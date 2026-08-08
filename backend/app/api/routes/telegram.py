@@ -1,5 +1,6 @@
 import logging
 import secrets
+import asyncio
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from telegram import Update
@@ -7,6 +8,10 @@ from telegram.ext import Application
 
 from app.core.config import settings
 from app.telegram.bot import create_bot
+from app.telegram.notifications import (
+    clear_telegram_notification_sender,
+    configure_telegram_notification_sender,
+)
 
 
 router = APIRouter()
@@ -93,6 +98,10 @@ async def initialize_telegram_application() -> None:
     application = get_telegram_application()
     await application.initialize()
     await application.start()
+    configure_telegram_notification_sender(
+        application=application,
+        application_loop=asyncio.get_running_loop(),
+    )
 
     logger.info("Telegram application started in webhook mode")
 
@@ -103,6 +112,7 @@ async def shutdown_telegram_application() -> None:
     if telegram_application is None:
         return
 
+    clear_telegram_notification_sender()
     await telegram_application.stop()
     await telegram_application.shutdown()
 

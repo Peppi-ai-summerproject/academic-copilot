@@ -55,3 +55,26 @@ def test_list_students_for_tutor_uses_assignment_mapping_and_student_details():
     assert "FROM tutor_student_assignments AS assignment" in statement
     assert "INNER JOIN students AS s" in statement
     assert params == {"tutor_id": 3}
+
+
+def test_list_active_tutor_recipients_for_student_requires_assignment_and_provisioned_ids():
+    session = _session_with_rows(
+        {
+            "tutor_id": 3,
+            "telegram_user_id": 100,
+            "telegram_chat_id": 200,
+            "student_display_name": "Ada Student",
+        }
+    )
+
+    recipients = TutorRepository(session).list_active_tutor_recipients_for_student(10)
+
+    assert recipients[0]["tutor_id"] == 3
+    statement = session.execute.call_args.args[0].text
+    params = session.execute.call_args.args[1]
+    assert "FROM tutor_student_assignments AS assignment" in statement
+    assert "INNER JOIN tutors AS tutor" in statement
+    assert "tutor.is_active = TRUE" in statement
+    assert "tutor.telegram_user_id IS NOT NULL" in statement
+    assert "tutor.telegram_chat_id IS NOT NULL" in statement
+    assert params == {"student_id": 10}

@@ -41,6 +41,19 @@ class FakeAcademicAlertGeneration:
         return self.result
 
 
+class FakeAcademicAlertDelivery:
+    def __init__(self, result=None, error=None):
+        self.result = result
+        self.error = error
+        self.calls = []
+
+    def deliver(self, alert_result):
+        self.calls.append(alert_result)
+        if self.error:
+            raise self.error
+        return self.result
+
+
 class FakeStudentDirectory:
     def __init__(self, students=None, error=None):
         self.students = students or []
@@ -299,6 +312,68 @@ def test_daily_workflow_invokes_issue_106_with_the_existing_risk_result():
         "overall_risk_alerts": 0,
         "suppressed_overall_risk_alerts": 1,
     }
+
+
+def test_daily_workflow_delivers_the_exact_issue_106_result_when_configured():
+    detection_result = type(
+        "DetectionResult",
+        (),
+        {
+            "status": "completed",
+            "active_student_count": 1,
+            "evaluated_student_count": 1,
+            "at_risk_student_count": 0,
+            "risk_level_counts": {"LOW": 1, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0},
+            "errors": [],
+        },
+    )()
+    alert_result = type(
+        "AlertResult",
+        (),
+        {
+            "status": "completed",
+            "alert_count": 1,
+            "students_considered": 1,
+            "alert_type_counts": {"DELAYED_PROGRESS": 1},
+            "suppressed_overall_risk_alert_count": 0,
+            "errors": [],
+        },
+    )()
+    delivery_result = type(
+        "DeliveryResult",
+        (),
+        {
+            "status": "partial",
+            "attempted_count": 2,
+            "delivered_count": 1,
+            "failed_count": 1,
+            "skipped_count": 0,
+            "errors": ["TELEGRAM_DELIVERY_FAILED"],
+        },
+    )()
+    delivery = FakeAcademicAlertDelivery(delivery_result)
+    instance = DailyWorkflow(
+        event_provider=FakeEventProvider(),
+        timezone="Europe/Helsinki",
+        automatic_risk_detection=FakeAutomaticRiskDetection(detection_result),
+        academic_alert_generation=FakeAcademicAlertGeneration(alert_result),
+        academic_alert_delivery=delivery,
+    )
+
+    result = instance.run(
+        now=datetime(2026, 1, 1, 7, tzinfo=ZoneInfo("Europe/Helsinki"))
+    )
+
+    assert delivery.calls == [alert_result]
+    assert result.tutor_notifications.status == "partial"
+    assert result.tutor_notifications.count == 1
+    assert result.tutor_notifications.details == {
+        "attempted_notifications": 2,
+        "delivered_notifications": 1,
+        "failed_notifications": 1,
+        "skipped_notifications": 0,
+    }
+    assert result.tutor_notifications.reason_codes == ["TELEGRAM_DELIVERY_FAILED"]
 
 
 def test_registers_one_explicit_daily_job_and_ignores_duplicates():

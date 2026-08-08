@@ -1,8 +1,10 @@
 """Deterministic daily orchestration workflow for Issue #102.
 
 The workflow consumes existing event and academic-risk contracts.  It does not
-recreate academic business rules, persist workflow executions, send Telegram
-messages, or infer tutor actions from free-text meeting notes.
+recreate academic business rules, persist workflow executions, render Telegram
+messages, resolve recipients, or infer tutor actions from free-text meeting
+notes.  It hands the already-generated Issue #106 result to the optional
+Issue #107 delivery boundary.
 """
 
 from __future__ import annotations
@@ -73,6 +75,10 @@ class AcademicAlertRunner(Protocol):
     ) -> Any: ...
 
 
+class AcademicAlertDeliveryRunner(Protocol):
+    def deliver(self, alert_result: Any) -> Any: ...
+
+
 @dataclass(frozen=True)
 class DailyCheckResult:
     """Aggregate result for one independent daily check.
@@ -100,6 +106,7 @@ class DailyWorkflowResult:
     academic_events: DailyCheckResult
     student_risks: DailyCheckResult
     academic_alerts: DailyCheckResult
+    tutor_notifications: DailyCheckResult
     pending_tutor_actions: DailyCheckResult
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -121,6 +128,7 @@ class DailyWorkflow:
         student_page_size: int = 100,
         automatic_risk_detection: RiskDetectionRunner | None = None,
         academic_alert_generation: AcademicAlertRunner | None = None,
+        academic_alert_delivery: AcademicAlertDeliveryRunner | None = None,
     ) -> None:
         if student_page_size <= 0:
             raise ValueError("student_page_size must be positive")
@@ -132,6 +140,7 @@ class DailyWorkflow:
         self._student_page_size = student_page_size
         self._automatic_risk_detection = automatic_risk_detection
         self._academic_alert_generation = academic_alert_generation
+        self._academic_alert_delivery = academic_alert_delivery
 
     def run(self, *, now: datetime | None = None) -> DailyWorkflowResult:
         """Execute all checks for the current local calendar date.
@@ -162,12 +171,19 @@ class DailyWorkflow:
                 execution_date,
                 evaluation_time=local_now,
             )
-        academic_alerts = self._check_academic_alerts(
+        academic_alerts, alert_result = self._check_academic_alerts(
             evaluation_time=local_now,
             risk_detection_result=risk_detection_result,
         )
+        tutor_notifications = self._deliver_academic_alerts(alert_result)
         pending_tutor_actions = _unavailable_tutor_action_check()
-        checks = (academic_events, student_risks, academic_alerts, pending_tutor_actions)
+        checks = (
+            academic_events,
+            student_risks,
+            academic_alerts,
+            tutor_notifications,
+            pending_tutor_actions,
+        )
         status = _aggregate_status(checks)
 
         warnings = [
@@ -187,6 +203,7 @@ class DailyWorkflow:
             academic_events=academic_events,
             student_risks=student_risks,
             academic_alerts=academic_alerts,
+            tutor_notifications=tutor_notifications,
             pending_tutor_actions=pending_tutor_actions,
             warnings=warnings,
             errors=errors,
@@ -194,7 +211,7 @@ class DailyWorkflow:
         logger.info(
             "Daily workflow finished: status=%s event_status=%s event_count=%s "
             "risk_status=%s risk_count=%s alert_status=%s alert_count=%s "
-            "tutor_action_status=%s",
+            "notification_status=%s notification_count=%s tutor_action_status=%s",
             result.status,
             academic_events.status,
             academic_events.count,
@@ -202,6 +219,8 @@ class DailyWorkflow:
             student_risks.count,
             academic_alerts.status,
             academic_alerts.count,
+            tutor_notifications.status,
+            tutor_notifications.count,
             pending_tutor_actions.status,
         )
         return result
@@ -414,20 +433,26 @@ class DailyWorkflow:
         *,
         evaluation_time: datetime,
         risk_detection_result: Any | None,
-    ) -> DailyCheckResult:
+    ) -> tuple[DailyCheckResult, Any | None]:
         if self._academic_alert_generation is None:
-            return DailyCheckResult(
-                name="academic_alerts",
-                status="unavailable",
-                count=None,
-                reason_codes=["ACADEMIC_ALERT_WORKFLOW_UNAVAILABLE"],
+            return (
+                DailyCheckResult(
+                    name="academic_alerts",
+                    status="unavailable",
+                    count=None,
+                    reason_codes=["ACADEMIC_ALERT_WORKFLOW_UNAVAILABLE"],
+                ),
+                None,
             )
         if risk_detection_result is None:
-            return DailyCheckResult(
-                name="academic_alerts",
-                status="unavailable",
-                count=None,
-                reason_codes=["RISK_DETECTION_RESULT_UNAVAILABLE"],
+            return (
+                DailyCheckResult(
+                    name="academic_alerts",
+                    status="unavailable",
+                    count=None,
+                    reason_codes=["RISK_DETECTION_RESULT_UNAVAILABLE"],
+                ),
+                None,
             )
         try:
             result = self._academic_alert_generation.run(
@@ -436,11 +461,14 @@ class DailyWorkflow:
             )
         except Exception:
             logger.exception("Daily workflow academic-alert generation failed")
-            return DailyCheckResult(
-                name="academic_alerts",
-                status="failed",
-                count=None,
-                reason_codes=["ACADEMIC_ALERT_GENERATION_FAILED"],
+            return (
+                DailyCheckResult(
+                    name="academic_alerts",
+                    status="failed",
+                    count=None,
+                    reason_codes=["ACADEMIC_ALERT_GENERATION_FAILED"],
+                ),
+                None,
             )
 
         status = getattr(result, "status", None)
@@ -462,35 +490,104 @@ class DailyWorkflow:
             or not isinstance(errors, list)
             or not all(isinstance(error, str) for error in errors)
         ):
-            return DailyCheckResult(
+            return (
+                DailyCheckResult(
+                    name="academic_alerts",
+                    status="failed",
+                    count=None,
+                    reason_codes=["ACADEMIC_ALERT_GENERATION_MALFORMED"],
+                ),
+                None,
+            )
+        return (
+            DailyCheckResult(
                 name="academic_alerts",
+                status=status,
+                count=alert_count if status in {"completed", "partial"} else None,
+                details={
+                    "students_considered": students_considered,
+                    "delayed_progress_alerts": _alert_type_count(
+                        alert_type_counts,
+                        "DELAYED_PROGRESS",
+                    ),
+                    "study_right_alerts": sum(
+                        _alert_type_count(alert_type_counts, alert_type)
+                        for alert_type in (
+                            "STUDY_RIGHT_EXPIRED",
+                            "STUDY_RIGHT_EXPIRING_SOON",
+                            "STUDY_RIGHT_EXTENDED",
+                        )
+                    ),
+                    "overall_risk_alerts": _alert_type_count(
+                        alert_type_counts,
+                        "ACADEMIC_RISK_DETECTED",
+                    ),
+                    "suppressed_overall_risk_alerts": suppressed_count,
+                },
+                reason_codes=_deduplicate(errors),
+            ),
+            result,
+        )
+
+    def _deliver_academic_alerts(self, alert_result: Any | None) -> DailyCheckResult:
+        """Deliver the exact #106 result without reconstructing academic facts."""
+
+        if self._academic_alert_delivery is None:
+            return DailyCheckResult(
+                name="tutor_notifications",
+                status="unavailable",
+                count=None,
+                reason_codes=["TELEGRAM_NOTIFICATION_DELIVERY_UNAVAILABLE"],
+            )
+        if alert_result is None:
+            return DailyCheckResult(
+                name="tutor_notifications",
+                status="unavailable",
+                count=None,
+                reason_codes=["ACADEMIC_ALERT_RESULT_UNAVAILABLE"],
+            )
+        try:
+            result = self._academic_alert_delivery.deliver(alert_result)
+        except Exception:
+            logger.exception("Daily workflow Telegram notification delivery failed")
+            return DailyCheckResult(
+                name="tutor_notifications",
                 status="failed",
                 count=None,
-                reason_codes=["ACADEMIC_ALERT_GENERATION_MALFORMED"],
+                reason_codes=["TELEGRAM_NOTIFICATION_DELIVERY_FAILED"],
+            )
+
+        status = getattr(result, "status", None)
+        attempted_count = getattr(result, "attempted_count", None)
+        delivered_count = getattr(result, "delivered_count", None)
+        failed_count = getattr(result, "failed_count", None)
+        skipped_count = getattr(result, "skipped_count", None)
+        errors = getattr(result, "errors", None)
+        if (
+            status not in {"completed", "partial", "failed"}
+            or not _is_nonnegative_int(attempted_count)
+            or not _is_nonnegative_int(delivered_count)
+            or not _is_nonnegative_int(failed_count)
+            or not _is_nonnegative_int(skipped_count)
+            or attempted_count != delivered_count + failed_count
+            or not isinstance(errors, list)
+            or not all(isinstance(error, str) for error in errors)
+        ):
+            return DailyCheckResult(
+                name="tutor_notifications",
+                status="failed",
+                count=None,
+                reason_codes=["TELEGRAM_NOTIFICATION_DELIVERY_MALFORMED"],
             )
         return DailyCheckResult(
-            name="academic_alerts",
+            name="tutor_notifications",
             status=status,
-            count=alert_count if status in {"completed", "partial"} else None,
+            count=delivered_count if status in {"completed", "partial"} else None,
             details={
-                "students_considered": students_considered,
-                "delayed_progress_alerts": _alert_type_count(
-                    alert_type_counts,
-                    "DELAYED_PROGRESS",
-                ),
-                "study_right_alerts": sum(
-                    _alert_type_count(alert_type_counts, alert_type)
-                    for alert_type in (
-                        "STUDY_RIGHT_EXPIRED",
-                        "STUDY_RIGHT_EXPIRING_SOON",
-                        "STUDY_RIGHT_EXTENDED",
-                    )
-                ),
-                "overall_risk_alerts": _alert_type_count(
-                    alert_type_counts,
-                    "ACADEMIC_RISK_DETECTED",
-                ),
-                "suppressed_overall_risk_alerts": suppressed_count,
+                "attempted_notifications": attempted_count,
+                "delivered_notifications": delivered_count,
+                "failed_notifications": failed_count,
+                "skipped_notifications": skipped_count,
             },
             reason_codes=_deduplicate(errors),
         )
@@ -539,6 +636,9 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
         create_database_automatic_risk_detection_workflow,
     )
     from app.workflows.academic_alerts import create_database_academic_alert_workflow
+    from app.telegram.notifications import (
+        create_database_academic_alert_notification_delivery,
+    )
 
     automatic_risk_detection = create_database_automatic_risk_detection_workflow(
         session=session,
@@ -551,6 +651,9 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
         academic_alert_generation=create_database_academic_alert_workflow(
             session=session,
             timezone=timezone,
+        ),
+        academic_alert_delivery=create_database_academic_alert_notification_delivery(
+            session=session,
         ),
     )
 

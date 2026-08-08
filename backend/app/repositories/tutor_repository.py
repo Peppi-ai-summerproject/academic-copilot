@@ -46,3 +46,38 @@ class TutorRepository:
             {"tutor_id": tutor_id},
         ).mappings().all()
         return [dict(row) for row in rows]
+
+    def list_active_tutor_recipients_for_student(
+        self,
+        student_id: int,
+    ) -> list[dict[str, Any]]:
+        """Return administrator-provisioned private delivery context.
+
+        This is intentionally a narrow recipient-resolution query: the
+        assignment join proves the academic scope, while ``is_active`` and the
+        two stored Telegram identifiers are the approved administrative
+        authorization boundary for Issue #107.  Registration, identity proof,
+        preferences, and group-chat support are outside this repository.
+        """
+
+        rows = self._session.execute(
+            text(
+                """
+                SELECT
+                    tutor.id AS tutor_id,
+                    tutor.telegram_user_id,
+                    tutor.telegram_chat_id,
+                    student.name AS student_display_name
+                FROM tutor_student_assignments AS assignment
+                INNER JOIN tutors AS tutor ON tutor.id = assignment.tutor_id
+                INNER JOIN students AS student ON student.id = assignment.student_id
+                WHERE assignment.student_id = :student_id
+                  AND tutor.is_active = TRUE
+                  AND tutor.telegram_user_id IS NOT NULL
+                  AND tutor.telegram_chat_id IS NOT NULL
+                ORDER BY tutor.id ASC
+                """
+            ),
+            {"student_id": student_id},
+        ).mappings().all()
+        return [dict(row) for row in rows]
