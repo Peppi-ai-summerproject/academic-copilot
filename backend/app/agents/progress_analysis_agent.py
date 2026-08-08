@@ -12,6 +12,10 @@ from app.agents.base import AcademicAgent
 from app.agents.types import AgentResult
 from app.agents.state import AgentState as FullAgentState  # noqa
 from app.gateways.academic_tools import AcademicToolGateway, MCPAcademicToolGateway
+from app.services.progress_explanation_service import (
+    ProgressExplanationInput,
+    ProgressExplanationService,
+)
 
 
 class ProgressAnalysisAgent:
@@ -37,9 +41,14 @@ class ProgressAnalysisAgent:
         "requirements. Detects delayed students and generates progress summaries."
     )
 
-    def __init__(self, gateway: AcademicToolGateway | None = None) -> None:
+    def __init__(
+        self,
+        gateway: AcademicToolGateway | None = None,
+        explanation_service: ProgressExplanationService | None = None,
+    ) -> None:
         """Create the agent with an injectable academic tool boundary."""
         self._gateway = gateway or MCPAcademicToolGateway()
+        self._explanation_service = explanation_service or ProgressExplanationService()
 
     async def run(self, state: FullAgentState) -> AgentResult:
         """Analyze academic progress for the student in the current state.
@@ -83,6 +92,12 @@ class ProgressAnalysisAgent:
 
             # Get academic progress
             progress_result = await self._gateway.get_progress(student_id)
+            explanation = self._explanation_service.explain(
+                ProgressExplanationInput(
+                    student_id=student_id,
+                    progress_result=progress_result,
+                )
+            )
             if not progress_result.get("success"):
                 return AgentResult(
                     agent_name=self.name,
@@ -93,6 +108,7 @@ class ProgressAnalysisAgent:
                         "Progress data could not be retrieved — "
                         "curriculum data may be missing."
                     ),
+                    data={"progress_explanation": explanation.to_dict()},
                     warnings=[progress_result.get("error", "PROGRESS_UNAVAILABLE")],
                 )
 
@@ -136,6 +152,7 @@ class ProgressAnalysisAgent:
                     "is_behind": status == "BEHIND",
                     "is_ahead": status == "AHEAD",
                     "is_on_track": status == "ON_TRACK",
+                    "progress_explanation": explanation.to_dict(),
                 },
                 evidence=[
                     f"Completed ECTS: {completed}",

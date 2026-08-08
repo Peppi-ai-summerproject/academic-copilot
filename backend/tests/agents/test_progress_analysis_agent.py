@@ -33,6 +33,7 @@ def _progress(status: str = "ON_TRACK", completed: int = 120, expected: int = 12
             "completed_ects": completed,
             "expected_ects": expected,
             "difference_ects": completed - expected,
+            "remaining_to_expected_ects": max(expected - completed, 0),
             "progress_percentage": completed / expected * 100,
             "status": status,
         },
@@ -78,6 +79,10 @@ def test_progress_unavailable_returns_partial() -> None:
     result = run(ProgressAnalysisAgent(gateway))
     assert result.status == "PARTIAL"
     assert "CURRICULUM_NOT_FOUND" in result.warnings
+    explanation = result.data["progress_explanation"]
+    assert explanation["data_status"] == "PARTIAL"
+    assert explanation["completed_ects"] is None
+    assert explanation["expected_ects"] is None
 
 
 def test_on_track_result_preserves_contract() -> None:
@@ -87,6 +92,10 @@ def test_on_track_result_preserves_contract() -> None:
     assert result.route == "progress"
     assert result.data["is_on_track"] is True
     assert result.data["completed_ects"] == 120
+    explanation = result.data["progress_explanation"]
+    assert explanation["data_status"] == "COMPLETE"
+    assert explanation["completed_ects"] == result.data["completed_ects"]
+    assert explanation["status"] == result.data["progress_status"]
     gateway.get_student.assert_awaited_once_with(1)
     gateway.get_progress.assert_awaited_once_with(1)
 
