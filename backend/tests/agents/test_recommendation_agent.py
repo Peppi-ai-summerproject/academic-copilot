@@ -104,6 +104,9 @@ def test_high_progress_factor_produces_two_actionable_recommendations():
     actions = [item["action"] for item in result.data["recommendations"]]
     assert actions == ["Review the student's study plan.", "Schedule a tutor meeting."]
     assert all(item["priority"] == "HIGH" for item in result.data["recommendations"])
+    assert result.data["recommendations"][0]["reason_codes"] == [
+        "PROGRESS_REVIEW_STUDY_PLAN"
+    ]
     assert result.status == "SUCCESS"
     policy.retrieve_policy.assert_awaited_once_with(
         "academic progress deficit tutor support policy", top_k=3
@@ -275,12 +278,16 @@ def test_missing_failed_or_misordered_risk_is_partial():
 
 
 def test_partial_risk_preserves_confirmed_recommendations_but_stays_partial():
+    risk = risk_result([factor("progress")], complete=False, status="PARTIAL")
+    risk.data["unavailable_dimensions"] = ["academic_events"]
     result = run(
         make_agent(policy_gateway()),
-        state_with(risk_result([factor("progress")], complete=False, status="PARTIAL")),
+        state_with(risk),
     )
 
     assert result.status == "PARTIAL"
+    assert result.data["data_status"] == "PARTIAL"
+    assert result.data["unavailable_dimensions"] == ["academic_events"]
     assert result.data["recommendations"]
 
 
