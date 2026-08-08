@@ -197,10 +197,11 @@ def test_report_generator_markdown(tmp_path):
     gen = ReportGenerator(output_dir=str(tmp_path))
     report = make_report()
     path = gen.generate_markdown(report)
-    content = Path(path).read_text()
+    content = Path(path).read_text(encoding="utf-8")
     assert "RAG Retrieval Accuracy Report" in content
     assert "Top-1 Accuracy" in content
     assert "Recommendations" in content
+    assert "✅" in content
 
 def test_report_generator_json(tmp_path):
     gen = ReportGenerator(output_dir=str(tmp_path))
@@ -227,6 +228,9 @@ def test_report_success_rate():
 
 def test_integration_full_evaluation():
     import os
+    if os.getenv("RUN_RAG_LIVE_INTEGRATION") != "1":
+        pytest.skip("Set RUN_RAG_LIVE_INTEGRATION=1 to run live RAG integration tests.")
+
     gemini_key = os.getenv("GEMINI_API_KEY")
     if not gemini_key:
         pytest.skip("GEMINI_API_KEY not set")

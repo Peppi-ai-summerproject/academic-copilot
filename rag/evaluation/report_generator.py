@@ -100,7 +100,7 @@ class ReportGenerator:
 
         content = "\n".join(lines)
         path = self._output_dir / "retrieval_report.md"
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
         print(f"Markdown report saved: {path}")
         return str(path)
@@ -147,7 +147,7 @@ class ReportGenerator:
         }
 
         path = self._output_dir / "retrieval_report.json"
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
             json.dump(data, f, indent=2)
         print(f"JSON report saved: {path}")
         return str(path)

@@ -196,6 +196,9 @@ def test_context_injector_prompt_contains_question():
 def test_integration_full_context_pipeline():
     """Integration test: retriever chunks → context injector → final prompt."""
     import os
+    if os.getenv("RUN_RAG_LIVE_INTEGRATION") != "1":
+        pytest.skip("Set RUN_RAG_LIVE_INTEGRATION=1 to run live RAG integration tests.")
+
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
     gemini_key = os.getenv("GEMINI_API_KEY")
 
