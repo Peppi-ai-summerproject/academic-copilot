@@ -16,19 +16,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.core.config import settings
 from app.db.database import SessionLocal
 from app.repositories.event_repository import EventRepository
-from app.repositories.progress_repository import ProgressRepository
-from app.repositories.student_repository import StudentRepository
-from app.repositories.study_right_repository import StudyRightRepository
-from app.repositories.tutor_meeting_repository import TutorMeetingRepository
-from app.services.academic_risk_scoring_service import AcademicRiskScoringService
-from app.services.delay_detection_service import DelayDetectionService
 from app.services.event_service import EventService
-from app.services.progress_service import ProgressService
 from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Scheduler
-from app.services.student_service import StudentService
-from app.services.study_right_risk_service import StudyRightRiskService
-from app.services.study_right_service import StudyRightService
-from app.services.tutor_meeting_risk_service import TutorMeetingRiskService
 
 
 logger = logging.getLogger("academic-copilot.workflows.daily")
@@ -60,6 +49,10 @@ class StudentDirectory(Protocol):
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]: ...
+
+
+class RiskDetectionRunner(Protocol):
+    def run(self, *, evaluation_time: datetime | None = None) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -102,11 +95,12 @@ class DailyWorkflow:
     def __init__(
         self,
         *,
-        student_directory: StudentDirectory,
+        student_directory: StudentDirectory | None = None,
         event_provider: EventProvider,
-        risk_provider: RiskProvider,
+        risk_provider: RiskProvider | None = None,
         timezone: str,
         student_page_size: int = 100,
+        automatic_risk_detection: RiskDetectionRunner | None = None,
     ) -> None:
         if student_page_size <= 0:
             raise ValueError("student_page_size must be positive")
@@ -116,6 +110,7 @@ class DailyWorkflow:
         self._risk_provider = risk_provider
         self._timezone = _load_timezone(timezone)
         self._student_page_size = student_page_size
+        self._automatic_risk_detection = automatic_risk_detection
 
     def run(self, *, now: datetime | None = None) -> DailyWorkflowResult:
         """Execute all checks for the current local calendar date.
@@ -136,7 +131,10 @@ class DailyWorkflow:
         )
 
         academic_events = self._check_academic_events(execution_date)
-        student_risks = self._check_student_risks(execution_date)
+        student_risks = self._check_student_risks(
+            execution_date,
+            evaluation_time=local_now,
+        )
         pending_tutor_actions = _unavailable_tutor_action_check()
         checks = (academic_events, student_risks, pending_tutor_actions)
         status = _aggregate_status(checks)
@@ -212,7 +210,21 @@ class DailyWorkflow:
             details={"events_found": len(events)},
         )
 
-    def _check_student_risks(self, execution_date: date) -> DailyCheckResult:
+    def _check_student_risks(
+        self,
+        execution_date: date,
+        *,
+        evaluation_time: datetime,
+    ) -> DailyCheckResult:
+        if self._automatic_risk_detection is not None:
+            return self._check_automatic_risk_detection(evaluation_time)
+        if self._student_directory is None or self._risk_provider is None:
+            return DailyCheckResult(
+                name="student_risks",
+                status="failed",
+                count=None,
+                reason_codes=["RISK_DETECTION_WORKFLOW_UNAVAILABLE"],
+            )
         try:
             students = self._list_students()
         except Exception:
@@ -295,6 +307,63 @@ class DailyWorkflow:
             reason_codes=_deduplicate(reason_codes),
         )
 
+    def _check_automatic_risk_detection(
+        self,
+        evaluation_time: datetime,
+    ) -> DailyCheckResult:
+        """Adapt the reusable Issue #104 result to the existing daily DTO."""
+
+        try:
+            result = self._automatic_risk_detection.run(
+                evaluation_time=evaluation_time
+            )
+        except Exception:
+            logger.exception("Daily workflow automatic risk detection failed")
+            return DailyCheckResult(
+                name="student_risks",
+                status="failed",
+                count=None,
+                reason_codes=["AUTOMATIC_RISK_DETECTION_FAILED"],
+            )
+
+        status = getattr(result, "status", None)
+        active_count = getattr(result, "active_student_count", None)
+        evaluated_count = getattr(result, "evaluated_student_count", None)
+        attention_count = getattr(result, "at_risk_student_count", None)
+        level_counts = getattr(result, "risk_level_counts", None)
+        errors = getattr(result, "errors", None)
+        if (
+            status not in {"completed", "partial", "failed"}
+            or not _is_nonnegative_int(active_count)
+            or not _is_nonnegative_int(evaluated_count)
+            or not _is_nonnegative_int(attention_count)
+            or not isinstance(level_counts, dict)
+            or not isinstance(errors, list)
+            or not all(isinstance(error, str) for error in errors)
+        ):
+            return DailyCheckResult(
+                name="student_risks",
+                status="failed",
+                count=None,
+                reason_codes=["AUTOMATIC_RISK_DETECTION_MALFORMED"],
+            )
+        details = {
+            "active_students_discovered": active_count,
+            "students_assessed": evaluated_count,
+            "students_requiring_tutor_attention": attention_count,
+            "low_risk_students": _risk_level_count(level_counts, "LOW"),
+            "medium_risk_students": _risk_level_count(level_counts, "MEDIUM"),
+            "high_risk_students": _risk_level_count(level_counts, "HIGH"),
+            "critical_risk_students": _risk_level_count(level_counts, "CRITICAL"),
+        }
+        return DailyCheckResult(
+            name="student_risks",
+            status=status,
+            count=evaluated_count if status in {"completed", "partial"} else None,
+            details=details,
+            reason_codes=_deduplicate(errors),
+        )
+
     def _list_students(self) -> list[dict[str, Any]]:
         """Read every page through the existing student-directory contract.
 
@@ -334,26 +403,17 @@ class DailyWorkflow:
 def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkflow:
     """Wire the daily workflow to existing repositories and services."""
 
-    student_service = StudentService(StudentRepository(session))
-    progress_service = ProgressService(ProgressRepository(session))
-    study_right_service = StudyRightService(StudyRightRepository(session))
     event_service = EventService(EventRepository(session))
-    delay_service = DelayDetectionService(progress_service)
-    study_right_risk_service = StudyRightRiskService(
-        study_right_service,
-        student_service,
-    )
-    risk_service = AcademicRiskScoringService(
-        delay_service,
-        study_right_risk_service,
-        event_service,
-        TutorMeetingRiskService(TutorMeetingRepository(session)),
+    from app.workflows.automatic_risk_detection import (
+        create_database_automatic_risk_detection_workflow,
     )
     return DailyWorkflow(
-        student_directory=StudentRepository(session),
         event_provider=event_service,
-        risk_provider=risk_service,
         timezone=timezone,
+        automatic_risk_detection=create_database_automatic_risk_detection_workflow(
+            session=session,
+            timezone=timezone,
+        ),
     )
 
 
@@ -455,6 +515,15 @@ def _result_code(result: Any, default: str) -> str:
 
 def _is_valid_student_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _risk_level_count(level_counts: dict[str, Any], level: str) -> int:
+    value = level_counts.get(level, 0)
+    return value if _is_nonnegative_int(value) else 0
 
 
 def _deduplicate(values: list[str]) -> list[str]:

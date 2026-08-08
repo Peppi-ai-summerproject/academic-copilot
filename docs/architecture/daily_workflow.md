@@ -41,11 +41,11 @@ Academic events use the inclusive date range from that local date to the same
 local date. Since the current academic-event contract stores dates rather than
 times, this means events occurring on that calendar day.
 
-Risk checks pass the same local date as `as_of_date` to
-`AcademicRiskScoringService`. Student selection uses paged
-`StudentRepository.search_students()` results exactly as returned; the current
-repository does not define an active-student filter, so the workflow does not
-invent one.
+Risk checks pass the same local date to Issue #104's reusable
+`AutomaticRiskDetectionWorkflow`. That workflow uses the canonical
+`StudentRepository.list_active_student_ids()` contract and evaluates only
+students with `status = ACTIVE`. It does not infer activity from study-right
+dates, missing records, or any other indirect signal.
 
 ## Result contract
 
@@ -61,7 +61,8 @@ Check statuses are `completed`, `partial`, `failed`, or `unavailable`.
 - A completed event or risk check with no items has `count: 0`.
 - An unavailable or failed check has `count: null`, never zero.
 - A risk result whose authoritative assessment is partial makes the aggregate
-  risk check partial without being treated as a successful final risk score.
+  risk check partial. Issue #104 may supply a normalized canonical level, but
+  the partial status and unavailable indicators remain explicit.
 - The overall workflow is completed only when all checks complete. It is partial
   when one useful check completes while another is partial, failed, or
   unavailable.

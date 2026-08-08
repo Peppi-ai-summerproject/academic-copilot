@@ -16,9 +16,9 @@ from app.workflows.daily import (
 )
 
 
-@patch("app.workflows.daily.AcademicRiskScoringService")
-@patch("app.workflows.daily.TutorMeetingRiskService")
-@patch("app.workflows.daily.TutorMeetingRepository")
+@patch("app.workflows.automatic_risk_detection.AcademicRiskScoringService")
+@patch("app.workflows.automatic_risk_detection.TutorMeetingRiskService")
+@patch("app.workflows.automatic_risk_detection.TutorMeetingRepository")
 def test_database_workflow_injects_tutor_meeting_evaluator(
     repository_type, evaluator_type, risk_type
 ):
@@ -31,6 +31,19 @@ def test_database_workflow_injects_tutor_meeting_evaluator(
     repository_type.assert_called_once_with(session)
     evaluator_type.assert_called_once_with(repository)
     assert risk_type.call_args.args[3] is evaluator
+
+
+class FakeAutomaticRiskDetection:
+    def __init__(self, result=None, error=None):
+        self.result = result
+        self.error = error
+        self.calls = []
+
+    def run(self, *, evaluation_time=None):
+        self.calls.append(evaluation_time)
+        if self.error:
+            raise self.error
+        return self.result
 
 
 class FakeStudentDirectory:
@@ -190,6 +203,50 @@ def test_total_independent_check_failure_produces_failed_result():
         "academic_events:ACADEMIC_EVENTS_CHECK_FAILED",
         "student_risks:STUDENT_DIRECTORY_CHECK_FAILED",
     ]
+
+
+def test_daily_workflow_uses_issue_104_automatic_detection_when_configured():
+    detection = FakeAutomaticRiskDetection(
+        type(
+            "DetectionResult",
+            (),
+            {
+                "status": "partial",
+                "active_student_count": 3,
+                "evaluated_student_count": 3,
+                "at_risk_student_count": 2,
+                "risk_level_counts": {
+                    "LOW": 1,
+                    "MEDIUM": 1,
+                    "HIGH": 1,
+                    "CRITICAL": 0,
+                },
+                "errors": [],
+            },
+        )()
+    )
+    instance = DailyWorkflow(
+        event_provider=FakeEventProvider(),
+        timezone="Europe/Helsinki",
+        automatic_risk_detection=detection,
+    )
+
+    result = instance.run(
+        now=datetime(2026, 1, 1, 7, tzinfo=ZoneInfo("Europe/Helsinki"))
+    )
+
+    assert detection.calls == [datetime(2026, 1, 1, 7, tzinfo=ZoneInfo("Europe/Helsinki"))]
+    assert result.student_risks.status == "partial"
+    assert result.student_risks.count == 3
+    assert result.student_risks.details == {
+        "active_students_discovered": 3,
+        "students_assessed": 3,
+        "students_requiring_tutor_attention": 2,
+        "low_risk_students": 1,
+        "medium_risk_students": 1,
+        "high_risk_students": 1,
+        "critical_risk_students": 0,
+    }
 
 
 def test_registers_one_explicit_daily_job_and_ignores_duplicates():
