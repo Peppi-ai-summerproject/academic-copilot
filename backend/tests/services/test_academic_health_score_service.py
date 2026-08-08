@@ -11,6 +11,8 @@ from app.services.academic_health_score_service import (
     calculate_academic_health,
     classify_health_score,
 )
+from app.services.academic_risk_scoring_service import classify_risk_score
+from app.services.academic_risk_scoring_service import calculate_academic_risk
 
 
 AS_OF = date(2026, 8, 8)
@@ -29,7 +31,12 @@ def risk_assessment(points=None, *, status="COMPLETE", unavailable=None, overrid
             "indicator_code": code,
             "assigned_points": assigned.get(code, 0),
             "maximum_points": maximum,
-            "matched_rule_code": f"{code.upper()}_RULE",
+            "matched_rule_code": (
+                "STUDY_RIGHT_EXPIRED"
+                if code == "study_right"
+                and any(item.get("code") == "STUDY_RIGHT_EXPIRED" for item in (overrides or []))
+                else f"{code.upper()}_RULE"
+            ),
         }
         for code, maximum in MAXIMUMS.items()
         if code not in (unavailable or [])
@@ -44,6 +51,8 @@ def risk_assessment(points=None, *, status="COMPLETE", unavailable=None, overrid
         "student_id": 1,
         "assessment_status": status,
         "score": score if status == "COMPLETE" else None,
+        "risk_level": classify_risk_score(score) if status == "COMPLETE" else None,
+        "score_basis": "all_indicators" if status == "COMPLETE" else None,
         "raw_subtotal": raw,
         "indicator_contributions": contributions,
         "unavailable_indicators": unavailable or [],
@@ -92,7 +101,12 @@ def test_components_explain_all_weights_and_inverse_relationship():
 
 
 def test_expired_study_right_floor_is_an_explicit_adjustment():
-    override = [{"code": "STUDY_RIGHT_EXPIRED", "raw_subtotal": 30, "adjusted_score": 70}]
+    override = [{
+        "code": "STUDY_RIGHT_EXPIRED",
+        "minimum_score": 70,
+        "raw_subtotal": 30,
+        "adjusted_score": 70,
+    }]
     result = calculate_academic_health(
         risk_assessment({"study_right": 30}, overrides=override)
     )
@@ -191,3 +205,91 @@ def test_service_failure_is_visible_not_treated_as_healthy():
     assert result["success"] is False
     assert result["health_score"] is None
     assert result["missing_indicators"] == ["RISK_ASSESSMENT_UNAVAILABLE"]
+
+
+def test_contradictory_complete_score_and_level_are_rejected():
+    value = risk_assessment({"academic_delay": 50, "study_right": 20})
+    value["risk_level"] = "LOW"
+
+    result = calculate_academic_health(value)
+
+    assert result["success"] is False
+    assert result["missing_indicators"] == ["RISK_ASSESSMENT_MALFORMED"]
+
+
+def test_unknown_canonical_policy_version_is_rejected():
+    value = risk_assessment()
+    value["policy_version"] = "academic-risk-v2"
+
+    result = calculate_academic_health(value)
+
+    assert result["success"] is False
+    assert result["assessment_status"] == "UNPROCESSABLE"
+
+
+def test_partial_numeric_score_must_have_matching_canonical_level():
+    value = risk_assessment(status="PARTIAL", unavailable=["tutor_meetings"])
+    value.update(
+        score=70,
+        risk_level="LOW",
+        score_basis="available_indicator_weights",
+    )
+
+    result = calculate_academic_health(value)
+
+    assert result["success"] is False
+    assert result["health_score"] is None
+
+
+def test_returned_unsuccessful_canonical_result_is_not_converted_to_health():
+    result = calculate_academic_health({
+        "success": False,
+        "error": "STUDY_RIGHT_RISK_UNAVAILABLE",
+    })
+
+    assert result["success"] is False
+    assert result["assessment_status"] == "UNPROCESSABLE"
+    assert result["health_score"] is None
+    assert result["health_level"] is None
+
+
+def test_real_issue_95_assessment_is_converted_without_recalculating_risk():
+    canonical = calculate_academic_risk(
+        student_id=1,
+        as_of_date=AS_OF,
+        delay_result={
+            "success": True,
+            "delay": {"student_id": 1, "is_delayed": True, "delay_ects": 30},
+        },
+        study_right_result={
+            "success": True,
+            "risk": {
+                "student_id": 1,
+                "risk_status": "EXPIRING_SOON",
+                "requires_attention": True,
+            },
+        },
+        academic_events_result={"success": True, "events": []},
+        tutor_meeting_evaluation={
+            "success": True,
+            "evaluation_status": "EVALUATED",
+            "assigned_points": 0,
+            "matched_rule_code": "RECENT_TUTOR_MEETING_COMPLETED",
+            "normalized_input": {
+                "meeting_id": 1,
+                "meeting_status": "COMPLETED",
+                "scheduled_at": "2026-08-08T09:00:00+00:00",
+                "lookback_start": "2026-05-10",
+                "upcoming_end": "2026-09-07",
+            },
+        },
+    )
+
+    result = calculate_academic_health(canonical)
+
+    assert (canonical["score"], canonical["risk_level"]) == (50, "HIGH")
+    assert (result["health_score"], result["health_level"]) == (
+        50,
+        "NEEDS_ATTENTION",
+    )
+    assert result["health_score"] + canonical["score"] == 100

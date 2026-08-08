@@ -150,7 +150,7 @@ def calculate_academic_risk(
         "raw_subtotal": raw_subtotal,
         "available_indicator_maximum": available_indicator_maximum,
         "score_basis": score_basis,
-        "risk_level": _classify_score(score) if score is not None else None,
+        "risk_level": classify_risk_score(score) if score is not None else None,
         "indicator_contributions": [item.to_dict() for item in contributions],
         "unavailable_indicators": unavailable,
         "applied_overrides": applied_overrides,
@@ -401,7 +401,9 @@ def _unprocessable(base: dict[str, Any], codes: list[str]) -> dict[str, Any]:
     }
 
 
-def _classify_score(score: int) -> str:
+def classify_risk_score(score: int) -> str:
+    """Return the canonical Issue #95 level for a validated 0-100 score."""
+
     if score <= 19:
         return "LOW"
     if score <= 39:

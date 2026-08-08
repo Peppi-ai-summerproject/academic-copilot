@@ -570,6 +570,28 @@ def test_returned_canonical_failure_is_not_converted_and_health_is_unavailable()
     assert dashboard["risk"]["current_analysis"]["assessment_status"] == "UNAVAILABLE"
 
 
+def test_converter_rejected_canonical_envelope_is_not_presented_as_authoritative():
+    dashboard = _make_service(
+        risk_result=_make_risk_result("LOW", 70),
+        health_result={
+            "success": False,
+            "assessment_status": "UNPROCESSABLE",
+            "health_score": None,
+            "health_level": None,
+            "components": [],
+            "missing_indicators": ["RISK_ASSESSMENT_MALFORMED"],
+            "summary": "Academic health could not be evaluated.",
+        },
+    ).get_student_dashboard(1, as_of_date=AS_OF)["dashboard"]
+
+    current = dashboard["risk"]["current_analysis"]
+    assert current["risk_level"] is None
+    assert current["score"] is None
+    assert current["assessment_status"] == "UNAVAILABLE"
+    assert current["source"] == "LEGACY_PROGRESS_STUDY_RIGHT_FALLBACK"
+    assert dashboard["summary"]["priority"] == "UNKNOWN"
+
+
 def test_all_canonical_risk_levels_map_to_dashboard_priority():
     expected = {
         "CRITICAL": (70, "HIGH", True),

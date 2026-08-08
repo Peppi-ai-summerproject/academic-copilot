@@ -65,6 +65,14 @@ being presented as an authoritative health measure.
 Malformed or unavailable canonical risk results are `UNPROCESSABLE` and never
 default to healthy or unhealthy.
 
+Academic Health accepts only the current `academic-risk-v1` canonical envelope.
+For a COMPLETE assessment, the canonical score must reconcile with the
+component points and any canonical override, and its risk level must be the
+level returned by the Issue #95 classifier for that score. A PARTIAL result may
+have either no score/level or the existing opt-in normalized score/level pair;
+in both cases Health remains null. This validation detects contradictory input
+without recalculating academic risk.
+
 ## Example
 
 A student with 15 academic-delay risk points, 20 study-right risk points,
@@ -154,6 +162,11 @@ unavailability; legacy levels and explanations remain exclusively in
 unsuccessful canonical results all produce the same `UNAVAILABLE` Health with a
 null score and level. The fallback source label identifies the compatibility
 path and does not make its legacy heuristic authoritative.
+
+If the Health converter rejects a risk envelope as malformed, the dashboard
+also treats that envelope as unavailable rather than presenting its raw score
+or level as authoritative. This reuses the converter's canonical validation;
+the dashboard does not implement a second risk validator or scoring model.
 
 Canonical `CRITICAL` risk maps to the dashboard's highest available summary
 priority (`HIGH`) with attention required. This is presentation mapping only;

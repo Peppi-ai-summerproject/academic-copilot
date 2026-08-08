@@ -128,7 +128,15 @@ class StudentDashboardService:
         # Canonical overall risk is authoritative; legacy progress/study-right
         # heuristics remain only as explicitly labeled supporting context.
         canonical_risk = self._assess_canonical_risk(student_id, effective_date)
-        risk = self._build_risk(academic_progress, study_right, canonical_risk)
+        academic_health = self._build_academic_health(canonical_risk)
+        risk = self._build_risk(
+            academic_progress,
+            study_right,
+            canonical_risk,
+            canonical_rejected=self._health_rejected_canonical_assessment(
+                academic_health
+            ),
+        )
 
         # ── Upcoming academic events (optional) ────────────────────────────
         events_result = self._event_service.get_upcoming_events(
@@ -145,7 +153,6 @@ class StudentDashboardService:
             }
 
         # ── Summary ────────────────────────────────────────────────────────
-        academic_health = self._build_academic_health(canonical_risk)
         summary = self._build_summary(academic_progress, study_right, risk)
 
         return {
@@ -212,6 +219,23 @@ class StudentDashboardService:
     def _is_usable_canonical_risk(value: Any) -> bool:
         return isinstance(value, dict) and value.get("success") is True
 
+    @staticmethod
+    def _health_rejected_canonical_assessment(value: Any) -> bool:
+        """Identify a converter-rejected, otherwise-successful risk envelope.
+
+        The dashboard does not validate or rescore risk itself. It relies on
+        the Issue #96 converter's canonical contract validation and presents a
+        fallback when that trusted converter reports malformed risk evidence.
+        """
+
+        return (
+            isinstance(value, dict)
+            and value.get("success") is False
+            and value.get("assessment_status") == "UNPROCESSABLE"
+            and "RISK_ASSESSMENT_MALFORMED"
+            in value.get("missing_indicators", [])
+        )
+
     def _build_profile(self, student: dict[str, Any]) -> dict[str, Any]:
         """Map raw student fields to dashboard profile section."""
         return {
@@ -271,6 +295,8 @@ class StudentDashboardService:
         academic_progress: dict[str, Any],
         study_right: dict[str, Any],
         canonical_risk: dict[str, Any] | None,
+        *,
+        canonical_rejected: bool = False,
     ) -> dict[str, Any]:
         """Present canonical risk and retain labeled legacy supporting context.
 
@@ -289,7 +315,10 @@ class StudentDashboardService:
         if not legacy_reasons:
             legacy_reasons.append("No immediate risks detected.")
 
-        canonical_success = self._is_usable_canonical_risk(canonical_risk)
+        canonical_success = (
+            self._is_usable_canonical_risk(canonical_risk)
+            and not canonical_rejected
+        )
         canonical_level = canonical_risk.get("risk_level") if canonical_success else None
         explanation = canonical_risk.get("explanation") if canonical_success else None
         reasons = (

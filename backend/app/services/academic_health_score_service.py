@@ -9,7 +9,9 @@ from typing import Any, Protocol
 from app.services.academic_risk_scoring_service import (
     INDICATOR_ORDER,
     MAXIMUM_POINTS,
+    POLICY_VERSION as RISK_POLICY_VERSION,
     SUPPORTED_OVERRIDE_CODES,
+    classify_risk_score,
 )
 
 
@@ -44,11 +46,16 @@ def calculate_academic_health(risk_assessment: Any) -> dict[str, Any]:
         return _unprocessable("RISK_ASSESSMENT_UNAVAILABLE")
     student_id = risk_assessment.get("student_id")
     status = risk_assessment.get("assessment_status")
+    risk_score = risk_assessment.get("score")
+    risk_level = risk_assessment.get("risk_level")
+    raw_subtotal = risk_assessment.get("raw_subtotal")
+    score_basis = risk_assessment.get("score_basis")
     contributions = risk_assessment.get("indicator_contributions")
     unavailable = risk_assessment.get("unavailable_indicators")
     if (
         not _valid_student_id(student_id)
         or status not in {"COMPLETE", "PARTIAL"}
+        or risk_assessment.get("policy_version") != RISK_POLICY_VERSION
         or not isinstance(contributions, list)
         or not isinstance(unavailable, list)
         or not all(isinstance(item, str) and item for item in unavailable)
@@ -74,23 +81,46 @@ def calculate_academic_health(risk_assessment: Any) -> dict[str, Any]:
     ):
         return _unprocessable("RISK_ASSESSMENT_MALFORMED", student_id)
     available_maximum = sum(item.maximum_points for item in components)
+    component_risk_points = sum(item.risk_points for item in components)
+    if not _valid_score(raw_subtotal) or raw_subtotal != component_risk_points:
+        return _unprocessable("RISK_ASSESSMENT_MALFORMED", student_id)
     base_health_points = sum(item.health_points for item in components)
-    adjustments = _parse_adjustments(risk_assessment.get("applied_overrides"))
+    adjustments = _parse_adjustments(
+        risk_assessment.get("applied_overrides"),
+        raw_subtotal=raw_subtotal,
+        components=components,
+    )
     if adjustments is None:
         return _unprocessable("RISK_ASSESSMENT_MALFORMED", student_id)
 
     health_score: int | None = None
     health_level: str | None = None
     if status == "COMPLETE":
-        risk_score = risk_assessment.get("score")
-        if unavailable or available_maximum != 100 or not _valid_score(risk_score):
+        expected_risk_score = raw_subtotal - sum(
+            item["health_point_adjustment"] for item in adjustments
+        )
+        if (
+            unavailable
+            or available_maximum != 100
+            or not _valid_score(risk_score)
+            or risk_score != expected_risk_score
+            or risk_level != classify_risk_score(risk_score)
+            or score_basis != "all_indicators"
+        ):
             return _unprocessable("RISK_ASSESSMENT_MALFORMED", student_id)
         health_score = 100 - risk_score
         adjustment_total = sum(item["health_point_adjustment"] for item in adjustments)
         if base_health_points + adjustment_total != health_score:
             return _unprocessable("RISK_ASSESSMENT_MALFORMED", student_id)
         health_level = classify_health_score(health_score)
-    elif not unavailable:
+    elif (
+        not unavailable
+        or not _valid_partial_score_level(
+            risk_score=risk_score,
+            risk_level=risk_level,
+            score_basis=score_basis,
+        )
+    ):
         return _unprocessable("RISK_ASSESSMENT_MALFORMED", student_id)
 
     summary = (
@@ -157,27 +187,63 @@ def _parse_component(value: Any) -> HealthComponent | None:
     )
 
 
-def _parse_adjustments(value: Any) -> list[dict[str, Any]] | None:
+def _parse_adjustments(
+    value: Any,
+    *,
+    raw_subtotal: int,
+    components: list[HealthComponent],
+) -> list[dict[str, Any]] | None:
     if not isinstance(value, list):
         return None
-    parsed = []
-    for item in value:
-        if not isinstance(item, dict):
-            return None
-        code, raw, adjusted = item.get("code"), item.get("raw_subtotal"), item.get("adjusted_score")
-        if (
-            code not in SUPPORTED_OVERRIDE_CODES
-            or not _valid_score(raw)
-            or not _valid_score(adjusted)
-            or adjusted < raw
-        ):
-            return None
-        parsed.append({
-            "code": code,
-            "health_point_adjustment": raw - adjusted,
-            "explanation": f"{code} reduces health by {adjusted - raw} additional points to preserve the canonical risk override.",
-        })
-    return parsed
+    expired_study_right = any(
+        item.indicator_code == "study_right"
+        and item.matched_rule_code == "STUDY_RIGHT_EXPIRED"
+        for item in components
+    )
+    if not value:
+        return [] if not expired_study_right else None
+    if len(value) != 1 or not expired_study_right:
+        return None
+
+    item = value[0]
+    if not isinstance(item, dict):
+        return None
+    code = item.get("code")
+    raw = item.get("raw_subtotal")
+    adjusted = item.get("adjusted_score")
+    minimum = item.get("minimum_score")
+    if (
+        code not in SUPPORTED_OVERRIDE_CODES
+        or raw != raw_subtotal
+        or not _valid_score(raw)
+        or not _valid_score(adjusted)
+        or minimum != 70
+        or adjusted != max(raw, minimum)
+    ):
+        return None
+    return [{
+        "code": code,
+        "health_point_adjustment": raw - adjusted,
+        "explanation": (
+            f"{code} reduces health by {adjusted - raw} additional points "
+            "to preserve the canonical risk override."
+        ),
+    }]
+
+
+def _valid_partial_score_level(
+    *,
+    risk_score: Any,
+    risk_level: Any,
+    score_basis: Any,
+) -> bool:
+    if risk_score is None and risk_level is None:
+        return score_basis is None
+    return (
+        _valid_score(risk_score)
+        and risk_level == classify_risk_score(risk_score)
+        and score_basis == "available_indicator_weights"
+    )
 
 
 def classify_health_score(score: int) -> str:
