@@ -39,6 +39,24 @@ class FakeRiskProvider:
         return self.assessments[student_id]
 
 
+def indicator(code, points=0):
+    maximum = {
+        "academic_delay": 50,
+        "study_right": 30,
+        "tutor_meetings": 10,
+        "academic_events": 10,
+    }[code]
+    return {
+        "indicator_code": code,
+        "authoritative_source": "Canonical test risk provider",
+        "normalized_input": {"source": "test"},
+        "matched_rule_code": f"TEST_{code.upper()}",
+        "assigned_points": points,
+        "maximum_points": maximum,
+        "explanation": f"{code} contributes {points} points.",
+    }
+
+
 def assessment(
     student_id,
     *,
@@ -60,9 +78,11 @@ def assessment(
         ),
         "policy_version": "academic-risk-v1",
         "indicator_contributions": [
-            {"indicator_code": "academic_delay"},
-            {"indicator_code": "study_right"},
+            indicator("academic_delay"),
+            indicator("study_right"),
         ],
+        "applied_overrides": [],
+        "explanation": ["Canonical test assessment."],
         "unavailable_indicators": (
             ["tutor_meetings"] if unavailable is None and status == "PARTIAL" else unavailable or []
         ),
@@ -149,8 +169,8 @@ def test_at_risk_result_exposes_only_nonzero_indicators_as_actionable():
             2: {
                 **assessment(2, level="HIGH", score=55),
                 "indicator_contributions": [
-                    {"indicator_code": "academic_delay", "assigned_points": 30},
-                    {"indicator_code": "study_right", "assigned_points": 0},
+                    indicator("academic_delay", 30),
+                    indicator("study_right"),
                 ],
             }
         },
@@ -162,6 +182,35 @@ def test_at_risk_result_exposes_only_nonzero_indicators_as_actionable():
 
     assert result.results[0].contributing_indicators == ["academic_delay", "study_right"]
     assert result.results[0].actionable_indicators == ["academic_delay"]
+
+
+def test_at_risk_result_exposes_the_existing_canonical_explanation():
+    instance, _, _ = workflow(
+        student_ids=[2],
+        assessments={
+            2: {
+                **assessment(2, level="HIGH", score=55),
+                "indicator_contributions": [
+                    indicator("academic_delay", 30),
+                    indicator("study_right", 20),
+                ],
+            }
+        },
+    )
+
+    result = instance.run(
+        evaluation_time=datetime(2026, 8, 5, 9, tzinfo=ZoneInfo("Europe/Helsinki"))
+    )
+
+    explanation = result.results[0].risk_explanation
+    assert explanation["risk_score"] == result.results[0].risk_score
+    assert explanation["risk_level"] == result.results[0].risk_level
+    assert [factor["indicator_code"] for factor in explanation["factors"]] == [
+        "academic_delay",
+        "study_right",
+    ]
+    assert explanation["unavailable_indicators"] == ["tutor_meetings"]
+    assert explanation["assessment_status"] == "PARTIAL"
 
 
 def test_successful_empty_active_population_is_completed_not_unavailable():

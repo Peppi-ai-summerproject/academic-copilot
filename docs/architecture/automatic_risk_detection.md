@@ -59,10 +59,12 @@ and `StudentRiskDetectionResult` objects only for students requiring tutor
 attention. Each result has a stable internal student ID, canonical score and
 level, contributing indicator codes, non-zero `actionable_indicators`,
 unavailable indicator codes, partial or complete status, scoring basis, and
-policy version. It does not include names, study records, meeting notes,
-Telegram information, or credentials. The actionable list preserves existing
-canonical evidence for the deterministic Issue #105 adapter; it does not add a
-new risk rule or recommendation policy.
+policy version. Issue #113 additionally exposes a `risk_explanation` built
+only from that same canonical result; see
+[Risk Decision Explanations](risk-explanations.md). It does not include names,
+meeting notes, Telegram information, credentials, or a new risk calculation.
+The actionable list preserves existing canonical evidence for the deterministic
+Issue #105 adapter; it does not add a new risk rule or recommendation policy.
 
 ## Status, logging, and limitations
 
