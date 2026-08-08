@@ -107,6 +107,10 @@ def test_high_progress_factor_produces_two_actionable_recommendations():
     assert result.data["recommendations"][0]["reason_codes"] == [
         "PROGRESS_REVIEW_STUDY_PLAN"
     ]
+    assert [item["intervention_type"] for item in result.data["interventions"]] == [
+        "REVIEW_STUDY_PLAN",
+        "SCHEDULE_TUTOR_MEETING",
+    ]
     assert result.status == "SUCCESS"
     policy.retrieve_policy.assert_awaited_once_with(
         "academic progress deficit tutor support policy", top_k=3
@@ -201,6 +205,8 @@ def test_rag_failure_preserves_qualified_fact_based_action_as_partial():
     assert result.status == "PARTIAL"
     assert recommendation["policy_evidence"] == []
     assert recommendation["policy_context_used"] is False
+    assert result.data["interventions"][0]["policy_evidence"] == []
+    assert result.data["interventions"][0]["policy_context_used"] is False
     assert "not a statement of university policy" in recommendation["explanation"]
     assert result.data["policy_context_used"] is False
 
@@ -237,6 +243,7 @@ def test_explicit_policy_conflict_omits_factor_recommendations():
 
     assert result.status == "PARTIAL"
     assert result.data["recommendations"] == []
+    assert result.data["interventions"] == []
     assert "Conflicting policy evidence" in result.data["missing_information"][0]
 
 
@@ -246,6 +253,7 @@ def test_unknown_factor_is_partial_and_does_not_retrieve_or_invent_action():
 
     assert result.status == "PARTIAL"
     assert result.data["recommendations"] == []
+    assert result.data["interventions"] == []
     policy.retrieve_policy.assert_not_awaited()
 
 
@@ -289,6 +297,7 @@ def test_partial_risk_preserves_confirmed_recommendations_but_stays_partial():
     assert result.data["data_status"] == "PARTIAL"
     assert result.data["unavailable_dimensions"] == ["academic_events"]
     assert result.data["recommendations"]
+    assert result.data["interventions"]
 
 
 def test_complete_no_risk_returns_policy_grounded_monitoring_recommendation():
@@ -309,6 +318,10 @@ def test_complete_no_risk_returns_policy_grounded_monitoring_recommendation():
     ]
     assert "no immediate tutor intervention" in recommendation["action"]
     assert recommendation["policy_context_used"] is True
+    intervention = result.data["interventions"][0]
+    assert intervention["intervention_type"] == "MONITOR_PROGRESS"
+    assert intervention["priority"] == "LOW"
+    assert intervention["policy_evidence"] == recommendation["policy_evidence"]
     policy.retrieve_policy.assert_awaited_once_with(
         "normal academic progress monitoring tutor guidance policy", top_k=3
     )
@@ -328,6 +341,8 @@ def test_healthy_student_without_policy_is_partial_and_policy_is_not_fabricated(
     recommendation = result.data["recommendations"][0]
     assert recommendation["policy_evidence"] == []
     assert recommendation["policy_context_used"] is False
+    assert result.data["interventions"][0]["policy_evidence"] == []
+    assert result.data["interventions"][0]["policy_context_used"] is False
     assert "not a statement of university policy" in recommendation["explanation"]
 
 
