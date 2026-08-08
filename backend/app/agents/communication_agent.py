@@ -41,6 +41,11 @@ class CommunicationAgent:
             if report
             else _recommendations(usable.get("recommendation"))
         )
+        recommendation_presentation = (
+            _recommendation_presentation(usable.get("recommendation"))
+            if not report
+            else None
+        )
         incomplete = _is_incomplete(state, sources, usable)
 
         sections: list[str] = ["summary"]
@@ -48,7 +53,10 @@ class CommunicationAgent:
         if facts:
             sections.append("verified_facts")
             lines.extend(["", "Verified facts", *[f"- {fact}" for fact in facts]])
-        if recommendations:
+        if recommendation_presentation:
+            sections.append("recommendation_presentation")
+            lines.extend(["", recommendation_presentation])
+        elif recommendations:
             sections.append("recommended_actions")
             lines.extend(["", "Recommended actions (advisory)", *recommendations])
         if incomplete:
@@ -113,6 +121,16 @@ def _recommendations(result: AgentResult | None) -> list[str]:
         label = str(priority).upper() if priority else "UNSPECIFIED"
         formatted.append(f"- {label} priority: {action.strip()} (advisory)")
     return formatted
+
+
+def _recommendation_presentation(result: AgentResult | None) -> str | None:
+    if result is None:
+        return None
+    presentation = result.data.get("rendered_recommendation")
+    if not isinstance(presentation, dict):
+        return None
+    rendered = presentation.get("text")
+    return rendered.strip() if isinstance(rendered, str) and rendered.strip() else None
 
 
 def _report_facts(result: AgentResult) -> list[str]:

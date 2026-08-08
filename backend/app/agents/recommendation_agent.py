@@ -20,6 +20,10 @@ from app.services.intervention_suggestion_service import (
     InterventionInput,
     InterventionSuggestionService,
 )
+from app.services.recommendation_template_service import (
+    RecommendationTemplateInput,
+    RecommendationTemplateService,
+)
 
 
 class RecommendationAgent:
@@ -35,6 +39,7 @@ class RecommendationAgent:
         policy_gateway: PolicyContextGateway,
         recommendation_engine: RecommendationEngine | None = None,
         intervention_service: InterventionSuggestionService | None = None,
+        template_service: RecommendationTemplateService | None = None,
     ) -> None:
         # The gateway remains in the constructor for the shared registry contract.
         # Recommendation facts come from prior agent results, never fresh tool calls.
@@ -44,6 +49,7 @@ class RecommendationAgent:
         self._intervention_service = (
             intervention_service or InterventionSuggestionService()
         )
+        self._template_service = template_service or RecommendationTemplateService()
 
     async def run(self, state: AgentState) -> AgentResult:
         prerequisite_error = self._validate_prerequisites(state)
@@ -217,6 +223,22 @@ class RecommendationAgent:
         unavailable_dimensions: list[str] | None = None,
     ) -> AgentResult:
         assessment_status = "COMPLETE" if complete else "PARTIAL"
+        rendered = self._template_service.render(
+            RecommendationTemplateInput(
+                student_id=state.student_id,
+                data_status=assessment_status,
+                recommendations=tuple(recommendations),
+                interventions=tuple(interventions),
+                missing_information=tuple(missing),
+                unavailable_dimensions=tuple(unavailable_dimensions or ()),
+                risk_explanation=_agent_explanation(
+                    state, "risk", "risk_explanation"
+                ),
+                progress_explanation=_agent_explanation(
+                    state, "progress", "progress_explanation"
+                ),
+            )
+        )
         return AgentResult(
             agent_name=self.name,
             route="recommendation",
@@ -231,6 +253,7 @@ class RecommendationAgent:
                 "missing_information": missing,
                 "unavailable_dimensions": unavailable_dimensions or [],
                 "policy_context_used": policy_used,
+                "rendered_recommendation": rendered.to_dict(),
             },
             evidence=[
                 f"{item['category']}: {item['action']}"
@@ -270,6 +293,18 @@ def _supporting_evidence(state: AgentState) -> dict[str, SupportingEvidence]:
         if isinstance(result, AgentResult) and result.status != "FAILED":
             evidence[dimension] = SupportingEvidence(route, dict(result.data))
     return evidence
+
+
+def _agent_explanation(
+    state: AgentState,
+    route: str,
+    field_name: str,
+) -> dict[str, Any] | None:
+    result = state.agent_results.get(route)
+    if not isinstance(result, AgentResult) or result.status == "FAILED":
+        return None
+    explanation = result.data.get(field_name)
+    return explanation if isinstance(explanation, dict) else None
 
 
 def _explanation(
