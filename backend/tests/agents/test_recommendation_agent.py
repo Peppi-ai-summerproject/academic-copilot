@@ -291,7 +291,7 @@ def test_partial_risk_preserves_confirmed_recommendations_but_stays_partial():
     assert result.data["recommendations"]
 
 
-def test_complete_no_risk_returns_no_recommendations_without_rag_call():
+def test_complete_no_risk_returns_policy_grounded_monitoring_recommendation():
     policy = policy_gateway()
     result = run(
         make_agent(policy),
@@ -300,9 +300,35 @@ def test_complete_no_risk_returns_no_recommendations_without_rag_call():
 
     assert result.status == "SUCCESS"
     assert result.data["assessment_status"] == "COMPLETE"
-    assert result.data["recommendations"] == []
-    assert "no confirmed tutor intervention" in result.summary.lower()
-    policy.retrieve_policy.assert_not_awaited()
+    assert len(result.data["recommendations"]) == 1
+    recommendation = result.data["recommendations"][0]
+    assert recommendation["recommendation_type"] == "monitoring"
+    assert recommendation["priority"] == "LOW"
+    assert recommendation["reason_codes"] == [
+        "NO_CONFIRMED_RISK_CONTINUE_MONITORING"
+    ]
+    assert "no immediate tutor intervention" in recommendation["action"]
+    assert recommendation["policy_context_used"] is True
+    policy.retrieve_policy.assert_awaited_once_with(
+        "normal academic progress monitoring tutor guidance policy", top_k=3
+    )
+
+
+def test_healthy_student_without_policy_is_partial_and_policy_is_not_fabricated():
+    policy = policy_gateway(
+        PolicyContextResult(query="query", error_code="RAG_RETRIEVAL_UNAVAILABLE")
+    )
+
+    result = run(
+        make_agent(policy),
+        state_with(risk_result([], complete=True, level="NONE")),
+    )
+
+    assert result.status == "PARTIAL"
+    recommendation = result.data["recommendations"][0]
+    assert recommendation["policy_evidence"] == []
+    assert recommendation["policy_context_used"] is False
+    assert "not a statement of university policy" in recommendation["explanation"]
 
 
 def test_registry_contains_real_recommendation_agent():

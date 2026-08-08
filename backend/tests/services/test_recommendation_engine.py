@@ -85,7 +85,7 @@ def test_unknown_factor_is_not_invented_and_marks_assessment_incomplete():
     assert not result.complete
 
 
-def test_no_risk_is_a_complete_empty_decision_set():
+def test_healthy_student_gets_low_priority_monitoring_recommendation():
     value = RecommendationInput(
         student_id=42,
         risk_level="NONE",
@@ -96,4 +96,29 @@ def test_no_risk_is_a_complete_empty_decision_set():
     result = RecommendationEngine().evaluate(value)
 
     assert result.complete
+    assert len(result.decisions) == 1
+    decision = result.decisions[0]
+    assert decision.recommendation_type == "monitoring"
+    assert decision.priority == "LOW"
+    assert decision.reason_codes == ("NO_CONFIRMED_RISK_CONTINUE_MONITORING",)
+    assert "no immediate tutor intervention" in decision.action
+    assert decision.evidence[0].values == {
+        "risk_level": "NONE",
+        "assessment_status": "COMPLETE",
+    }
+
+
+def test_partial_empty_assessment_does_not_claim_student_is_healthy():
+    value = RecommendationInput(
+        student_id=42,
+        risk_level="NONE",
+        risk_factors=(),
+        assessment_status="PARTIAL",
+        unavailable_dimensions=("study_right",),
+    )
+
+    result = RecommendationEngine().evaluate(value)
+
+    assert not result.complete
     assert result.decisions == ()
+    assert result.unavailable_dimensions == ("study_right",)
