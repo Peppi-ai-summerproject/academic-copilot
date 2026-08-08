@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -11,8 +11,26 @@ from app.services.scheduler import DailyTimeTrigger, Scheduler
 from app.workflows.daily import (
     DAILY_WORKFLOW_JOB_ID,
     DailyWorkflow,
+    create_database_daily_workflow,
     register_daily_workflow,
 )
+
+
+@patch("app.workflows.automatic_risk_detection.AcademicRiskScoringService")
+@patch("app.workflows.automatic_risk_detection.TutorMeetingRiskService")
+@patch("app.workflows.automatic_risk_detection.TutorMeetingRepository")
+def test_database_workflow_injects_tutor_meeting_evaluator(
+    repository_type, evaluator_type, risk_type
+):
+    session = Mock()
+    repository = repository_type.return_value
+    evaluator = evaluator_type.return_value
+
+    create_database_daily_workflow(session=session, timezone="Europe/Helsinki")
+
+    repository_type.assert_called_once_with(session)
+    evaluator_type.assert_called_once_with(repository)
+    assert risk_type.call_args.args[3] is evaluator
 
 
 class FakeAutomaticRiskDetection:

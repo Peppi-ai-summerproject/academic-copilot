@@ -19,11 +19,11 @@ existing `affects_all_students` boolean is treated as the structured statement
 that an event applies to every student. Event names and descriptions are never
 used to infer applicability or deadline type.
 
-The repository currently has no authoritative student-specific tutor-meeting
-contract. Production orchestration therefore reports `tutor_meetings` as
-unavailable and normally produces a `PARTIAL` assessment. The normalized tutor
-evaluation accepted by the pure domain function is an adapter boundary for a
-future authoritative service; it is not a meeting repository or scoring rule.
+Tutor-meeting facts come from `TutorMeetingRiskService` and
+`TutorMeetingRepository`. Meeting timestamps are normalized to UTC calendar
+dates and evaluated against the caller-supplied `as_of_date`: an inclusive
+90-day completed/missed lookback and inclusive 30-day scheduled window.
+Supported statuses are `SCHEDULED`, `COMPLETED`, `MISSED`, and `CANCELLED`.
 
 Issue #104 may explicitly opt into `allow_partial_risk_level=True`. Only in
 that mode, the scorer normalizes verified contribution points against the sum
@@ -47,7 +47,15 @@ has no final score or risk level.
 | Study right | `EXPIRED` | 30 | 30 |
 | Academic events | No applicable deadline from day 0 through day 14 | 0 | 10 |
 | Academic events | One or more applicable deadlines from day 0 through day 14 | 10 total | 10 |
-| Tutor meetings | Reserved pending an authoritative contract | unavailable | 10 |
+| Tutor meetings | Recent completed meeting with no later miss | 0 | 10 |
+| Tutor meetings | Upcoming scheduled meeting without decisive recent history | 5 | 10 |
+| Tutor meetings | Recent missed meeting with no later completion | 10 | 10 |
+
+A later `COMPLETED` meeting supersedes an earlier `MISSED` meeting; a later
+`MISSED` meeting supersedes an older completion. `CANCELLED` meetings do not
+contribute, and an overdue `SCHEDULED` meeting is never inferred to be missed.
+Cancelled-only, empty, malformed, unsupported, or failed evidence remains
+unavailable rather than contributing zero.
 
 An authoritative `EXPIRED` study right applies the
 `STUDY_RIGHT_EXPIRED` override: `score = max(raw_subtotal, 70)`. Both the raw
