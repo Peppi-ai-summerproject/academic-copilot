@@ -43,6 +43,27 @@ def test_formats_complete_recommendation_as_advisory_tutor_message():
     assert output.data["delivery_status"] == "NOT_SENT"
 
 
+def test_uses_recommendation_template_presentation_when_available():
+    recommendation = result(
+        "recommendation",
+        "One supported action.",
+        recommendations=[{"priority": "HIGH", "action": "Legacy action."}],
+        rendered_recommendation={
+            "text": "Recommendation\n\nRecommended actions (advisory)\n"
+            "1. HIGH priority: Template action. (advisory)",
+            "sections": ["recommendation", "interventions"],
+            "scenarios": ["progress"],
+            "data_status": "COMPLETE",
+        },
+    )
+
+    output = run_agent(recommendation)
+
+    assert "Template action" in output.data["formatted_message"]
+    assert "Legacy action" not in output.data["formatted_message"]
+    assert "recommendation_presentation" in output.data["sections_included"]
+
+
 def test_includes_verified_facts_without_recalculating_them():
     output = run_agent(
         result("progress", "Verified progress: 90 of 120 ECTS."),
