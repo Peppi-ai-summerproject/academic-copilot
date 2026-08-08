@@ -1,7 +1,7 @@
 """Dashboard service that aggregates multiple student data sources."""
 
 from datetime import date
-from typing import Any
+from typing import Any, Protocol
 
 from app.repositories.student_repository import StudentRepository
 from app.repositories.progress_repository import ProgressRepository
@@ -16,6 +16,23 @@ from app.services.risk_policy import (
     progress_risk_factors,
     study_right_risk_factors,
 )
+
+
+class AcademicHealthProvider(Protocol):
+    def assess_student_health(
+        self, student_id: int, *, as_of_date: date
+    ) -> dict[str, Any]: ...
+
+    def convert_risk_assessment(
+        self, risk_assessment: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
+
+class AcademicRiskProvider(Protocol):
+    def assess_student_risk(
+        self, student_id: int, *, as_of_date: date,
+        allow_partial_risk_level: bool = False,
+    ) -> dict[str, Any]: ...
 
 
 class StudentDashboardService:
@@ -37,13 +54,22 @@ class StudentDashboardService:
         progress_service: ProgressService,
         study_right_service: StudyRightService,
         event_service: EventService,
+        academic_health_service: AcademicHealthProvider | None = None,
+        academic_risk_service: AcademicRiskProvider | None = None,
     ) -> None:
         self._student_service = student_service
         self._progress_service = progress_service
         self._study_right_service = study_right_service
         self._event_service = event_service
+        self._academic_health_service = academic_health_service
+        self._academic_risk_service = academic_risk_service
 
-    def get_student_dashboard(self, student_id: int) -> dict[str, Any]:
+    def get_student_dashboard(
+        self,
+        student_id: int,
+        *,
+        as_of_date: date | None = None,
+    ) -> dict[str, Any]:
         """Return a complete student overview for tutor teachers and AI agents.
 
         Missing optional sections (progress, study right, events) degrade
@@ -54,7 +80,7 @@ class StudentDashboardService:
 
         Returns:
             A JSON-serializable dict with success status and a dashboard
-            containing profile, academic_progress, study_right, risk,
+            containing profile, academic_progress, study_right, academic_health, risk,
             upcoming_actions, and summary sections.
         """
         if not isinstance(student_id, int) or student_id <= 0:
@@ -63,6 +89,13 @@ class StudentDashboardService:
                 "error": "INVALID_STUDENT_ID",
                 "message": "Student ID must be a positive integer.",
             }
+        if as_of_date is not None and not isinstance(as_of_date, date):
+            return {
+                "success": False,
+                "error": "INVALID_AS_OF_DATE",
+                "message": "Assessment date must be a date.",
+            }
+        effective_date = as_of_date or date.today()
 
         # ── Student profile (required) ─────────────────────────────────────
         student_result = self._student_service.get_student(student_id)
@@ -92,13 +125,23 @@ class StudentDashboardService:
             }
 
         # ── Risk analysis (computed from available data) ───────────────────
-        # Note: no persisted risk_events table exists in the backend.
-        # Risk is computed from progress and study right data.
-        risk = self._build_risk(academic_progress, study_right)
+        # Canonical overall risk is authoritative; legacy progress/study-right
+        # heuristics remain only as explicitly labeled supporting context.
+        canonical_risk = self._assess_canonical_risk(student_id, effective_date)
+        academic_health = self._build_academic_health(canonical_risk)
+        risk = self._build_risk(
+            academic_progress,
+            study_right,
+            canonical_risk,
+            canonical_rejected=self._health_rejected_canonical_assessment(
+                academic_health
+            ),
+        )
 
         # ── Upcoming academic events (optional) ────────────────────────────
         events_result = self._event_service.get_upcoming_events(
-            start_date=date.today().isoformat(),
+            start_date=effective_date.isoformat(),
+            end_date=None,
         )
         if events_result.get("success"):
             upcoming_actions = self._build_upcoming_actions(events_result["events"])
@@ -119,6 +162,7 @@ class StudentDashboardService:
                 "profile": profile,
                 "academic_progress": academic_progress,
                 "study_right": study_right,
+                "academic_health": academic_health,
                 "risk": risk,
                 "upcoming_actions": upcoming_actions,
                 "summary": summary,
@@ -126,6 +170,71 @@ class StudentDashboardService:
         }
 
     # ── Private builders ───────────────────────────────────────────────────────
+
+    def _assess_canonical_risk(
+        self,
+        student_id: int,
+        effective_date: date,
+    ) -> dict[str, Any] | None:
+        if self._academic_risk_service is None:
+            return None
+        try:
+            return self._academic_risk_service.assess_student_risk(
+                student_id,
+                as_of_date=effective_date,
+                allow_partial_risk_level=False,
+            )
+        except Exception:
+            return None
+
+    def _build_academic_health(
+        self, canonical_risk: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        """Call the analytics service; never calculate health in the dashboard."""
+        if (
+            self._academic_health_service is None
+            or not self._is_usable_canonical_risk(canonical_risk)
+        ):
+            return self._unavailable_health("ACADEMIC_HEALTH_SERVICE_UNAVAILABLE")
+        try:
+            return self._academic_health_service.convert_risk_assessment(
+                canonical_risk
+            )
+        except Exception:
+            return self._unavailable_health("ACADEMIC_HEALTH_SERVICE_FAILURE")
+
+    @staticmethod
+    def _unavailable_health(reason: str) -> dict[str, Any]:
+        return {
+            "success": False,
+            "assessment_status": "UNAVAILABLE",
+            "health_score": None,
+            "health_level": None,
+            "components": [],
+            "missing_indicators": [reason],
+            "summary": "Academic health is unavailable.",
+        }
+
+    @staticmethod
+    def _is_usable_canonical_risk(value: Any) -> bool:
+        return isinstance(value, dict) and value.get("success") is True
+
+    @staticmethod
+    def _health_rejected_canonical_assessment(value: Any) -> bool:
+        """Identify a converter-rejected, otherwise-successful risk envelope.
+
+        The dashboard does not validate or rescore risk itself. It relies on
+        the Issue #96 converter's canonical contract validation and presents a
+        fallback when that trusted converter reports malformed risk evidence.
+        """
+
+        return (
+            isinstance(value, dict)
+            and value.get("success") is False
+            and value.get("assessment_status") == "UNPROCESSABLE"
+            and "RISK_ASSESSMENT_MALFORMED"
+            in value.get("missing_indicators", [])
+        )
 
     def _build_profile(self, student: dict[str, Any]) -> dict[str, Any]:
         """Map raw student fields to dashboard profile section."""
@@ -185,8 +294,11 @@ class StudentDashboardService:
         self,
         academic_progress: dict[str, Any],
         study_right: dict[str, Any],
+        canonical_risk: dict[str, Any] | None,
+        *,
+        canonical_rejected: bool = False,
     ) -> dict[str, Any]:
-        """Compute current risk analysis from available progress and study right.
+        """Present canonical risk and retain labeled legacy supporting context.
 
         Note: No persisted risk_events table exists in the current backend.
         Risk is computed deterministically from current data.
@@ -197,16 +309,45 @@ class StudentDashboardService:
             factors.extend(progress_risk_factors(academic_progress))
         if study_right.get("available"):
             factors.extend(study_right_risk_factors(study_right))
-        reasons = [factor["reason"] for factor in factors]
-        risk_level = highest_risk_level(factors, default="LOW")
+        legacy_reasons = [factor["reason"] for factor in factors]
+        legacy_level = highest_risk_level(factors, default="LOW")
 
-        if not reasons:
-            reasons.append("No immediate risks detected.")
+        if not legacy_reasons:
+            legacy_reasons.append("No immediate risks detected.")
+
+        canonical_success = (
+            self._is_usable_canonical_risk(canonical_risk)
+            and not canonical_rejected
+        )
+        canonical_level = canonical_risk.get("risk_level") if canonical_success else None
+        explanation = canonical_risk.get("explanation") if canonical_success else None
+        reasons = (
+            list(explanation)
+            if isinstance(explanation, list)
+            and all(isinstance(item, str) for item in explanation)
+            else ["Canonical academic risk is unavailable."]
+        )
 
         return {
             "current_analysis": {
-                "risk_level": risk_level,
+                "risk_level": canonical_level,
                 "reasons": reasons,
+                "assessment_status": (
+                    canonical_risk.get("assessment_status")
+                    if canonical_success else "UNAVAILABLE"
+                ),
+                "score": canonical_risk.get("score") if canonical_success else None,
+                "source": (
+                    "ACADEMIC_RISK_SCORING_SERVICE"
+                    if canonical_success else "LEGACY_PROGRESS_STUDY_RIGHT_FALLBACK"
+                ),
+            },
+            "supporting_legacy_analysis": {
+                "scope": "PROGRESS_AND_STUDY_RIGHT_ONLY",
+                "source": "LEGACY_PROGRESS_STUDY_RIGHT_HEURISTIC",
+                "risk_level": legacy_level,
+                "reasons": legacy_reasons,
+                "authoritative_overall_risk": False,
             },
             "events": [],  # No persisted risk_events backend yet
         }
@@ -248,9 +389,10 @@ class StudentDashboardService:
         """Build a structured summary suitable for AI-generated responses."""
         key_findings: list[str] = []
         attention_required = False
-        priority = "LOW"
 
-        risk_level = risk["current_analysis"]["risk_level"]
+        current_risk = risk["current_analysis"]
+        risk_level = current_risk["risk_level"]
+        assessment_status = current_risk.get("assessment_status")
 
         # Progress findings
         if academic_progress.get("available"):
@@ -299,15 +441,32 @@ class StudentDashboardService:
             key_findings.append("Study right data is unavailable.")
 
         # Risk-based priority
-        if risk_level == "HIGH":
+        if risk_level in {"CRITICAL", "HIGH"}:
             priority = "HIGH"
             attention_required = True
         elif risk_level == "MEDIUM":
             priority = "MEDIUM"
-            if not attention_required:
-                attention_required = True
-        else:
+            attention_required = True
+        elif risk_level == "LOW":
             priority = "LOW"
+        else:
+            priority = "UNKNOWN"
+            attention_required = True
+            if assessment_status == "PARTIAL":
+                key_findings.append(
+                    "Academic risk assessment is incomplete; authoritative "
+                    "priority is indeterminate."
+                )
+            elif assessment_status == "UNAVAILABLE":
+                key_findings.append(
+                    "Academic risk assessment is unavailable; authoritative "
+                    "priority is indeterminate."
+                )
+            else:
+                key_findings.append(
+                    "Academic risk level is unsupported; authoritative "
+                    "priority is indeterminate."
+                )
 
         overall_status = (
             "NEEDS_ATTENTION" if attention_required else "ON_TRACK"

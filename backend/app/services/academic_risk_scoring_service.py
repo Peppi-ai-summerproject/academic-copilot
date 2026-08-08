@@ -21,13 +21,14 @@ POLICY_VERSION = "academic-risk-v1"
 SCORE_RANGE = {"minimum": 0, "maximum": 100}
 SCORE_DIRECTION = "HIGHER_IS_HIGHER_RISK"
 
-_INDICATOR_ORDER = ("academic_delay", "study_right", "tutor_meetings", "academic_events")
-_MAXIMUM_POINTS = {
+INDICATOR_ORDER = ("academic_delay", "study_right", "tutor_meetings", "academic_events")
+MAXIMUM_POINTS = {
     "academic_delay": 50,
     "study_right": 30,
     "tutor_meetings": 10,
     "academic_events": 10,
 }
+SUPPORTED_OVERRIDE_CODES = frozenset({"STUDY_RIGHT_EXPIRED"})
 
 
 class DelayDetector(Protocol):
@@ -111,7 +112,7 @@ def calculate_academic_risk(
     else:
         unavailable.append("academic_events")
 
-    contributions.sort(key=lambda item: _INDICATOR_ORDER.index(item.indicator_code))
+    contributions.sort(key=lambda item: INDICATOR_ORDER.index(item.indicator_code))
     raw_subtotal = sum(item.assigned_points for item in contributions)
     available_indicator_maximum = sum(
         item.maximum_points for item in contributions
@@ -149,7 +150,7 @@ def calculate_academic_risk(
         "raw_subtotal": raw_subtotal,
         "available_indicator_maximum": available_indicator_maximum,
         "score_basis": score_basis,
-        "risk_level": _classify_score(score) if score is not None else None,
+        "risk_level": classify_risk_score(score) if score is not None else None,
         "indicator_contributions": [item.to_dict() for item in contributions],
         "unavailable_indicators": unavailable,
         "applied_overrides": applied_overrides,
@@ -400,7 +401,9 @@ def _unprocessable(base: dict[str, Any], codes: list[str]) -> dict[str, Any]:
     }
 
 
-def _classify_score(score: int) -> str:
+def classify_risk_score(score: int) -> str:
+    """Return the canonical Issue #95 level for a validated 0-100 score."""
+
     if score <= 19:
         return "LOW"
     if score <= 39:
