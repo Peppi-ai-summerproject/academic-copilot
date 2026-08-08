@@ -147,11 +147,11 @@ class CalendarAgent(AcademicAgent):
         if isinstance(value, str):
             return value
 
-        if isinstance(value, date):
-            return value.isoformat()
-
         if isinstance(value, datetime):
             return value.date().isoformat()
+
+        if isinstance(value, date):
+            return value.isoformat()
 
         return None
 
