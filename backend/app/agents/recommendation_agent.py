@@ -16,6 +16,10 @@ from app.services.recommendation_engine import (
     RecommendationInput,
     SupportingEvidence,
 )
+from app.services.intervention_suggestion_service import (
+    InterventionInput,
+    InterventionSuggestionService,
+)
 
 
 class RecommendationAgent:
@@ -30,12 +34,16 @@ class RecommendationAgent:
         gateway: AcademicToolGateway,
         policy_gateway: PolicyContextGateway,
         recommendation_engine: RecommendationEngine | None = None,
+        intervention_service: InterventionSuggestionService | None = None,
     ) -> None:
         # The gateway remains in the constructor for the shared registry contract.
         # Recommendation facts come from prior agent results, never fresh tool calls.
         self._gateway = gateway
         self._policy_gateway = policy_gateway
         self._engine = recommendation_engine or RecommendationEngine()
+        self._intervention_service = (
+            intervention_service or InterventionSuggestionService()
+        )
 
     async def run(self, state: AgentState) -> AgentResult:
         prerequisite_error = self._validate_prerequisites(state)
@@ -45,6 +53,7 @@ class RecommendationAgent:
             return self._result(
                 state,
                 recommendations=[],
+                interventions=[],
                 missing=missing,
                 complete=False,
                 summary="Recommendations are unavailable until a valid risk assessment runs first.",
@@ -65,10 +74,23 @@ class RecommendationAgent:
                 supporting_evidence=_supporting_evidence(state),
             )
         )
+        intervention_assessment = self._intervention_service.suggest(
+            InterventionInput(
+                student_id=assessment.student_id,
+                data_status=assessment.data_status,
+                recommendation_decisions=assessment.decisions,
+                unavailable_dimensions=assessment.unavailable_dimensions,
+            )
+        )
         recommendations: list[dict[str, Any]] = []
+        interventions: list[dict[str, Any]] = []
         missing: list[str] = list(assessment.missing_information)
+        for message in intervention_assessment.missing_information:
+            if message not in missing:
+                missing.append(message)
         policy_used = False
         policy_cache: dict[str, list[PolicyEvidenceCandidate] | None] = {}
+        conflicted_queries: set[str] = set()
 
         for decision in assessment.decisions:
             query = decision.policy_query
@@ -92,6 +114,7 @@ class RecommendationAgent:
                 )
                 if message not in missing:
                     missing.append(message)
+                conflicted_queries.add(query)
                 continue
 
             policy_evidence = [_candidate_data(item) for item in candidates]
@@ -113,11 +136,30 @@ class RecommendationAgent:
             })
             recommendations.append(recommendation)
 
-        complete = assessment.complete and not missing
+        for suggestion in intervention_assessment.suggestions:
+            if suggestion.policy_query in conflicted_queries:
+                continue
+            policy_evidence = [
+                _candidate_data(item)
+                for item in (policy_cache.get(suggestion.policy_query) or [])
+            ]
+            intervention = suggestion.to_dict()
+            intervention.update({
+                "policy_evidence": policy_evidence,
+                "policy_context_used": bool(policy_evidence),
+            })
+            interventions.append(intervention)
+
+        complete = (
+            assessment.complete
+            and intervention_assessment.complete
+            and not missing
+        )
         summary = _summary(recommendations, complete)
         return self._result(
             state,
             recommendations=recommendations,
+            interventions=interventions,
             missing=missing,
             complete=complete,
             summary=summary,
@@ -167,6 +209,7 @@ class RecommendationAgent:
         state: AgentState,
         *,
         recommendations: list[dict[str, Any]],
+        interventions: list[dict[str, Any]],
         missing: list[str],
         complete: bool,
         summary: str,
@@ -184,6 +227,7 @@ class RecommendationAgent:
                 "assessment_status": assessment_status,
                 "data_status": assessment_status,
                 "recommendations": recommendations,
+                "interventions": interventions,
                 "missing_information": missing,
                 "unavailable_dimensions": unavailable_dimensions or [],
                 "policy_context_used": policy_used,
