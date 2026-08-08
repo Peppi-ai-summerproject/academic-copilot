@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
 from app.agents.calendar_agent import CalendarAgent
@@ -95,6 +96,41 @@ def test_calendar_agent_handles_invalid_student_id() -> None:
     assert result.status == "FAILED"
     assert "INVALID_STUDENT_ID" in result.errors
     assert result.data["student_id"] == 0
+
+
+@patch("app.agents.calendar_agent.CalendarAgent._get_upcoming_events")
+def test_calendar_agent_normalizes_date_range_and_preserves_request_context(
+    mock_get,
+) -> None:
+    mock_get.return_value = {
+        "success": True,
+        "filters": {},
+        "events": [],
+    }
+    state = AgentState(
+        request_id="req-date-range",
+        user_message="Show events for the assessment window.",
+        intent="calendar query",
+        student_id=42,
+        parameters={
+            "date_range": (
+                date(2026, 9, 1),
+                datetime(2026, 9, 30, 16, 45),
+            ),
+        },
+    )
+
+    result = asyncio.run(CalendarAgent().run(state))
+
+    mock_get.assert_called_once_with(
+        start_date="2026-09-01",
+        end_date="2026-09-30",
+    )
+    assert result.status == "SUCCESS"
+    assert result.route == "calendar"
+    assert result.data["student_id"] == 42
+    assert state.request_id == "req-date-range"
+    assert state.parameters["date_range"][0] == date(2026, 9, 1)
 
 
 @patch("app.agents.calendar_agent.CalendarAgent._get_upcoming_events")
