@@ -11,6 +11,11 @@ Tutors, create tutor assignments, send to students, use group chats, add
 preferences, retry messages, persist delivery history, or claim exactly-once
 delivery.
 
+Issue #108 may record the aggregate batch status and counts only. It does not
+store a recipient, provider acknowledgement, chat identifier, or message body;
+this is not Telegram delivery history. See
+[`workflow_execution_logs.md`](workflow_execution_logs.md).
+
 ## Automatic invocation
 
 Issue #102 Daily Workflow is the automatic invocation owner. It already runs

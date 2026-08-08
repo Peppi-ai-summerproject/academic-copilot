@@ -10,8 +10,9 @@ channel.
 - Issue #103 owns the aggregate weekly report and its approved report storage.
 - Issue #105 owns human-readable weekly tutor briefing behavior.
 - Issues #106 and #107 own alerts and Telegram delivery.
-- Issue #108 remains responsible for general workflow execution logs; the table
-  introduced here stores report data, not a generic logging system.
+- Issue #108 records general workflow execution history; the table introduced
+  here stores report data, not a generic logging system. See
+  [`workflow_execution_logs.md`](workflow_execution_logs.md).
 
 No new academic rules, Tutor entities, or assignment architecture are created.
 No Telegram, LLM, Qdrant, MCP tool, queue, Redis, distributed lock, or leader

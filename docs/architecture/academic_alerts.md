@@ -74,6 +74,10 @@ guarantee exists. Repeated daily runs or multiple application instances can
 return the same alert again. Logs remain aggregate-only and must not contain
 student identifiers or full alert payloads.
 
+Issue #108 records only aggregate execution history for this workflow; it does
+not change the alert-persistence or delivery-history boundary. See
+[`workflow_execution_logs.md`](workflow_execution_logs.md).
+
 ## Testing
 
 Focused tests use fakes and a controlled Helsinki clock:

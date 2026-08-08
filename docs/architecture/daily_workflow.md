@@ -98,9 +98,11 @@ The workflow uses the existing application logger and records only lifecycle,
 status, and aggregate count information. It does not log student names, IDs,
 Telegram details, credentials, tokens, or full result payloads.
 
-Workflow execution records and Issue #107 delivery results are not persistent.
-Issue #108 remains responsible for durable workflow logs, delivery history,
-cross-process execution keys, retries, and idempotency.
+Issue #108 records durable aggregate execution history for the daily run and
+its nested #104, #106, and #107 calls. It does not persist alert payloads,
+individual delivery attempts, recipients, or rendered Telegram messages. See
+[`workflow_execution_logs.md`](workflow_execution_logs.md) for lifecycle,
+privacy, and reliability limits.
 
 The stable job ID prevents duplicate registration in a single scheduler
 instance. It does not prevent a same-day rerun after restart, or duplicate
@@ -123,7 +125,7 @@ partial and total failure, lifecycle shutdown, and aggregate-only logging.
 
 ## Deferred responsibilities
 
-This workflow does not implement tutor actions, persistent workflow logs, RAG,
+This workflow does not implement tutor actions, delivery history, RAG,
 MCP tools, LLM decisions, new risk rules, database migrations, queues, or
 distributed coordination. It invokes Issue #106 but does not own alert
 qualification, alert persistence, Telegram rendering, recipient resolution,

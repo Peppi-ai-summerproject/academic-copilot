@@ -29,6 +29,11 @@ from app.workflows.automatic_risk_detection import (
     RiskDetectionWorkflowResult,
     StudentRiskDetectionResult,
 )
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 logger = logging.getLogger("academic-copilot.workflows.academic_alerts")
@@ -219,19 +224,48 @@ class AcademicAlertWorkflow:
         study_right_provider: StudyRightRiskProvider,
         timezone: str,
         generator: AcademicAlertGenerator | None = None,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
     ) -> None:
         self._active_student_directory = active_student_directory
         self._delay_provider = delay_provider
         self._study_right_provider = study_right_provider
         self._timezone = _load_timezone(timezone)
         self._generator = generator or AcademicAlertGenerator()
+        self._execution_recorder = execution_recorder
 
     def run(
         self,
         *,
         evaluation_time: datetime,
         risk_detection_result: RiskDetectionWorkflowResult,
+        trigger_type: TriggerType = "direct",
     ) -> AcademicAlertGenerationResult:
+        if self._execution_recorder is None:
+            return self._run(
+                evaluation_time=evaluation_time,
+                risk_detection_result=risk_detection_result,
+            )
+
+        local_time = _as_local_datetime(evaluation_time, self._timezone)
+        return self._execution_recorder.run(
+            workflow_name=ACADEMIC_ALERT_WORKFLOW_NAME,
+            execution_key=None,
+            trigger_type=trigger_type,
+            operation=lambda: self._run(
+                evaluation_time=local_time,
+                risk_detection_result=risk_detection_result,
+            ),
+            outcome_for=_academic_alert_execution_outcome,
+        )
+
+    def _run(
+        self,
+        *,
+        evaluation_time: datetime,
+        risk_detection_result: RiskDetectionWorkflowResult,
+    ) -> AcademicAlertGenerationResult:
+        """Execute established alert generation without logging policy."""
+
         local_time = _as_local_datetime(evaluation_time, self._timezone)
         try:
             student_ids = _validated_student_ids(
@@ -322,6 +356,7 @@ def create_database_academic_alert_workflow(
     *,
     session: Any,
     timezone: str,
+    execution_recorder: WorkflowExecutionRecorder | None = None,
 ) -> AcademicAlertWorkflow:
     """Wire Issue #106 only to existing repository and service contracts."""
 
@@ -338,6 +373,7 @@ def create_database_academic_alert_workflow(
         delay_provider=delay_service,
         study_right_provider=study_right_risk_service,
         timezone=timezone,
+        execution_recorder=execution_recorder,
     )
 
 
@@ -350,9 +386,16 @@ def run_database_academic_alert_workflow(
 
     session = SessionLocal()
     try:
+        from app.repositories.workflow_execution_log_repository import (
+            WorkflowExecutionLogRepository,
+        )
+
         workflow = create_database_academic_alert_workflow(
             session=session,
             timezone=settings.daily_workflow_timezone,
+            execution_recorder=WorkflowExecutionRecorder(
+                WorkflowExecutionLogRepository(session)
+            ),
         )
         return workflow.run(
             evaluation_time=evaluation_time,
@@ -360,6 +403,19 @@ def run_database_academic_alert_workflow(
         )
     finally:
         session.close()
+
+
+def _academic_alert_execution_outcome(result: AcademicAlertGenerationResult):
+    return workflow_outcome(
+        status=result.status,
+        requested_count=result.students_considered,
+        processed_count=result.students_considered,
+        succeeded_count=result.alert_count,
+        failed_count=None,
+        skipped_count=0,
+        warnings=result.warnings,
+        errors=result.errors,
+    )
 
 
 def _delay_alert(source: DelayedProgressAlertSource | None) -> AcademicAlert | None:

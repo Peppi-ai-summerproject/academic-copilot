@@ -28,6 +28,11 @@ from app.services.progress_service import ProgressService
 from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 logger = logging.getLogger("academic-copilot.workflows.automatic_risk_detection")
@@ -109,22 +114,51 @@ class AutomaticRiskDetectionWorkflow:
         active_student_directory: ActiveStudentDirectory,
         risk_provider: RiskProvider,
         timezone: str,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
     ) -> None:
         self._active_student_directory = active_student_directory
         self._risk_provider = risk_provider
         self._timezone = _load_timezone(timezone)
+        self._execution_recorder = execution_recorder
 
     def run(
         self,
         *,
         evaluation_time: datetime | None = None,
         student_ids: Sequence[int] | None = None,
+        trigger_type: TriggerType = "direct",
     ) -> RiskDetectionWorkflowResult:
         """Run directly for all ACTIVE students or an active subset.
 
         Explicit IDs are always intersected with the active-student repository
         filter. Inactive students are never evaluated by this workflow.
         """
+
+        if self._execution_recorder is None:
+            return self._run(
+                evaluation_time=evaluation_time,
+                student_ids=student_ids,
+            )
+
+        local_time = _as_local_datetime(evaluation_time, self._timezone)
+        return self._execution_recorder.run(
+            workflow_name=AUTOMATIC_RISK_DETECTION_WORKFLOW_NAME,
+            execution_key=f"risk-detection:{local_time.date().isoformat()}",
+            trigger_type=trigger_type,
+            operation=lambda: self._run(
+                evaluation_time=local_time,
+                student_ids=student_ids,
+            ),
+            outcome_for=_risk_detection_execution_outcome,
+        )
+
+    def _run(
+        self,
+        *,
+        evaluation_time: datetime | None = None,
+        student_ids: Sequence[int] | None = None,
+    ) -> RiskDetectionWorkflowResult:
+        """Execute established risk orchestration without logging policy."""
 
         local_time = _as_local_datetime(evaluation_time, self._timezone)
         evaluation_date = local_time.date()
@@ -276,6 +310,7 @@ def create_database_automatic_risk_detection_workflow(
     *,
     session: Any,
     timezone: str,
+    execution_recorder: WorkflowExecutionRecorder | None = None,
 ) -> AutomaticRiskDetectionWorkflow:
     """Wire the reusable workflow to the existing authoritative services."""
 
@@ -293,6 +328,7 @@ def create_database_automatic_risk_detection_workflow(
         active_student_directory=student_repository,
         risk_provider=risk_service,
         timezone=timezone,
+        execution_recorder=execution_recorder,
     )
 
 
@@ -305,9 +341,16 @@ def run_database_automatic_risk_detection(
 
     session = SessionLocal()
     try:
+        from app.repositories.workflow_execution_log_repository import (
+            WorkflowExecutionLogRepository,
+        )
+
         workflow = create_database_automatic_risk_detection_workflow(
             session=session,
             timezone=settings.daily_workflow_timezone,
+            execution_recorder=WorkflowExecutionRecorder(
+                WorkflowExecutionLogRepository(session)
+            ),
         )
         return workflow.run(
             evaluation_time=evaluation_time,
@@ -369,6 +412,19 @@ def _parse_assessment(value: Any) -> StudentRiskDetectionResult | str:
         score_basis=score_basis,
         policy_version=policy_version,
         actionable_indicators=actionable_codes,
+    )
+
+
+def _risk_detection_execution_outcome(result: RiskDetectionWorkflowResult):
+    return workflow_outcome(
+        status=result.status,
+        requested_count=result.active_student_count,
+        processed_count=result.evaluated_student_count,
+        succeeded_count=result.evaluated_student_count,
+        failed_count=None,
+        skipped_count=0,
+        warnings=result.warnings,
+        errors=result.errors,
     )
 
 

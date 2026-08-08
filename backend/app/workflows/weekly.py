@@ -29,6 +29,11 @@ from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Schedule
 from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 logger = logging.getLogger("academic-copilot.workflows.weekly")
@@ -131,6 +136,7 @@ class WeeklyWorkflow:
         report_store: WeeklyReportStore,
         timezone: str,
         student_page_size: int = 100,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
     ) -> None:
         if student_page_size <= 0:
             raise ValueError("student_page_size must be positive")
@@ -142,9 +148,31 @@ class WeeklyWorkflow:
         self._report_store = report_store
         self._timezone = _load_timezone(timezone)
         self._student_page_size = student_page_size
+        self._execution_recorder = execution_recorder
 
-    def run(self, *, now: datetime | None = None) -> WeeklyWorkflowResult:
+    def run(
+        self,
+        *,
+        now: datetime | None = None,
+        trigger_type: TriggerType = "direct",
+    ) -> WeeklyWorkflowResult:
         """Run directly or from the scheduler using a timezone-aware clock."""
+
+        if self._execution_recorder is None:
+            return self._run(now=now)
+
+        execution_time = _as_local_datetime(now, self._timezone)
+        period_start, period_end = _previous_completed_week(execution_time.date())
+        return self._execution_recorder.run(
+            workflow_name=WEEKLY_WORKFLOW_NAME,
+            execution_key=f"weekly:{period_start.isoformat()}:{period_end.isoformat()}",
+            trigger_type=trigger_type,
+            operation=lambda: self._run(now=execution_time),
+            outcome_for=_weekly_execution_outcome,
+        )
+
+    def _run(self, *, now: datetime | None = None) -> WeeklyWorkflowResult:
+        """Execute the established weekly business workflow without logging policy."""
 
         started_at = _as_local_datetime(now, self._timezone)
         period_start, period_end = _previous_completed_week(started_at.date())
@@ -530,6 +558,10 @@ class WeeklyWorkflow:
 def create_database_weekly_workflow(*, session: Any, timezone: str) -> WeeklyWorkflow:
     """Wire Issue #103 to existing services and its approved report store."""
 
+    from app.repositories.workflow_execution_log_repository import (
+        WorkflowExecutionLogRepository,
+    )
+
     student_repository = StudentRepository(session)
     student_service = StudentService(student_repository)
     progress_service = ProgressService(ProgressRepository(session))
@@ -552,6 +584,9 @@ def create_database_weekly_workflow(*, session: Any, timezone: str) -> WeeklyWor
         risk_provider=risk_service,
         report_store=WeeklyReportRepository(session),
         timezone=timezone,
+        execution_recorder=WorkflowExecutionRecorder(
+            WorkflowExecutionLogRepository(session)
+        ),
     )
 
 
@@ -564,7 +599,7 @@ def run_scheduled_weekly_workflow() -> WeeklyWorkflowResult:
             session=session,
             timezone=settings.weekly_workflow_timezone,
         )
-        return workflow.run()
+        return workflow.run(trigger_type="scheduler")
     finally:
         session.close()
 
@@ -638,6 +673,24 @@ def _aggregate_status(sections: list[WeeklyReportSection]) -> WorkflowStatus:
     if "failed" in statuses:
         return "failed"
     return "unavailable"
+
+
+def _weekly_execution_outcome(result: WeeklyWorkflowResult):
+    return workflow_outcome(
+        status=result.status,
+        requested_count=len(result.sections),
+        processed_count=sum(
+            section.status in {"completed", "partial", "failed"}
+            for section in result.sections
+        ),
+        succeeded_count=sum(
+            section.status == "completed" for section in result.sections
+        ),
+        failed_count=sum(section.status == "failed" for section in result.sections),
+        skipped_count=0,
+        warnings=result.warnings,
+        errors=result.errors,
+    )
 
 
 def _aggregate_metrics(

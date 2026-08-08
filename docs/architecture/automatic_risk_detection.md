@@ -9,7 +9,8 @@ not calculate ECTS, delay, study-right, event, or risk-level rules itself.
 - Issue #102 owns daily scheduler registration and invokes this workflow.
 - Issue #104 owns reusable batch orchestration and the non-identifying result.
 - Issue #106 owns risk-alert decisions; #107 owns Telegram delivery.
-- Issue #108 owns generic workflow execution logs.
+- Issue #108 owns generic workflow execution logs; its nested execution record
+  uses the #102 daily correlation ID when invoked automatically.
 
 No second scheduler, database table, migration, queue, distributed lock, LLM,
 RAG, Qdrant call, MCP tool, or Telegram delivery is introduced.

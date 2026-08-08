@@ -23,11 +23,17 @@ from app.workflows.academic_alerts import (
     AcademicAlert,
     AcademicAlertGenerationResult,
 )
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 logger = logging.getLogger("academic-copilot.telegram.notifications")
 
 TELEGRAM_MAX_MESSAGE_LENGTH = 4096
+ACADEMIC_ALERT_NOTIFICATION_DELIVERY_NAME = "academic_alert_notification_delivery"
 
 DeliveryStatus = Literal["delivered", "failed", "skipped"]
 BatchDeliveryStatus = Literal["completed", "partial", "failed"]
@@ -163,14 +169,38 @@ class AcademicAlertNotificationDelivery:
         *,
         recipient_resolver: TutorRecipientResolver,
         sender: TelegramNotificationSender,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
     ) -> None:
         self._recipient_resolver = recipient_resolver
         self._sender = sender
+        self._execution_recorder = execution_recorder
 
     def deliver(
         self,
         alert_result: AcademicAlertGenerationResult,
+        *,
+        trigger_type: TriggerType = "direct",
     ) -> NotificationBatchResult:
+        if self._execution_recorder is None:
+            return self._deliver(alert_result)
+
+        return self._execution_recorder.run(
+            workflow_name=ACADEMIC_ALERT_NOTIFICATION_DELIVERY_NAME,
+            execution_key=None,
+            trigger_type=trigger_type,
+            operation=lambda: self._deliver(alert_result),
+            outcome_for=lambda result: _notification_execution_outcome(
+                result,
+                requested_count=alert_result.alert_count,
+            ),
+        )
+
+    def _deliver(
+        self,
+        alert_result: AcademicAlertGenerationResult,
+    ) -> NotificationBatchResult:
+        """Deliver the existing batch without changing its delivery contract."""
+
         if alert_result.status == "failed":
             return NotificationBatchResult(
                 status="failed",
@@ -280,6 +310,7 @@ class AcademicAlertNotificationDelivery:
 def create_database_academic_alert_notification_delivery(
     *,
     session: Any,
+    execution_recorder: WorkflowExecutionRecorder | None = None,
 ) -> AcademicAlertNotificationDelivery | None:
     """Wire delivery only when the existing Telegram application is available."""
 
@@ -288,6 +319,24 @@ def create_database_academic_alert_notification_delivery(
     return AcademicAlertNotificationDelivery(
         recipient_resolver=TutorRepository(session),
         sender=_configured_sender,
+        execution_recorder=execution_recorder,
+    )
+
+
+def _notification_execution_outcome(
+    result: NotificationBatchResult,
+    *,
+    requested_count: int,
+):
+    return workflow_outcome(
+        status=result.status,
+        requested_count=requested_count,
+        processed_count=result.attempted_count + result.skipped_count,
+        succeeded_count=result.delivered_count,
+        failed_count=result.failed_count,
+        skipped_count=result.skipped_count,
+        warnings=[],
+        errors=result.errors,
     )
 
 

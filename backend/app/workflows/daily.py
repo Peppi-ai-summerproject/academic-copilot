@@ -29,11 +29,17 @@ from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Schedule
 from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 logger = logging.getLogger("academic-copilot.workflows.daily")
 
-DAILY_WORKFLOW_JOB_ID = "academic_daily_workflow"
+DAILY_WORKFLOW_NAME = "academic_daily_workflow"
+DAILY_WORKFLOW_JOB_ID = DAILY_WORKFLOW_NAME
 
 CheckStatus = Literal["completed", "partial", "failed", "unavailable"]
 WorkflowStatus = Literal["completed", "partial", "failed", "unavailable"]
@@ -129,6 +135,7 @@ class DailyWorkflow:
         automatic_risk_detection: RiskDetectionRunner | None = None,
         academic_alert_generation: AcademicAlertRunner | None = None,
         academic_alert_delivery: AcademicAlertDeliveryRunner | None = None,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
     ) -> None:
         if student_page_size <= 0:
             raise ValueError("student_page_size must be positive")
@@ -141,13 +148,34 @@ class DailyWorkflow:
         self._automatic_risk_detection = automatic_risk_detection
         self._academic_alert_generation = academic_alert_generation
         self._academic_alert_delivery = academic_alert_delivery
+        self._execution_recorder = execution_recorder
 
-    def run(self, *, now: datetime | None = None) -> DailyWorkflowResult:
+    def run(
+        self,
+        *,
+        now: datetime | None = None,
+        trigger_type: TriggerType = "direct",
+    ) -> DailyWorkflowResult:
         """Execute all checks for the current local calendar date.
 
         ``now`` must be timezone-aware when supplied, making date boundaries
         deterministic in tests and direct invocations.
         """
+
+        if self._execution_recorder is None:
+            return self._run(now=now)
+
+        execution_time = _as_local_datetime(now, self._timezone)
+        return self._execution_recorder.run(
+            workflow_name=DAILY_WORKFLOW_NAME,
+            execution_key=f"daily:{execution_time.date().isoformat()}",
+            trigger_type=trigger_type,
+            operation=lambda: self._run(now=execution_time),
+            outcome_for=_daily_execution_outcome,
+        )
+
+    def _run(self, *, now: datetime | None = None) -> DailyWorkflowResult:
+        """Execute the established daily business workflow without logging policy."""
 
         local_now = _as_local_datetime(now, self._timezone)
         execution_date = local_now.date()
@@ -632,6 +660,9 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
     """Wire the daily workflow to existing repositories and services."""
 
     event_service = EventService(EventRepository(session))
+    from app.repositories.workflow_execution_log_repository import (
+        WorkflowExecutionLogRepository,
+    )
     from app.workflows.automatic_risk_detection import (
         create_database_automatic_risk_detection_workflow,
     )
@@ -640,9 +671,13 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
         create_database_academic_alert_notification_delivery,
     )
 
+    execution_recorder = WorkflowExecutionRecorder(
+        WorkflowExecutionLogRepository(session)
+    )
     automatic_risk_detection = create_database_automatic_risk_detection_workflow(
         session=session,
         timezone=timezone,
+        execution_recorder=execution_recorder,
     )
     return DailyWorkflow(
         event_provider=event_service,
@@ -651,10 +686,13 @@ def create_database_daily_workflow(*, session: Any, timezone: str) -> DailyWorkf
         academic_alert_generation=create_database_academic_alert_workflow(
             session=session,
             timezone=timezone,
+            execution_recorder=execution_recorder,
         ),
         academic_alert_delivery=create_database_academic_alert_notification_delivery(
             session=session,
+            execution_recorder=execution_recorder,
         ),
+        execution_recorder=execution_recorder,
     )
 
 
@@ -667,7 +705,7 @@ def run_scheduled_daily_workflow() -> DailyWorkflowResult:
             session=session,
             timezone=settings.daily_workflow_timezone,
         )
-        return workflow.run()
+        return workflow.run(trigger_type="scheduler")
     finally:
         session.close()
 
@@ -728,6 +766,29 @@ def _aggregate_status(checks: tuple[DailyCheckResult, ...]) -> WorkflowStatus:
     if "failed" in statuses:
         return "failed"
     return "unavailable"
+
+
+def _daily_execution_outcome(result: DailyWorkflowResult):
+    checks = (
+        result.academic_events,
+        result.student_risks,
+        result.academic_alerts,
+        result.tutor_notifications,
+        result.pending_tutor_actions,
+    )
+    return workflow_outcome(
+        status=result.status,
+        requested_count=len(checks),
+        processed_count=sum(
+            check.status in {"completed", "partial", "failed"}
+            for check in checks
+        ),
+        succeeded_count=sum(check.status == "completed" for check in checks),
+        failed_count=sum(check.status == "failed" for check in checks),
+        skipped_count=0,
+        warnings=result.warnings,
+        errors=result.errors,
+    )
 
 
 def _as_local_datetime(value: datetime | None, timezone: ZoneInfo) -> datetime:

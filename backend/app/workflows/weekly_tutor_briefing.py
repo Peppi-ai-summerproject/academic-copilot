@@ -17,6 +17,11 @@ from app.workflows.automatic_risk_detection import (
     CANONICAL_RISK_LEVELS,
     StudentRiskDetectionResult,
 )
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 WEEKLY_TUTOR_BRIEFING_NAME = "weekly_tutor_briefing"
@@ -199,10 +204,35 @@ class OfflineRecommendationAdapter:
 class WeeklyTutorBriefingGenerator:
     """Compose a concise, deterministic briefing from supplied typed results."""
 
-    def __init__(self, recommendation_adapter: OfflineRecommendationAdapter | None = None) -> None:
+    def __init__(
+        self,
+        recommendation_adapter: OfflineRecommendationAdapter | None = None,
+        *,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
+    ) -> None:
         self._recommendation_adapter = recommendation_adapter or OfflineRecommendationAdapter()
+        self._execution_recorder = execution_recorder
 
-    def generate(self, briefing_input: WeeklyTutorBriefingInput) -> WeeklyTutorBriefing:
+    def generate(
+        self,
+        briefing_input: WeeklyTutorBriefingInput,
+        *,
+        trigger_type: TriggerType = "direct",
+    ) -> WeeklyTutorBriefing:
+        if self._execution_recorder is None:
+            return self._generate(briefing_input)
+
+        return self._execution_recorder.run(
+            workflow_name=WEEKLY_TUTOR_BRIEFING_NAME,
+            execution_key=None,
+            trigger_type=trigger_type,
+            operation=lambda: self._generate(briefing_input),
+            outcome_for=_briefing_execution_outcome,
+        )
+
+    def _generate(self, briefing_input: WeeklyTutorBriefingInput) -> WeeklyTutorBriefing:
+        """Generate the established briefing without persistence policy."""
+
         _validate_input(briefing_input)
         summaries: list[TutorBriefingStudentSummary] = []
         notes: list[str] = []
@@ -285,6 +315,19 @@ def generate_weekly_tutor_briefing(
     """Convenience entry point for deterministic, dependency-free composition."""
 
     return WeeklyTutorBriefingGenerator().generate(briefing_input)
+
+
+def _briefing_execution_outcome(result: WeeklyTutorBriefing):
+    return workflow_outcome(
+        status=result.status,
+        requested_count=result.assigned_student_count,
+        processed_count=result.students_requiring_attention,
+        succeeded_count=result.students_requiring_attention,
+        failed_count=None,
+        skipped_count=0,
+        warnings=result.warnings,
+        errors=result.errors,
+    )
 
 
 def _validate_input(briefing_input: WeeklyTutorBriefingInput) -> None:
