@@ -11,13 +11,15 @@ from app.gateways.policy_context import (
     PolicyContextGateway,
     PolicyEvidenceCandidate,
 )
-
-
-_POLICY_QUERIES = {
-    "progress": "academic progress deficit tutor support policy",
-    "study_right": "expiring study right extension support policy",
-    "academic_event": "upcoming academic deadline tutor guidance",
-}
+from app.services.recommendation_engine import (
+    RecommendationEngine,
+    RecommendationInput,
+    SupportingEvidence,
+)
+from app.services.intervention_suggestion_service import (
+    InterventionInput,
+    InterventionSuggestionService,
+)
 
 
 class RecommendationAgent:
@@ -31,9 +33,17 @@ class RecommendationAgent:
         self,
         gateway: AcademicToolGateway,
         policy_gateway: PolicyContextGateway,
+        recommendation_engine: RecommendationEngine | None = None,
+        intervention_service: InterventionSuggestionService | None = None,
     ) -> None:
+        # The gateway remains in the constructor for the shared registry contract.
+        # Recommendation facts come from prior agent results, never fresh tool calls.
         self._gateway = gateway
         self._policy_gateway = policy_gateway
+        self._engine = recommendation_engine or RecommendationEngine()
+        self._intervention_service = (
+            intervention_service or InterventionSuggestionService()
+        )
 
     async def run(self, state: AgentState) -> AgentResult:
         prerequisite_error = self._validate_prerequisites(state)
@@ -43,6 +53,7 @@ class RecommendationAgent:
             return self._result(
                 state,
                 recommendations=[],
+                interventions=[],
                 missing=missing,
                 complete=False,
                 summary="Recommendations are unavailable until a valid risk assessment runs first.",
@@ -51,77 +62,109 @@ class RecommendationAgent:
         risk_data = risk_result.data
         factors = risk_data.get("risk_factors", [])
         risk_complete = bool(risk_data.get("assessment_complete"))
-        if risk_complete and risk_data.get("risk_level") == "NONE" and not factors:
-            return self._result(
-                state,
-                recommendations=[],
-                missing=[],
-                complete=True,
-                summary="No confirmed tutor intervention was identified.",
+        assessment = self._engine.evaluate(
+            RecommendationInput(
+                student_id=state.student_id,
+                risk_level=risk_data.get("risk_level"),
+                risk_factors=tuple(factors),
+                assessment_status="COMPLETE" if risk_complete else "PARTIAL",
+                unavailable_dimensions=tuple(
+                    risk_data.get("unavailable_dimensions", [])
+                ),
+                supporting_evidence=_supporting_evidence(state),
             )
-
+        )
+        intervention_assessment = self._intervention_service.suggest(
+            InterventionInput(
+                student_id=assessment.student_id,
+                data_status=assessment.data_status,
+                recommendation_decisions=assessment.decisions,
+                unavailable_dimensions=assessment.unavailable_dimensions,
+            )
+        )
         recommendations: list[dict[str, Any]] = []
-        missing: list[str] = []
+        interventions: list[dict[str, Any]] = []
+        missing: list[str] = list(assessment.missing_information)
+        for message in intervention_assessment.missing_information:
+            if message not in missing:
+                missing.append(message)
         policy_used = False
+        policy_cache: dict[str, list[PolicyEvidenceCandidate] | None] = {}
+        conflicted_queries: set[str] = set()
 
-        for factor in factors:
-            if not isinstance(factor, dict):
-                missing.append("Malformed risk factor could not be mapped.")
-                continue
-            dimension = factor.get("dimension")
-            actions = _actions_for_factor(factor)
-            query = _POLICY_QUERIES.get(str(dimension))
-            if not actions or query is None:
-                missing.append(
-                    f"No approved recommendation mapping for risk factor '{dimension}'."
-                )
-                continue
-
-            try:
-                policy_result = await self._policy_gateway.retrieve_policy(query, top_k=3)
-            except Exception:
-                policy_result = None
-            if policy_result is None:
-                candidates = []
-            else:
-                candidates = (
+        for decision in assessment.decisions:
+            query = decision.policy_query
+            if query not in policy_cache:
+                try:
+                    policy_result = await self._policy_gateway.retrieve_policy(
+                        query, top_k=3
+                    )
+                except Exception:
+                    policy_result = None
+                policy_cache[query] = (
                     _usable_candidates(policy_result.candidates)
-                    if policy_result.succeeded
+                    if policy_result is not None and policy_result.succeeded
                     else []
                 )
+            candidates = policy_cache[query] or []
             if _has_explicit_conflict(candidates):
-                missing.append(f"Conflicting policy evidence for '{dimension}'.")
+                message = (
+                    "Conflicting policy evidence for "
+                    f"'{decision.recommendation_type}'."
+                )
+                if message not in missing:
+                    missing.append(message)
+                conflicted_queries.add(query)
                 continue
 
             policy_evidence = [_candidate_data(item) for item in candidates]
             if not policy_evidence:
-                missing.append(f"Policy evidence unavailable for '{dimension}'.")
+                message = (
+                    "Policy evidence unavailable for "
+                    f"'{decision.recommendation_type}'."
+                )
+                if message not in missing:
+                    missing.append(message)
             else:
                 policy_used = True
 
-            for action, category in actions:
-                recommendations.append(
-                    {
-                        "priority": factor.get("level", "LOW"),
-                        "category": category,
-                        "action": action,
-                        "explanation": _explanation(factor, policy_evidence),
-                        "student_evidence": _student_evidence(state, factor),
-                        "policy_evidence": policy_evidence,
-                        "source_agents": _source_agents(state, dimension),
-                        "policy_context_used": bool(policy_evidence),
-                    }
-                )
+            recommendation = decision.to_dict()
+            recommendation.update({
+                "explanation": _explanation(recommendation, policy_evidence),
+                "policy_evidence": policy_evidence,
+                "policy_context_used": bool(policy_evidence),
+            })
+            recommendations.append(recommendation)
 
-        complete = risk_complete and not missing
+        for suggestion in intervention_assessment.suggestions:
+            if suggestion.policy_query in conflicted_queries:
+                continue
+            policy_evidence = [
+                _candidate_data(item)
+                for item in (policy_cache.get(suggestion.policy_query) or [])
+            ]
+            intervention = suggestion.to_dict()
+            intervention.update({
+                "policy_evidence": policy_evidence,
+                "policy_context_used": bool(policy_evidence),
+            })
+            interventions.append(intervention)
+
+        complete = (
+            assessment.complete
+            and intervention_assessment.complete
+            and not missing
+        )
         summary = _summary(recommendations, complete)
         return self._result(
             state,
             recommendations=recommendations,
+            interventions=interventions,
             missing=missing,
             complete=complete,
             summary=summary,
             policy_used=policy_used,
+            unavailable_dimensions=list(assessment.unavailable_dimensions),
         )
 
     @staticmethod
@@ -166,11 +209,14 @@ class RecommendationAgent:
         state: AgentState,
         *,
         recommendations: list[dict[str, Any]],
+        interventions: list[dict[str, Any]],
         missing: list[str],
         complete: bool,
         summary: str,
         policy_used: bool = False,
+        unavailable_dimensions: list[str] | None = None,
     ) -> AgentResult:
+        assessment_status = "COMPLETE" if complete else "PARTIAL"
         return AgentResult(
             agent_name=self.name,
             route="recommendation",
@@ -178,9 +224,12 @@ class RecommendationAgent:
             summary=summary,
             data={
                 "student_id": state.student_id,
-                "assessment_status": "COMPLETE" if complete else "PARTIAL",
+                "assessment_status": assessment_status,
+                "data_status": assessment_status,
                 "recommendations": recommendations,
+                "interventions": interventions,
                 "missing_information": missing,
+                "unavailable_dimensions": unavailable_dimensions or [],
                 "policy_context_used": policy_used,
             },
             evidence=[
@@ -189,25 +238,6 @@ class RecommendationAgent:
             ],
             warnings=list(missing),
         )
-
-
-def _actions_for_factor(factor: dict[str, Any]) -> list[tuple[str, str]]:
-    dimension = factor.get("dimension")
-    level = factor.get("level")
-    if dimension == "progress":
-        actions = [("Review the student's study plan.", "progress")]
-        if level in {"MEDIUM", "HIGH"}:
-            actions.append(("Schedule a tutor meeting.", "progress"))
-        return actions
-    if dimension == "study_right":
-        return [("Check study-right extension/support options.", "study_right")]
-    if dimension == "academic_event":
-        return [(
-            "Review the upcoming academic deadline with the student and agree "
-            "on the required next step.",
-            "deadline",
-        )]
-    return []
 
 
 def _usable_candidates(candidates: tuple[PolicyEvidenceCandidate, ...]) -> list[PolicyEvidenceCandidate]:
@@ -233,36 +263,25 @@ def _candidate_data(candidate: PolicyEvidenceCandidate) -> dict[str, Any]:
     }
 
 
-def _student_evidence(state: AgentState, factor: dict[str, Any]) -> list[dict[str, Any]]:
-    evidence = [{
-        "source_agent": "risk",
-        "reason": factor.get("reason"),
-        "values": dict(factor.get("values", {})),
-    }]
-    supporting_route = {
-        "progress": "progress",
-        "study_right": "study_rights",
-    }.get(factor.get("dimension"))
-    result = state.agent_results.get(supporting_route) if supporting_route else None
-    if isinstance(result, AgentResult) and result.status != "FAILED":
-        evidence.append({
-            "source_agent": supporting_route,
-            "data": dict(result.data),
-        })
+def _supporting_evidence(state: AgentState) -> dict[str, SupportingEvidence]:
+    evidence: dict[str, SupportingEvidence] = {}
+    for dimension, route in (("progress", "progress"), ("study_right", "study_rights")):
+        result = state.agent_results.get(route)
+        if isinstance(result, AgentResult) and result.status != "FAILED":
+            evidence[dimension] = SupportingEvidence(route, dict(result.data))
     return evidence
 
 
-def _source_agents(state: AgentState, dimension: Any) -> list[str]:
-    agents = ["risk"]
-    supporting = {"progress": "progress", "study_right": "study_rights"}.get(dimension)
-    supporting_result = state.agent_results.get(supporting) if supporting else None
-    if isinstance(supporting_result, AgentResult) and supporting_result.status != "FAILED":
-        agents.append(supporting)
-    return agents
-
-
-def _explanation(factor: dict[str, Any], policy_evidence: list[dict[str, Any]]) -> str:
-    fact = f"Verified student fact: {factor.get('reason', 'confirmed risk factor')}"
+def _explanation(
+    recommendation: dict[str, Any], policy_evidence: list[dict[str, Any]]
+) -> str:
+    student_evidence = recommendation.get("student_evidence", [])
+    reason = (
+        student_evidence[0].get("reason", "confirmed risk factor")
+        if student_evidence
+        else "confirmed risk factor"
+    )
+    fact = f"Verified student fact: {reason}"
     if policy_evidence:
         return f"{fact} Retrieved policy guidance supports this advisory tutor action."
     return (

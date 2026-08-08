@@ -18,17 +18,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.core.config import settings
 from app.db.database import SessionLocal
 from app.repositories.event_repository import EventRepository
-from app.repositories.progress_repository import ProgressRepository
-from app.repositories.student_repository import StudentRepository
-from app.repositories.study_right_repository import StudyRightRepository
-from app.services.academic_risk_scoring_service import AcademicRiskScoringService
-from app.services.delay_detection_service import DelayDetectionService
 from app.services.event_service import EventService
-from app.services.progress_service import ProgressService
 from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Scheduler
-from app.services.student_service import StudentService
-from app.services.study_right_risk_service import StudyRightRiskService
-from app.services.study_right_service import StudyRightService
 from app.workflows.execution_logging import (
     TriggerType,
     WorkflowExecutionRecorder,
