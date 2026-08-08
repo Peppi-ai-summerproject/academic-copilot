@@ -146,10 +146,10 @@ def make_scored_point(id, text, score):
 
 def test_qdrant_retriever_returns_chunks():
     retriever, _, mock_qdrant = make_qdrant_retriever()
-    mock_qdrant.search.return_value = [
+    mock_qdrant.query_points.return_value = MagicMock(points=[
         make_scored_point("1", "Study right policy", 0.95),
         make_scored_point("2", "ECTS requirements", 0.88),
-    ]
+    ])
     results = retriever.retrieve("study rights", top_k=2)
     assert len(results) == 2
     assert results[0].score >= results[1].score
@@ -169,18 +169,18 @@ def test_qdrant_retriever_invalid_top_k_raises():
 
 def test_qdrant_retriever_qdrant_failure_raises():
     retriever, _, mock_qdrant = make_qdrant_retriever()
-    mock_qdrant.search.side_effect = Exception("Connection refused")
+    mock_qdrant.query_points.side_effect = Exception("Connection refused")
     with pytest.raises(RuntimeError, match="Qdrant search failed"):
         retriever.retrieve("query")
 
 
 def test_qdrant_retriever_sorted_by_score():
     retriever, _, mock_qdrant = make_qdrant_retriever()
-    mock_qdrant.search.return_value = [
+    mock_qdrant.query_points.return_value = MagicMock(points=[
         make_scored_point("1", "Low score chunk", 0.5),
         make_scored_point("2", "High score chunk", 0.95),
         make_scored_point("3", "Mid score chunk", 0.75),
-    ]
+    ])
     results = retriever.retrieve("query", top_k=3)
     scores = [r.score for r in results]
     assert scores == sorted(scores, reverse=True)
@@ -188,19 +188,22 @@ def test_qdrant_retriever_sorted_by_score():
 
 def test_qdrant_retriever_respects_top_k():
     retriever, _, mock_qdrant = make_qdrant_retriever()
-    mock_qdrant.search.return_value = [
+    mock_qdrant.query_points.return_value = MagicMock(points=[
         make_scored_point("1", "Chunk one", 0.9),
         make_scored_point("2", "Chunk two", 0.8),
-    ]
+    ])
     retriever.retrieve("query", top_k=2)
-    call_args = mock_qdrant.search.call_args
-    assert call_args.kwargs["limit"] == 2 or call_args.args[2] == 2 or mock_qdrant.search.called
+    call_args = mock_qdrant.query_points.call_args
+    assert call_args.kwargs["limit"] == 2
 
 
 # ── Integration test (skipped if no env vars) ─────────────────────────────────
 
 def test_integration_real_qdrant():
     import os
+    if os.getenv("RUN_RAG_LIVE_INTEGRATION") != "1":
+        pytest.skip("Set RUN_RAG_LIVE_INTEGRATION=1 to run live RAG integration tests.")
+
     pytest.importorskip("qdrant_client")
 
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")

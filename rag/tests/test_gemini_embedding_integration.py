@@ -1,16 +1,15 @@
 import os
 
 import pytest
-from dotenv import load_dotenv
 
 from rag.embeddings import GeminiEmbeddingProvider
 
 
-load_dotenv("backend/.env")
-
-
 @pytest.mark.integration
 def test_gemini_returns_real_embedding() -> None:
+    if os.getenv("RUN_RAG_LIVE_INTEGRATION") != "1":
+        pytest.skip("Set RUN_RAG_LIVE_INTEGRATION=1 to run live RAG integration tests.")
+
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
