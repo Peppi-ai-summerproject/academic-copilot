@@ -207,6 +207,29 @@ def test_service_failure_is_visible_not_treated_as_healthy():
     assert result["missing_indicators"] == ["RISK_ASSESSMENT_UNAVAILABLE"]
 
 
+@pytest.mark.parametrize("student_id", [0, -1, True, "1"])
+def test_service_rejects_invalid_student_ids_without_calling_risk(student_id):
+    risk_service = Mock()
+    service = AcademicHealthScoreService(risk_service)
+
+    result = service.assess_student_health(student_id, as_of_date=AS_OF)
+
+    assert result["success"] is False
+    assert result["missing_indicators"] == ["INVALID_STUDENT_ID"]
+    risk_service.assess_student_risk.assert_not_called()
+
+
+def test_service_rejects_invalid_as_of_date_without_calling_risk():
+    risk_service = Mock()
+    service = AcademicHealthScoreService(risk_service)
+
+    result = service.assess_student_health(1, as_of_date="2026-08-08")
+
+    assert result["success"] is False
+    assert result["missing_indicators"] == ["INVALID_AS_OF_DATE"]
+    risk_service.assess_student_risk.assert_not_called()
+
+
 def test_contradictory_complete_score_and_level_are_rejected():
     value = risk_assessment({"academic_delay": 50, "study_right": 20})
     value["risk_level"] = "LOW"

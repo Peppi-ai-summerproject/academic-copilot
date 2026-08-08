@@ -67,3 +67,47 @@ def test_daily_workflow_schedule_is_configurable(monkeypatch):
     assert settings.daily_workflow_hour == 7
     assert settings.daily_workflow_minute == 30
     assert settings.daily_workflow_timezone == "Europe/Helsinki"
+
+
+def test_enabled_telegram_webhook_accepts_complete_credentials(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_ENABLED", "true")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-secret")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.telegram_webhook_enabled is True
+    assert settings.telegram_bot_token == "test-token"
+    assert settings.telegram_webhook_secret == "test-secret"
+
+
+@pytest.mark.parametrize("raw_value", ["false", "0", "no", "off"])
+def test_disabled_webhook_boolean_values_do_not_require_credentials(
+    monkeypatch,
+    raw_value: str,
+):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_ENABLED", raw_value)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_WEBHOOK_SECRET", raising=False)
+
+    assert Settings(_env_file=None).telegram_webhook_enabled is False
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("MONDAY_WORKFLOW_HOUR", "24"),
+        ("MONDAY_WORKFLOW_MINUTE", "60"),
+        ("DAILY_WORKFLOW_HOUR", "-1"),
+        ("WEEKLY_WORKFLOW_MINUTE", "-1"),
+    ],
+)
+def test_schedule_values_outside_clock_bounds_are_rejected(
+    monkeypatch,
+    field: str,
+    invalid_value: str,
+):
+    monkeypatch.setenv(field, invalid_value)
+
+    with pytest.raises(ValueError):
+        Settings(_env_file=None)
