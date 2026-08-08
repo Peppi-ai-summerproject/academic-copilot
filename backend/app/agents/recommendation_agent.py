@@ -65,16 +65,6 @@ class RecommendationAgent:
                 supporting_evidence=_supporting_evidence(state),
             )
         )
-        if assessment.complete and risk_data.get("risk_level") == "NONE" and not factors:
-            return self._result(
-                state,
-                recommendations=[],
-                missing=[],
-                complete=True,
-                summary="No confirmed tutor intervention was identified.",
-                unavailable_dimensions=[],
-            )
-
         recommendations: list[dict[str, Any]] = []
         missing: list[str] = list(assessment.missing_information)
         policy_used = False

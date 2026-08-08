@@ -143,6 +143,13 @@ _RULES: dict[str, tuple[_Rule, ...]] = {
     ),
 }
 
+_HEALTHY_MONITORING_RULE = _Rule(
+    "monitoring",
+    "Continue normal progress monitoring; no immediate tutor intervention is required.",
+    "NO_CONFIRMED_RISK_CONTINUE_MONITORING",
+    "normal academic progress monitoring tutor guidance policy",
+)
+
 
 class RecommendationEngine:
     """Map authoritative risk factors to explainable advisory decisions."""
@@ -150,6 +157,34 @@ class RecommendationEngine:
     def evaluate(self, value: RecommendationInput) -> RecommendationAssessment:
         decisions: list[RecommendationDecision] = []
         missing: list[str] = []
+
+        if (
+            value.assessment_status == "COMPLETE"
+            and value.risk_level == "NONE"
+            and not value.risk_factors
+        ):
+            evidence = RecommendationEvidence(
+                source="risk",
+                reason=(
+                    "All required risk dimensions were assessed and no confirmed "
+                    "academic risk factors were found."
+                ),
+                values={
+                    "risk_level": value.risk_level,
+                    "assessment_status": value.assessment_status,
+                },
+            )
+            decisions.append(
+                RecommendationDecision(
+                    recommendation_type=_HEALTHY_MONITORING_RULE.recommendation_type,
+                    priority="LOW",
+                    action=_HEALTHY_MONITORING_RULE.action,
+                    reason_codes=(_HEALTHY_MONITORING_RULE.reason_code,),
+                    evidence=(evidence,),
+                    source_agents=(evidence.source,),
+                    policy_query=_HEALTHY_MONITORING_RULE.policy_query,
+                )
+            )
 
         for factor in value.risk_factors:
             if not isinstance(factor, dict):

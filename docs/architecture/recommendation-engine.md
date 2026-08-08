@@ -105,3 +105,38 @@ rules into prompts:
 Any future canonical risk-score or tutor-meeting adapter should normalize its
 existing result into `RecommendationInput`; it must not be recalculated inside
 the engine.
+
+## Tutor recommendation generation (Issue #111)
+
+Issue #111 uses the Issue #110 contracts without adding another service or
+agent. Personalization is the deterministic selection of an approved decision
+from the student's structured risk factors and the preservation of the exact
+factor values as evidence. Recommendation generation does not recalculate
+ECTS, expected progress, study-right status, risk, meetings, or events.
+
+The currently supported situations are:
+
+| Verified situation | Deterministic recommendation behavior |
+|---|---|
+| Complete assessment with no confirmed risk | Return a low-priority normal-monitoring decision and state that no immediate intervention is required. |
+| Progress concern | Recommend study-plan review; medium or higher priority also recommends a tutor meeting. |
+| Study-right concern | Recommend reviewing extension or support options. |
+| Applicable academic deadline | Recommend reviewing the deadline and agreeing on the next step. |
+
+The healthy-student decision is emitted only when the upstream assessment is
+`COMPLETE`, the risk level is `NONE`, and no risk factors exist. A partial
+assessment with no confirmed factors is inconclusive and must not be presented
+as evidence that the student is healthy.
+
+For every generated decision, `RecommendationAgent` issues the decision's
+narrow policy query through the existing `PolicyContextGateway`. Retrieved
+chunks are attached as `policy_evidence`, separately from student evidence. If
+retrieval fails or returns no usable source, the fact-based recommendation may
+still be returned, but the agent result is `PARTIAL` and explicitly says that
+the action is not a statement of university policy. Policy text is never
+invented.
+
+No LLM participates in Issue #111. Academic facts, decision triggers,
+priorities, reason codes, evidence selection, and completeness are all
+deterministic. A later presentation feature may phrase the structured result
+for tutors but must not override it.
