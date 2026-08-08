@@ -1,11 +1,23 @@
 """Unit tests for StudentDashboardService — Issue #77."""
 
 from datetime import date
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
 from app.services.student_dashboard_service import StudentDashboardService
+
+
+AS_OF = date(2026, 8, 8)
+
+
+class _DateMeta(type):
+    def __instancecheck__(cls, instance):
+        return isinstance(instance, date)
+
+
+class _TrackingDate(date, metaclass=_DateMeta):
+    today = Mock(return_value=AS_OF)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,11 +83,61 @@ def _make_events_result(events=None):
     }
 
 
+def _make_health_result(score=100, level="STRONG", status="COMPLETE"):
+    return {
+        "success": True,
+        "student_id": 1,
+        "assessment_status": status,
+        "health_score": score,
+        "health_level": level,
+        "components": [],
+        "missing_indicators": [],
+        "summary": (
+            f"Academic health is {level.lower()} at {score}/100."
+            if score is not None and level is not None
+            else "Academic health is partial because required indicators are unavailable."
+        ),
+    }
+
+
+def _make_risk_result(level="LOW", score=0, status="COMPLETE"):
+    return {
+        "success": True,
+        "student_id": 1,
+        "assessment_status": status,
+        "score": score,
+        "risk_level": level,
+        "explanation": [f"Canonical academic risk is {level}."],
+        "indicator_contributions": [],
+        "unavailable_indicators": [],
+        "applied_overrides": [],
+        "policy_version": "academic-risk-v1",
+    }
+
+
+def _assert_unavailable_health(value):
+    assert value == {
+        "success": False,
+        "assessment_status": "UNAVAILABLE",
+        "health_score": None,
+        "health_level": None,
+        "components": [],
+        "missing_indicators": ["ACADEMIC_HEALTH_SERVICE_UNAVAILABLE"],
+        "summary": "Academic health is unavailable.",
+    }
+
+
 def _make_service(
     student_result=None,
     progress_result=None,
     study_right_result=None,
     events_result=None,
+    health_result=None,
+    risk_result=None,
+    health_service=None,
+    risk_service=None,
+    event_service=None,
+    include_canonical=True,
 ):
     student_svc = Mock()
     student_svc.get_student.return_value = (
@@ -89,15 +151,31 @@ def _make_service(
     study_right_svc.get_study_right.return_value = (
         study_right_result if study_right_result is not None else _make_study_right_result()
     )
-    event_svc = Mock()
+    event_svc = event_service or Mock()
     event_svc.get_upcoming_events.return_value = (
         events_result if events_result is not None else _make_events_result()
     )
+    health_svc = health_service or Mock()
+    if health_service is None or health_result is not None:
+        health_svc.convert_risk_assessment.return_value = (
+            health_result if health_result is not None else _make_health_result()
+        )
+    risk_svc = risk_service or Mock()
+    if risk_service is None or risk_result is not None:
+        risk_svc.assess_student_risk.return_value = (
+            risk_result if risk_result is not None else _make_risk_result()
+        )
+    kwargs = {
+        "student_service": student_svc,
+        "progress_service": progress_svc,
+        "study_right_service": study_right_svc,
+        "event_service": event_svc,
+        "academic_health_service": health_svc,
+    }
+    if include_canonical:
+        kwargs["academic_risk_service"] = risk_svc
     return StudentDashboardService(
-        student_service=student_svc,
-        progress_service=progress_svc,
-        study_right_service=study_right_svc,
-        event_service=event_svc,
+        **kwargs,
     )
 
 
@@ -140,6 +218,7 @@ def test_complete_dashboard_has_all_sections() -> None:
     assert "profile" in dash
     assert "academic_progress" in dash
     assert "study_right" in dash
+    assert "academic_health" in dash
     assert "risk" in dash
     assert "upcoming_actions" in dash
     assert "summary" in dash
@@ -244,7 +323,8 @@ def test_risk_events_list_is_empty_when_no_repository() -> None:
 
 def test_risk_level_high_when_far_behind() -> None:
     svc = _make_service(
-        progress_result=_make_progress_result("BEHIND", 30, 180)
+        progress_result=_make_progress_result("BEHIND", 30, 180),
+        risk_result=_make_risk_result("HIGH", 50),
     )
     result = svc.get_student_dashboard(1)
     risk = result["dashboard"]["risk"]
@@ -255,6 +335,7 @@ def test_risk_level_medium_when_expiring_soon() -> None:
     svc = _make_service(
         progress_result=_make_progress_result("ON_TRACK", 120, 120),
         study_right_result=_make_study_right_result("EXPIRES_SOON", expiring=True),
+        risk_result=_make_risk_result("MEDIUM", 20),
     )
     result = svc.get_student_dashboard(1)
     risk = result["dashboard"]["risk"]
@@ -302,7 +383,8 @@ def test_summary_key_findings_is_list() -> None:
 
 def test_summary_priority_high_for_high_risk() -> None:
     svc = _make_service(
-        progress_result=_make_progress_result("BEHIND", 10, 180)
+        progress_result=_make_progress_result("BEHIND", 10, 180),
+        risk_result=_make_risk_result("HIGH", 50),
     )
     result = svc.get_student_dashboard(1)
     assert result["dashboard"]["summary"]["priority"] == "HIGH"
@@ -331,6 +413,239 @@ def test_student_id_in_response() -> None:
     svc = _make_service()
     result = svc.get_student_dashboard(1)
     assert result["student_id"] == 1
+
+
+def test_dashboard_includes_health_service_result_without_mapping_it():
+    expected = _make_health_result(61, "STABLE")
+    svc = _make_service(health_result=expected)
+    result = svc.get_student_dashboard(1)
+    assert result["dashboard"]["academic_health"] == expected
+
+
+def test_dashboard_evaluates_canonical_risk_once_and_converts_same_result():
+    canonical = _make_risk_result("HIGH", 50)
+    risk_service = Mock()
+    risk_service.assess_student_risk.return_value = canonical
+    health_service = Mock()
+    health_service.convert_risk_assessment.return_value = _make_health_result(
+        50, "NEEDS_ATTENTION"
+    )
+    svc = _make_service(
+        risk_service=risk_service,
+        health_service=health_service,
+    )
+
+    result = svc.get_student_dashboard(1)
+
+    risk_service.assess_student_risk.assert_called_once()
+    health_service.convert_risk_assessment.assert_called_once_with(canonical)
+    assert health_service.convert_risk_assessment.call_args.args[0] is canonical
+    assert result["dashboard"]["risk"]["current_analysis"]["risk_level"] == "HIGH"
+    assert result["dashboard"]["academic_health"]["health_score"] == 50
+
+
+def test_dashboard_uses_one_explicit_date_for_risk_and_events():
+    risk_service = Mock()
+    risk_service.assess_student_risk.return_value = _make_risk_result()
+    event_service = Mock()
+    event_service.get_upcoming_events.return_value = _make_events_result()
+    svc = _make_service(
+        risk_service=risk_service,
+        event_service=event_service,
+    )
+
+    _TrackingDate.today.reset_mock()
+    with patch("app.services.student_dashboard_service.date", _TrackingDate):
+        svc.get_student_dashboard(1, as_of_date=AS_OF)
+
+    _TrackingDate.today.assert_not_called()
+    risk_service.assess_student_risk.assert_called_once_with(
+        1, as_of_date=AS_OF, allow_partial_risk_level=False
+    )
+    event_service.get_upcoming_events.assert_called_once_with(
+        start_date=AS_OF.isoformat(), end_date=None
+    )
+
+
+def test_dashboard_captures_default_date_once_and_reuses_it():
+    first = date(2026, 8, 8)
+    second = date(2026, 8, 9)
+    risk_service = Mock()
+    risk_service.assess_student_risk.return_value = _make_risk_result()
+    event_service = Mock()
+    event_service.get_upcoming_events.return_value = _make_events_result()
+    svc = _make_service(risk_service=risk_service, event_service=event_service)
+    _TrackingDate.today.reset_mock()
+    _TrackingDate.today.side_effect = [first, second]
+
+    with patch("app.services.student_dashboard_service.date", _TrackingDate):
+        svc.get_student_dashboard(1)
+
+    _TrackingDate.today.assert_called_once_with()
+    risk_service.assess_student_risk.assert_called_once_with(
+        1, as_of_date=first, allow_partial_risk_level=False
+    )
+    event_service.get_upcoming_events.assert_called_once_with(
+        start_date=first.isoformat(), end_date=None
+    )
+    _TrackingDate.today.side_effect = None
+
+
+def test_legacy_low_cannot_replace_more_severe_canonical_risk():
+    result = _make_service(
+        progress_result=_make_progress_result("ON_TRACK", 120, 120),
+        risk_result=_make_risk_result("HIGH", 50),
+        health_result=_make_health_result(50, "NEEDS_ATTENTION"),
+    ).get_student_dashboard(1)["dashboard"]
+
+    assert result["risk"]["current_analysis"]["risk_level"] == "HIGH"
+    assert result["risk"]["supporting_legacy_analysis"]["risk_level"] == "LOW"
+    assert result["risk"]["supporting_legacy_analysis"]["authoritative_overall_risk"] is False
+
+
+def test_constructor_fallback_is_explicitly_noncanonical_and_health_is_unavailable():
+    health_service = Mock()
+    result = _make_service(
+        include_canonical=False, health_service=health_service
+    ).get_student_dashboard(
+        1, as_of_date=AS_OF
+    )["dashboard"]
+
+    current = result["risk"]["current_analysis"]
+    assert current == {
+        "risk_level": None,
+        "reasons": ["Canonical academic risk is unavailable."],
+        "assessment_status": "UNAVAILABLE",
+        "score": None,
+        "source": "LEGACY_PROGRESS_STUDY_RIGHT_FALLBACK",
+    }
+    supporting = result["risk"]["supporting_legacy_analysis"]
+    assert supporting["source"] == "LEGACY_PROGRESS_STUDY_RIGHT_HEURISTIC"
+    assert supporting["risk_level"] == "LOW"
+    assert supporting["reasons"] == ["No immediate risks detected."]
+    assert supporting["reasons"][0] not in current["reasons"]
+    assert supporting["authoritative_overall_risk"] is False
+    _assert_unavailable_health(result["academic_health"])
+    health_service.convert_risk_assessment.assert_not_called()
+    assert result["summary"]["priority"] == "UNKNOWN"
+    assert result["summary"]["attention_required"] is True
+    assert any("unavailable" in item and "indeterminate" in item
+               for item in result["summary"]["key_findings"])
+
+
+def test_canonical_risk_exception_degrades_to_explicit_fallback():
+    risk_service = Mock()
+    risk_service.assess_student_risk.side_effect = RuntimeError("temporary")
+    health_service = Mock()
+
+    result = _make_service(
+        risk_service=risk_service, health_service=health_service
+    ).get_student_dashboard(
+        1, as_of_date=AS_OF
+    )
+
+    assert result["success"] is True
+    current = result["dashboard"]["risk"]["current_analysis"]
+    assert current["source"] == "LEGACY_PROGRESS_STUDY_RIGHT_FALLBACK"
+    assert current["risk_level"] is None
+    assert current["score"] is None
+    _assert_unavailable_health(result["dashboard"]["academic_health"])
+    health_service.convert_risk_assessment.assert_not_called()
+
+
+def test_returned_canonical_failure_is_not_converted_and_health_is_unavailable():
+    risk_service = Mock()
+    risk_service.assess_student_risk.return_value = {
+        "success": False,
+        "assessment_status": "UNPROCESSABLE",
+        "error": "RISK_EVIDENCE_FAILURE",
+    }
+    health_service = Mock()
+    svc = _make_service(risk_service=risk_service, health_service=health_service)
+
+    dashboard = svc.get_student_dashboard(1, as_of_date=AS_OF)["dashboard"]
+
+    health_service.convert_risk_assessment.assert_not_called()
+    _assert_unavailable_health(dashboard["academic_health"])
+    assert dashboard["risk"]["current_analysis"]["assessment_status"] == "UNAVAILABLE"
+
+
+def test_all_canonical_risk_levels_map_to_dashboard_priority():
+    expected = {
+        "CRITICAL": (70, "HIGH", True),
+        "HIGH": (40, "HIGH", True),
+        "MEDIUM": (20, "MEDIUM", True),
+        "LOW": (0, "LOW", False),
+    }
+    for level, (score, priority, attention_required) in expected.items():
+        dashboard = _make_service(
+            risk_result=_make_risk_result(level, score)
+        ).get_student_dashboard(1, as_of_date=AS_OF)["dashboard"]
+        assert dashboard["summary"]["priority"] == priority
+        assert dashboard["summary"]["attention_required"] is attention_required
+
+
+def test_partial_risk_has_indeterminate_summary_without_using_legacy_level():
+    dashboard = _make_service(
+        risk_result=_make_risk_result(None, None, "PARTIAL"),
+        health_result=_make_health_result(None, None, "PARTIAL"),
+    ).get_student_dashboard(1, as_of_date=AS_OF)["dashboard"]
+
+    assert dashboard["risk"]["current_analysis"]["risk_level"] is None
+    assert dashboard["risk"]["supporting_legacy_analysis"]["risk_level"] == "LOW"
+    assert dashboard["risk"]["supporting_legacy_analysis"]["authoritative_overall_risk"] is False
+    assert dashboard["academic_health"]["health_score"] is None
+    assert dashboard["academic_health"]["health_level"] is None
+    assert dashboard["summary"]["priority"] == "UNKNOWN"
+    assert dashboard["summary"]["attention_required"] is True
+    assert any("incomplete" in item and "indeterminate" in item
+               for item in dashboard["summary"]["key_findings"])
+
+
+def test_unsupported_risk_level_has_indeterminate_summary():
+    dashboard = _make_service(
+        risk_result=_make_risk_result("EXTREME", 70)
+    ).get_student_dashboard(1, as_of_date=AS_OF)["dashboard"]
+
+    assert dashboard["summary"]["priority"] == "UNKNOWN"
+    assert dashboard["summary"]["attention_required"] is True
+    assert any("unsupported" in item and "indeterminate" in item
+               for item in dashboard["summary"]["key_findings"])
+
+
+def test_expired_study_right_dashboard_is_consistent_with_canonical_health():
+    dashboard = _make_service(
+        study_right_result=_make_study_right_result("EXPIRED"),
+        risk_result=_make_risk_result("CRITICAL", 70),
+        health_result=_make_health_result(30, "URGENT_SUPPORT"),
+    ).get_student_dashboard(1, as_of_date=AS_OF)["dashboard"]
+
+    assert dashboard["risk"]["current_analysis"]["score"] == 70
+    assert dashboard["risk"]["current_analysis"]["risk_level"] == "CRITICAL"
+    assert dashboard["academic_health"]["health_score"] == 30
+    assert dashboard["academic_health"]["health_level"] == "URGENT_SUPPORT"
+    assert dashboard["summary"]["priority"] == "HIGH"
+    assert dashboard["summary"]["attention_required"] is True
+
+
+def test_dashboard_preserves_existing_sections_with_health_integration():
+    result = _make_service().get_student_dashboard(1)["dashboard"]
+    assert set(result) == {
+        "profile", "academic_progress", "study_right", "academic_health",
+        "risk", "upcoming_actions", "summary",
+    }
+
+
+def test_health_service_failure_degrades_without_losing_dashboard():
+    health_service = Mock()
+    health_service.convert_risk_assessment.side_effect = RuntimeError("down")
+    svc = _make_service(health_service=health_service)
+    result = svc.get_student_dashboard(1)
+    assert result["success"] is True
+    assert result["dashboard"]["academic_health"]["health_score"] is None
+    assert result["dashboard"]["academic_health"]["missing_indicators"] == [
+        "ACADEMIC_HEALTH_SERVICE_FAILURE"
+    ]
 
 
 # ── Service reuse verification ────────────────────────────────────────────────

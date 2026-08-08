@@ -67,8 +67,11 @@ Sections are:
 - `current_academic_risks`: current-state `AcademicRiskScoringService`
   assessments as of the period end.
 
-The current backend has no date-filterable course-completion contract, tutor
-meeting contract, historical risk-event contract, or Academic Health Score.
+The current backend has no date-filterable course-completion contract or
+historical risk-event contract. Tutor-meeting evidence exists for current risk
+assessment, but the weekly workflow has no historical/date-scoped meeting
+metrics. The Academic Health Score exists for per-student dashboard use but is
+not historical weekly evidence.
 Those unavailable metrics are not represented as zero. A successful empty
 source is `completed` with count `0`; unavailable and failed sections use a
 null count plus reason codes.
