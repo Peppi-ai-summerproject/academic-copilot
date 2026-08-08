@@ -1,0 +1,109 @@
+{
+  "evaluation": "Issue #116 Recommendation Quality",
+  "rubric": {"minimum": 0, "maximum": 2, "not_applicable": "N/A"},
+  "dimensions": [
+    "relevance",
+    "actionability",
+    "evidence_grounding",
+    "policy_grounding",
+    "explainability",
+    "consistency",
+    "context_awareness",
+    "data_completeness",
+    "intervention_quality",
+    "non_hallucination"
+  ],
+  "summary": {
+    "scenarios_evaluated": 10,
+    "objective_checks_passed": 21,
+    "scenarios_meeting_critical_expectations": 10,
+    "scenarios_with_documented_weaknesses": 6,
+    "critical_failures": 0,
+    "grounding_failures": 0,
+    "hallucination_failures": 0,
+    "partial_data_failures": 0,
+    "consistency_failures": 0
+  },
+  "results": [
+    {
+      "scenario_id": "healthy_on_track",
+      "scores": [2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 19,
+      "maximum": 20,
+      "assessment": "Good",
+      "weaknesses": ["Canonical #113 risk explanation is not supplied by the LangGraph risk path."]
+    },
+    {
+      "scenario_id": "moderate_delay",
+      "scores": [2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 19,
+      "maximum": 20,
+      "assessment": "Good",
+      "weaknesses": ["Two actions repeat the same evidence and policy excerpt in rendered output."]
+    },
+    {
+      "scenario_id": "significant_delay",
+      "scores": [2, 1, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 18,
+      "maximum": 20,
+      "assessment": "Good with improvement needed",
+      "weaknesses": ["Actions are concrete but do not reference the severity or verified 60 ECTS deficit."]
+    },
+    {
+      "scenario_id": "study_right_concern",
+      "scores": [2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 19,
+      "maximum": 20,
+      "assessment": "Good",
+      "weaknesses": ["Canonical risk explanation is not connected to this agent path."]
+    },
+    {
+      "scenario_id": "multiple_risk_factors",
+      "scores": [2, 2, 1, 1, 1, 2, 2, 2, 2, 2],
+      "total": 17,
+      "maximum": 20,
+      "assessment": "Needs presentation improvement",
+      "weaknesses": ["Repeated progress evidence and repeated policy excerpts reduce readability."]
+    },
+    {
+      "scenario_id": "partial_data",
+      "scores": [2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 19,
+      "maximum": 20,
+      "assessment": "Good",
+      "weaknesses": ["Unavailable-data disclosure is clear, but the canonical risk explanation is absent."]
+    },
+    {
+      "scenario_id": "minimal_delay_no_escalation",
+      "scores": [1, 2, 2, 2, 1, 2, 1, 2, 1, 2],
+      "total": 16,
+      "maximum": 20,
+      "assessment": "Needs policy review",
+      "weaknesses": ["A one-ECTS deficit triggers a study-plan intervention because no tolerance band exists."]
+    },
+    {
+      "scenario_id": "policy_supported",
+      "scores": [2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 19,
+      "maximum": 20,
+      "assessment": "Good",
+      "weaknesses": ["Policy evidence is repeated once per recommendation action."]
+    },
+    {
+      "scenario_id": "policy_unavailable",
+      "scores": [2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+      "total": 19,
+      "maximum": 20,
+      "assessment": "Good safe degradation",
+      "weaknesses": ["The qualified no-policy explanation is repeated for both progress actions."]
+    },
+    {
+      "scenario_id": "boundary_29_ects",
+      "scores": [2, 2, 2, 2, 1, 2, 1, 2, 1, 2],
+      "total": 17,
+      "maximum": 20,
+      "assessment": "Deterministic but abrupt boundary",
+      "weaknesses": ["Moving from 29 to 30 ECTS deficit abruptly adds a tutor meeting."]
+    }
+  ]
+}
