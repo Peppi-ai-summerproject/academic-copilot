@@ -19,6 +19,7 @@ from app.repositories.event_repository import EventRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.student_repository import StudentRepository
 from app.repositories.study_right_repository import StudyRightRepository
+from app.repositories.tutor_meeting_repository import TutorMeetingRepository
 from app.repositories.weekly_report_repository import WeeklyReportRepository
 from app.services.academic_risk_scoring_service import AcademicRiskScoringService
 from app.services.delay_detection_service import DelayDetectionService
@@ -29,6 +30,7 @@ from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Schedule
 from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
+from app.services.tutor_meeting_risk_service import TutorMeetingRiskService
 
 
 logger = logging.getLogger("academic-copilot.workflows.weekly")
@@ -84,6 +86,25 @@ class WeeklyReportStore(Protocol):
     ) -> dict[str, int | str]: ...
 
 
+class _ReportScopedEventProvider:
+    """Memoize identical event queries while one weekly report is running."""
+
+    def __init__(self, provider: EventProvider) -> None:
+        self._provider = provider
+        self._results: dict[tuple[str | None, str | None], dict[str, Any]] = {}
+
+    def get_upcoming_events(
+        self, start_date: str | None = None, end_date: str | None = None
+    ) -> dict[str, Any]:
+        key = (start_date, end_date)
+        if key not in self._results:
+            self._results[key] = self._provider.get_upcoming_events(
+                start_date=start_date,
+                end_date=end_date,
+            )
+        return self._results[key]
+
+
 @dataclass(frozen=True)
 class WeeklyReportSection:
     """A non-identifying aggregate report section."""
@@ -108,11 +129,12 @@ class WeeklyWorkflowResult:
     status: WorkflowStatus
     sections: list[WeeklyReportSection]
     aggregate_metrics: dict[str, int | float]
+    analytics: dict[str, Any]
     persistence_status: PersistenceStatus
     report_id: int | None = None
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
-    schema_version: int = 1
+    schema_version: int = 2
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -176,6 +198,12 @@ class WeeklyWorkflow:
             status=_aggregate_status(sections),
             sections=sections,
             aggregate_metrics=_aggregate_metrics(sections),
+            analytics=_build_weekly_analytics(
+                period_start=period_start,
+                period_end=period_end,
+                timezone=self._timezone.key,
+                sections=sections,
+            ),
             persistence_status="not_attempted",
             warnings=_warnings_for(sections),
             errors=_errors_for(sections),
@@ -390,11 +418,19 @@ class WeeklyWorkflow:
                     "unavailable_assessments": 0,
                     "failed_assessments": 0,
                     "risk_levels_available": 0,
+                    "low_risk_count": 0,
+                    "medium_risk_count": 0,
+                    "high_risk_count": 0,
+                    "critical_risk_count": 0,
+                    "partial_risk_count": 0,
+                    "unavailable_risk_count": 0,
+                    "tutor_attention_count": 0,
                 },
             )
 
         assessed = complete = partial = unavailable = failed = 0
         risk_levels_available = 0
+        risk_level_counts = _empty_risk_level_counts()
         reason_codes: list[str] = []
         for student in students:
             student_id = student.get("id") if isinstance(student, dict) else None
@@ -425,11 +461,17 @@ class WeeklyWorkflow:
                 continue
             assessed += 1
             if assessment_status == "COMPLETE":
+                risk_level = result.get("risk_level")
+                if risk_level not in risk_level_counts:
+                    assessed -= 1
+                    failed += 1
+                    reason_codes.append("ACADEMIC_RISK_MALFORMED")
+                    continue
                 complete += 1
+                risk_levels_available += 1
+                risk_level_counts[risk_level] += 1
             else:
                 partial += 1
-            if result.get("risk_level") in {"LOW", "MEDIUM", "HIGH", "CRITICAL"}:
-                risk_levels_available += 1
 
         details = {
             "students_assessed": assessed,
@@ -438,6 +480,21 @@ class WeeklyWorkflow:
             "unavailable_assessments": unavailable,
             "failed_assessments": failed,
             "risk_levels_available": risk_levels_available,
+            "low_risk_count": risk_level_counts["LOW"],
+            "medium_risk_count": risk_level_counts["MEDIUM"],
+            "high_risk_count": risk_level_counts["HIGH"],
+            "critical_risk_count": risk_level_counts["CRITICAL"],
+            "partial_risk_count": partial,
+            # Failed, malformed, and explicitly unavailable canonical results
+            # share this mutually exclusive report bucket. Their separate
+            # source-quality counts remain above so a consumer can distinguish
+            # degraded data from a valid PARTIAL assessment.
+            "unavailable_risk_count": unavailable + failed,
+            "tutor_attention_count": (
+                risk_level_counts["MEDIUM"]
+                + risk_level_counts["HIGH"]
+                + risk_level_counts["CRITICAL"]
+            ),
         }
         if assessed == len(students) and complete == assessed:
             status: SectionStatus = "completed"
@@ -543,7 +600,8 @@ def create_database_weekly_workflow(*, session: Any, timezone: str) -> WeeklyWor
     risk_service = AcademicRiskScoringService(
         delay_service,
         study_right_risk_service,
-        event_service,
+        _ReportScopedEventProvider(event_service),
+        TutorMeetingRiskService(TutorMeetingRepository(session)),
     )
     return WeeklyWorkflow(
         student_directory=student_repository,
@@ -652,6 +710,104 @@ def _aggregate_metrics(
     return metrics
 
 
+def _build_weekly_analytics(
+    *,
+    period_start: date,
+    period_end: date,
+    timezone: str,
+    sections: list[WeeklyReportSection],
+) -> dict[str, Any]:
+    """Build the Issue #98 report from already-produced section results.
+
+    This is deliberately an aggregation-only layer.  Progress is calculated
+    once by ``EctsAnalyticsService`` and every risk assessment is supplied by
+    ``AcademicRiskScoringService``; no weekly-specific score or ECTS formula
+    is introduced here.
+    """
+
+    by_name = {section.name: section for section in sections}
+    directory = by_name["student_directory"]
+    progress = by_name["current_progress"]
+    risks = by_name["current_academic_risks"]
+
+    progress_details = progress.details
+    risk_details = risks.details
+    risk_distribution = {
+        level: risk_details.get(f"{level.lower()}_risk_count")
+        for level in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+    }
+    risk_distribution.update({
+        "PARTIAL": risk_details.get("partial_risk_count"),
+        "UNAVAILABLE": risk_details.get("unavailable_risk_count"),
+    })
+    progress_distribution = {
+        "BEHIND": progress_details.get("behind_count"),
+        "ON_TRACK": progress_details.get("on_track_count"),
+        "AHEAD": progress_details.get("ahead_count"),
+    }
+
+    return {
+        "report_period": {
+            "start_date": period_start.isoformat(),
+            "end_date": period_end.isoformat(),
+            "end_exclusive": True,
+            "timezone": timezone,
+        },
+        "population": {
+            "status": directory.status,
+            "student_count": directory.count,
+        },
+        "progress_statistics": {
+            "status": progress.status,
+            "students_processed": progress_details.get("students_processed"),
+            "students_unavailable": progress_details.get("students_failed"),
+            "behind_count": progress_distribution["BEHIND"],
+            "on_track_count": progress_distribution["ON_TRACK"],
+            "ahead_count": progress_distribution["AHEAD"],
+            "average_completed_ects": progress_details.get(
+                "average_completed_ects"
+            ),
+            "average_progress_percentage": progress_details.get(
+                "average_progress_percentage"
+            ),
+        },
+        "risk_summary": {
+            "status": risks.status,
+            "student_population_count": directory.count,
+            "students_assessed": risk_details.get("students_assessed"),
+            "LOW": risk_distribution["LOW"],
+            "MEDIUM": risk_distribution["MEDIUM"],
+            "HIGH": risk_distribution["HIGH"],
+            "CRITICAL": risk_distribution["CRITICAL"],
+            "PARTIAL": risk_distribution["PARTIAL"],
+            "UNAVAILABLE": risk_distribution["UNAVAILABLE"],
+            "requires_tutor_attention": risk_details.get("tutor_attention_count"),
+        },
+        "important_findings": {
+            "kind": "CURRENT_WEEKLY_INDICATORS",
+            "historical_comparison_available": False,
+            "progress_distribution": progress_distribution,
+            "risk_distribution": risk_distribution,
+        },
+        "data_quality": {
+            "overall_status": _aggregate_status(sections),
+            "section_statuses": {
+                section.name: section.status for section in sections
+            },
+            "risk_complete_assessments": risk_details.get(
+                "complete_assessments"
+            ),
+            "risk_partial_assessments": risk_details.get(
+                "partial_assessments"
+            ),
+            "risk_explicitly_unavailable_assessments": risk_details.get(
+                "unavailable_assessments"
+            ),
+            "risk_failed_assessments": risk_details.get("failed_assessments"),
+        },
+    }
+
+
 def _warnings_for(sections: list[WeeklyReportSection]) -> list[str]:
     warnings = [
         "Current-progress metrics are cumulative state, not ECTS completed during the reporting period.",
@@ -688,6 +844,10 @@ def _student_ids(students: list[dict[str, Any]]) -> list[int]:
             if isinstance(student, dict) and _is_valid_student_id(student.get("id"))
         }
     )
+
+
+def _empty_risk_level_counts() -> dict[str, int]:
+    return {level: 0 for level in ("LOW", "MEDIUM", "HIGH", "CRITICAL")}
 
 
 def _result_code(result: Any, default: str) -> str:

@@ -1,4 +1,4 @@
-# Weekly Workflow (Issue #103)
+# Weekly Workflow and Analytics (Issues #103 and #98)
 
 ## Purpose and boundaries
 
@@ -49,7 +49,8 @@ handling covers daylight-saving, month, and year boundaries.
 `WeeklyWorkflowResult` is a versioned, typed aggregate result. It includes the
 workflow name, deterministic execution key, period boundaries, execution
 timestamps, overall status, section results, aggregate metrics, persistence
-status, warnings, and non-sensitive error codes.
+status, warnings, non-sensitive error codes, and the Issue #98 `analytics`
+object. The current result `schema_version` is `2`.
 
 The execution key is:
 
@@ -79,6 +80,151 @@ null count plus reason codes.
 Academic risk assessments can be `partial` because the authoritative
 tutor-meeting indicator is not yet available. In that case, risk-level counts
 are not inferred from the partial score.
+
+## Weekly analytics contract (Issue #98)
+
+The `analytics` object is the structured, non-identifying weekly academic
+analytics report for tutor-facing workflows and future API, reporting, and
+agent consumers. It is created by `WeeklyWorkflow.run()` from the existing
+sections; it never calls an HTTP endpoint and never recreates progress, delay,
+study-right, risk, or Academic Health formulas.
+
+The production wiring calls `EctsAnalyticsService` once for the current
+population and calls the canonical `AcademicRiskScoringService` once per valid
+student. The canonical risk service is wired with its existing
+`TutorMeetingRiskService`. Academic Health is intentionally not included: it
+has no weekly historical contract here, and this workflow does not calculate a
+second health score.
+
+### Period and population semantics
+
+- `report_period` is `[start_date, end_date)` in the configured IANA timezone.
+  The start is the previous Monday at 00:00 and the exclusive end is the
+  current Monday at 00:00. The fixed `period_end` date is passed to every
+  canonical risk assessment as its `as_of_date`; it is captured once for the
+  whole report.
+- `population.student_count` is the full set of rows returned by the existing
+  paginated `StudentRepository.search_students` contract. This established
+  weekly workflow does **not** filter to `ACTIVE`; the separate Issue #104
+  automatic risk-detection workflow owns the ACTIVE-only contract.
+- Progress is current cumulative ECTS state, not ECTS earned within the
+  calendar-week window. The repository does not provide a historical,
+  date-filterable completion contract.
+
+### Stable `analytics` structure
+
+```json
+{
+  "report_period": {
+    "start_date": "2026-01-26",
+    "end_date": "2026-02-02",
+    "end_exclusive": true,
+    "timezone": "Europe/Helsinki"
+  },
+  "population": {"status": "completed", "student_count": 6},
+  "progress_statistics": {
+    "status": "partial",
+    "students_processed": 5,
+    "students_unavailable": 1,
+    "behind_count": 2,
+    "on_track_count": 2,
+    "ahead_count": 1,
+    "average_completed_ects": 72.5,
+    "average_progress_percentage": 80.0
+  },
+  "risk_summary": {
+    "status": "partial",
+    "student_population_count": 6,
+    "students_assessed": 5,
+    "LOW": 1,
+    "MEDIUM": 1,
+    "HIGH": 1,
+    "CRITICAL": 1,
+    "PARTIAL": 1,
+    "UNAVAILABLE": 1,
+    "requires_tutor_attention": 3
+  },
+  "important_findings": {
+    "kind": "CURRENT_WEEKLY_INDICATORS",
+    "historical_comparison_available": false,
+    "progress_distribution": {"BEHIND": 2, "ON_TRACK": 2, "AHEAD": 1},
+    "risk_distribution": {
+      "LOW": 1,
+      "MEDIUM": 1,
+      "HIGH": 1,
+      "CRITICAL": 1,
+      "PARTIAL": 1,
+      "UNAVAILABLE": 1
+    }
+  },
+  "data_quality": {
+    "overall_status": "partial",
+    "section_statuses": {
+      "academic_events": "completed",
+      "student_directory": "completed",
+      "current_progress": "partial",
+      "current_academic_risks": "partial"
+    },
+    "risk_complete_assessments": 4,
+    "risk_partial_assessments": 1,
+    "risk_explicitly_unavailable_assessments": 1,
+    "risk_failed_assessments": 0
+  }
+}
+```
+
+All values are JSON-serializable. The report contains no student names, IDs,
+student numbers, Telegram data, meeting content, or other individual records.
+
+### Progress statistics
+
+`progress_statistics` directly exposes the cohort summary returned by
+`EctsAnalyticsService`: successful and unavailable student counts; BEHIND,
+ON_TRACK, and AHEAD counts; and averages across successful progress results.
+The average denominators are therefore `students_processed`, not the total
+population. A missing/unavailable progress section reports `null` statistics
+with its section status and reason codes in the enclosing workflow result; it
+is never represented as zero.
+
+### Canonical risk summary
+
+`risk_summary` is derived only from `AcademicRiskScoringService` results as of
+the report end date. For each student in the report population, exactly one
+mutually exclusive bucket is emitted:
+
+- `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL` for a `COMPLETE` canonical assessment;
+- `PARTIAL` for a valid but incomplete canonical assessment, even if an
+  explicit policy layer supplied a normalized partial score;
+- `UNAVAILABLE` for a failed, malformed, or explicitly unavailable canonical
+  assessment.
+
+Consequently, the six bucket counts always add up to
+`student_population_count` when the directory section succeeded. A partial or
+unavailable assessment can never be silently downgraded to `LOW`.
+`requires_tutor_attention` is the sum of complete `MEDIUM`, `HIGH`, and
+`CRITICAL` results. `CRITICAL` remains a distinct field and is never merged or
+downgraded. `data_quality` preserves the finer distinction between explicitly
+unavailable and failed canonical assessments.
+
+### Important findings and degradation
+
+`important_findings` provides current weekly distributions only. The current
+repository has no authoritative historical comparison contract, so
+`historical_comparison_available` is always `false` and the report never
+claims that progress or risk is improving or worsening.
+
+An empty successful population is a completed report with zero population,
+progress, and risk counts. A single progress or risk failure degrades only its
+section and the overall workflow status; other aggregate sections still run.
+Repository/directory failure makes downstream progress and risk unavailable.
+The enclosing `sections`, `warnings`, and `errors` retain reason codes for all
+failed or unavailable sources. Consumers must use the status and data-quality
+fields instead of assuming a missing metric is a measured zero.
+
+Future consumers may add delivery or API presentation around this stable
+aggregate object, but must preserve its period semantics, privacy boundary,
+canonical-risk buckets, and incomplete-data handling. They must not infer
+student-level information from this aggregate report.
 
 ## Persistence, privacy, and limitations
 
