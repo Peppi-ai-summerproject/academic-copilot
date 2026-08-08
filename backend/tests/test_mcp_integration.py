@@ -32,6 +32,8 @@ EXPECTED_TOOLS = {
     "get_curriculum",
     "get_upcoming_events",
     "search_students",
+    "generate_report",
+    "get_student_dashboard",
 }
 
 
@@ -165,7 +167,7 @@ def test_get_student_returns_success_for_existing_student() -> None:
         "start_date": "2021-09-01", "status": "ACTIVE",
         "programme_code": "DIN2024S",
     }
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = student_row
         mock_sl.return_value = session
@@ -181,7 +183,7 @@ def test_get_student_returns_success_for_existing_student() -> None:
 
 
 def test_get_student_returns_error_for_missing_student() -> None:
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = None
         mock_sl.return_value = session
@@ -197,7 +199,7 @@ def test_get_student_returns_error_for_missing_student() -> None:
 
 
 def test_get_student_returns_error_for_invalid_id() -> None:
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         mock_sl.return_value = session
 
@@ -218,7 +220,7 @@ def test_get_progress_returns_success_structure() -> None:
         "programme_code": "DIN2024S",
         "semester": 3,
     }
-    with patch("app.mcp.tools.progress.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = progress_row
         mock_sl.return_value = session
@@ -232,7 +234,7 @@ def test_get_progress_returns_success_structure() -> None:
 
 
 def test_get_progress_returns_error_for_missing_student() -> None:
-    with patch("app.mcp.tools.progress.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = None
         mock_sl.return_value = session
@@ -252,7 +254,7 @@ def test_get_study_right_returns_success_structure() -> None:
         "start_date": "2021-09-01", "end_date": "2028-05-31",
         "status": "ACTIVE", "extension_count": 0,
     }
-    with patch("app.mcp.tools.study_right.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = study_right_row
         mock_sl.return_value = session
@@ -266,7 +268,7 @@ def test_get_study_right_returns_success_structure() -> None:
 
 
 def test_get_study_right_returns_error_for_missing_student() -> None:
-    with patch("app.mcp.tools.study_right.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = None
         mock_sl.return_value = session
@@ -285,7 +287,7 @@ def test_get_curriculum_returns_success_structure() -> None:
         {"id": 1, "programme": "Business IT", "semester": 1, "expected_ects": 30},
         {"id": 2, "programme": "Business IT", "semester": 2, "expected_ects": 60},
     ]
-    with patch("app.mcp.tools.curriculum.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.all.return_value = curriculum_rows
         mock_sl.return_value = session
@@ -299,7 +301,7 @@ def test_get_curriculum_returns_success_structure() -> None:
 
 
 def test_get_curriculum_returns_error_for_unknown_programme() -> None:
-    with patch("app.mcp.tools.curriculum.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.all.return_value = []
         mock_sl.return_value = session
@@ -328,7 +330,7 @@ def test_get_upcoming_events_returns_success_structure() -> None:
             "affects_all_students": True,
         }
     ]
-    with patch("app.mcp.tools.events.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.all.return_value = event_rows
         mock_sl.return_value = session
@@ -342,7 +344,7 @@ def test_get_upcoming_events_returns_success_structure() -> None:
 
 
 def test_get_upcoming_events_with_date_filter() -> None:
-    with patch("app.mcp.tools.events.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.all.return_value = []
         mock_sl.return_value = session
@@ -417,7 +419,7 @@ def test_search_students_invalid_limit_returns_error() -> None:
 # ── 5. Database Error Handling ────────────────────────────────────────────────
 
 def test_get_student_handles_database_exception() -> None:
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = RuntimeError("Connection lost")
         mock_sl.return_value = session
@@ -433,7 +435,7 @@ def test_get_student_handles_database_exception() -> None:
 
 
 def test_get_progress_handles_database_exception() -> None:
-    with patch("app.mcp.tools.progress.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = RuntimeError("DB error")
         mock_sl.return_value = session
@@ -448,7 +450,7 @@ def test_get_progress_handles_database_exception() -> None:
 
 
 def test_get_study_right_handles_database_exception() -> None:
-    with patch("app.mcp.tools.study_right.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = RuntimeError("DB error")
         mock_sl.return_value = session
@@ -464,7 +466,7 @@ def test_get_study_right_handles_database_exception() -> None:
 
 def test_get_curriculum_handles_database_exception() -> None:
     from sqlalchemy.exc import SQLAlchemyError
-    with patch("app.mcp.tools.curriculum.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = SQLAlchemyError("DB error")
         mock_sl.return_value = session
@@ -480,7 +482,7 @@ def test_get_curriculum_handles_database_exception() -> None:
 
 def test_get_upcoming_events_handles_database_exception() -> None:
     from sqlalchemy.exc import SQLAlchemyError
-    with patch("app.mcp.tools.events.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = SQLAlchemyError("DB error")
         mock_sl.return_value = session
@@ -522,16 +524,16 @@ def test_all_db_tools_return_dict_on_error() -> None:
 
     # Tools that catch Exception (broad)
     broad_tools = [
-        ("get_student", {"student_id": 1}, "app.mcp.tools.student.SessionLocal"),
-        ("get_progress", {"student_id": 1}, "app.mcp.tools.progress.SessionLocal"),
-        ("get_study_right", {"student_id": 1}, "app.mcp.tools.study_right.SessionLocal"),
+        ("get_student", {"student_id": 1}, "app.db.database.SessionLocal"),
+        ("get_progress", {"student_id": 1}, "app.db.database.SessionLocal"),
+        ("get_study_right", {"student_id": 1}, "app.db.database.SessionLocal"),
         ("search_students", {"query": "test"}, "app.mcp.tools.search_students.SessionLocal"),
     ]
 
     # Tools that only catch SQLAlchemyError
     sqlalchemy_tools = [
-        ("get_curriculum", {"programme": "Business IT"}, "app.mcp.tools.curriculum.SessionLocal"),
-        ("get_upcoming_events", {}, "app.mcp.tools.events.SessionLocal"),
+        ("get_curriculum", {"programme": "Business IT"}, "app.db.database.SessionLocal"),
+        ("get_upcoming_events", {}, "app.db.database.SessionLocal"),
     ]
 
     server = fresh_server()
@@ -565,7 +567,7 @@ def test_all_db_tools_return_dict_on_error() -> None:
 
 def test_all_error_responses_use_consistent_structure() -> None:
     """All error responses must have success, error, and message fields."""
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = RuntimeError("fail")
         mock_sl.return_value = session
@@ -583,7 +585,7 @@ def test_all_error_responses_use_consistent_structure() -> None:
 # ── 7. Session Management Tests ───────────────────────────────────────────────
 
 def test_get_student_closes_session_on_success() -> None:
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.return_value.mappings.return_value.first.return_value = None
         mock_sl.return_value = session
@@ -596,7 +598,7 @@ def test_get_student_closes_session_on_success() -> None:
 
 
 def test_get_student_closes_session_on_error() -> None:
-    with patch("app.mcp.tools.student.SessionLocal") as mock_sl:
+    with patch("app.db.database.SessionLocal") as mock_sl:
         session = Mock()
         session.execute.side_effect = RuntimeError("fail")
         mock_sl.return_value = session
