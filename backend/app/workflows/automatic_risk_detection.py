@@ -26,6 +26,10 @@ from app.services.academic_risk_scoring_service import AcademicRiskScoringServic
 from app.services.delay_detection_service import DelayDetectionService
 from app.services.event_service import EventService
 from app.services.progress_service import ProgressService
+from app.services.risk_explanation_service import (
+    RiskExplanationInput,
+    RiskExplanationService,
+)
 from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
@@ -78,6 +82,7 @@ class StudentRiskDetectionResult:
     score_basis: str
     policy_version: str
     actionable_indicators: list[str] = field(default_factory=list)
+    risk_explanation: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -117,11 +122,13 @@ class AutomaticRiskDetectionWorkflow:
         risk_provider: RiskProvider,
         timezone: str,
         execution_recorder: WorkflowExecutionRecorder | None = None,
+        explanation_service: RiskExplanationService | None = None,
     ) -> None:
         self._active_student_directory = active_student_directory
         self._risk_provider = risk_provider
         self._timezone = _load_timezone(timezone)
         self._execution_recorder = execution_recorder
+        self._explanation_service = explanation_service or RiskExplanationService()
 
     def run(
         self,
@@ -219,7 +226,10 @@ class AutomaticRiskDetectionWorkflow:
                 errors.append("RISK_ASSESSMENT_FAILED")
                 continue
 
-            parsed = _parse_assessment(assessment)
+            parsed = _parse_assessment(
+                assessment,
+                explanation_service=self._explanation_service,
+            )
             if isinstance(parsed, str):
                 unavailable += 1
                 errors.append(parsed)
@@ -363,7 +373,11 @@ def run_database_automatic_risk_detection(
         session.close()
 
 
-def _parse_assessment(value: Any) -> StudentRiskDetectionResult | str:
+def _parse_assessment(
+    value: Any,
+    *,
+    explanation_service: RiskExplanationService,
+) -> StudentRiskDetectionResult | str:
     if not isinstance(value, dict) or value.get("success") is not True:
         return _result_code(value, "RISK_ASSESSMENT_UNAVAILABLE")
     student_id = value.get("student_id")
@@ -404,6 +418,14 @@ def _parse_assessment(value: Any) -> StudentRiskDetectionResult | str:
     unavailable_codes = [item for item in unavailable if isinstance(item, str)]
     if len(indicator_codes) != len(contributions) or len(unavailable_codes) != len(unavailable):
         return "CANONICAL_RISK_ASSESSMENT_MALFORMED"
+    explanation = explanation_service.explain(
+        RiskExplanationInput(
+            student_id=student_id,
+            risk_result=value,
+        )
+    )
+    if not explanation.success:
+        return "CANONICAL_RISK_ASSESSMENT_MALFORMED"
     return StudentRiskDetectionResult(
         student_id=student_id,
         risk_level=risk_level,
@@ -415,6 +437,7 @@ def _parse_assessment(value: Any) -> StudentRiskDetectionResult | str:
         score_basis=score_basis,
         policy_version=policy_version,
         actionable_indicators=actionable_codes,
+        risk_explanation=explanation.to_dict(),
     )
 
 
