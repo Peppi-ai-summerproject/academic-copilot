@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import chat, health, sessions, telegram
+from app.api.routes import chat, health, progress, sessions, telegram
 
 api_router = APIRouter()
 
@@ -20,6 +20,12 @@ api_router.include_router(
     sessions.router,
     prefix="/sessions",
     tags=["Sessions"],
+)
+
+api_router.include_router(
+    progress.router,
+    prefix="/students",
+    tags=["Progress Dashboard"],
 )
 
 api_router.include_router(
