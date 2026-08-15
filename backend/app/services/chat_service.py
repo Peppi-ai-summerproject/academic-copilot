@@ -233,6 +233,12 @@ class ChatService:
 
 
 def _format_workflow_reply(state: AgentState) -> str:
+    if state.workflow_status is WorkflowStatus.FAILED:
+        return (
+            "Academic analysis could not be completed.\n\n"
+            "No academic result is available."
+        )
+
     if isinstance(state.final_response, str) and state.final_response.strip():
         return state.final_response.strip()
 
