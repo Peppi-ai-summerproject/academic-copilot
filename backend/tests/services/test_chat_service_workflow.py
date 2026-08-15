@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
+from app.agents.registry import AgentRegistry
 from app.agents.state import AgentState
 from app.agents.types import AgentResult, WorkflowStatus
 from app.schemas.chat import ChatRequest
@@ -34,6 +37,10 @@ class FakeWorkflow:
         return state
 
 
+class RegisteredAgent:
+    pass
+
+
 def result(route: str, summary: str, status: str = "SUCCESS") -> AgentResult:
     return AgentResult(
         agent_name=f"{route.title()}Agent",
@@ -58,22 +65,148 @@ def process(service: ChatService, chat_request: ChatRequest):
     return asyncio.run(service.process_message(chat_request))
 
 
-def make_service(workflow: FakeWorkflow) -> tuple[ChatService, SessionService]:
+def registry(*routes: str) -> AgentRegistry:
+    result = AgentRegistry()
+    for route in routes:
+        result.register(route, RegisteredAgent)  # type: ignore[arg-type]
+    return result
+
+
+def make_service(
+    workflow: FakeWorkflow,
+    *,
+    agent_registry: AgentRegistry | None = None,
+) -> tuple[ChatService, SessionService]:
     sessions = SessionService()
-    return ChatService(session_service=sessions, workflow=workflow), sessions
+    return ChatService(
+        session_service=sessions,
+        workflow=workflow,
+        registry=agent_registry,
+    ), sessions
 
 
-def test_non_workflow_request_preserves_existing_response_and_session_history():
+def test_ambiguous_request_returns_controlled_fallback_and_preserves_session_history():
     workflow = FakeWorkflow()
     service, sessions = make_service(workflow)
 
     response = process(service, request())
 
-    assert "Backend received your message successfully" in response.reply
+    assert response.reply == "Please clarify which academic information you want me to check."
     assert workflow.states == []
     session = sessions.get_session(101)
     assert session is not None
     assert [message.role for message in session.history] == ["user", "assistant"]
+
+
+def test_natural_language_progress_request_routes_automatically() -> None:
+    workflow = FakeWorkflow(results={"progress": result("progress", "On track")})
+    service, sessions = make_service(workflow, agent_registry=registry("progress"))
+
+    response = process(
+        service,
+        request(message="How is student 123 progressing?", student_id=123),
+    )
+
+    assert workflow.states[0].intent == "progress"
+    assert workflow.states[0].selected_agents == ["progress"]
+    assert response.reply == "Academic analysis completed.\n\n- On track"
+    assert sessions.get_session(101).message_count == 1
+
+
+def test_natural_language_risk_request_preserves_current_single_route_plan() -> None:
+    workflow = FakeWorkflow(results={"risk": result("risk", "Medium risk")})
+    service, _ = make_service(workflow, agent_registry=registry("risk"))
+
+    process(service, request(message="Is student 123 at risk?", student_id=123))
+
+    assert workflow.states[0].intent == "risk"
+    assert workflow.states[0].selected_agents == ["risk"]
+
+
+def test_natural_language_recommendation_request_uses_dependency_order() -> None:
+    workflow = FakeWorkflow()
+    service, _ = make_service(
+        workflow,
+        agent_registry=registry("risk", "recommendation"),
+    )
+
+    process(
+        service,
+        request(message="What should I do to help this student?", student_id=123),
+    )
+
+    assert workflow.states[0].intent == "recommendation"
+    assert workflow.states[0].selected_agents == ["risk", "recommendation"]
+
+
+def test_natural_language_reporting_request_preserves_full_dependency_order() -> None:
+    workflow = FakeWorkflow()
+    routes = ("progress", "study_rights", "risk", "recommendation", "reporting")
+    service, _ = make_service(workflow, agent_registry=registry(*routes))
+
+    process(
+        service,
+        request(message="Give me an academic summary of student 123.", student_id=123),
+    )
+
+    assert workflow.states[0].intent == "reporting"
+    assert workflow.states[0].selected_agents == list(routes)
+
+
+def test_explicit_routes_override_detected_intent_without_dependency_expansion() -> None:
+    workflow = FakeWorkflow()
+    service, _ = make_service(
+        workflow,
+        agent_registry=registry("progress", "risk"),
+    )
+
+    process(
+        service,
+        request(message="Is student 123 at risk?", selected_agents=["progress"]),
+    )
+
+    assert workflow.states[0].intent is None
+    assert workflow.states[0].selected_agents == ["progress"]
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("Hi", "No academic analysis was requested."),
+        (
+            "What is the weather tomorrow?",
+            "I could not match that request to a supported academic analysis.",
+        ),
+        (
+            "Check this student.",
+            "Please clarify which academic information you want me to check.",
+        ),
+    ],
+)
+def test_non_routable_messages_do_not_execute_workflow(
+    message: str,
+    expected: str,
+) -> None:
+    workflow = FakeWorkflow()
+    service, _ = make_service(workflow)
+
+    response = process(service, request(message=message))
+
+    assert response.reply == expected
+    assert workflow.states == []
+
+
+def test_selection_failure_does_not_execute_invalid_plan() -> None:
+    workflow = FakeWorkflow()
+    service, _ = make_service(workflow, agent_registry=registry())
+
+    response = process(
+        service,
+        request(message="Is student 123 at risk?", student_id=123),
+    )
+
+    assert response.reply.startswith("I could not route this academic request safely")
+    assert workflow.states == []
 
 
 def test_workflow_request_maps_chat_context_to_initial_state():
