@@ -267,13 +267,98 @@ def test_completed_single_agent_workflow_formats_summary():
 
 
 def test_workflow_final_response_is_returned_for_existing_telegram_flow():
-    workflow = FakeWorkflow(final_response="Tutor-ready Telegram response")
+    workflow = FakeWorkflow(
+        results={"communication": result("communication", "Internal summary")},
+        final_response="Tutor-ready Telegram response",
+    )
     service, sessions = make_service(workflow)
 
     response = process(service, request(selected_agents=["communication"]))
 
     assert response.reply == "Tutor-ready Telegram response"
     assert sessions.get_session(101).history[-1].content == response.reply
+    assert "Internal summary" not in response.reply
+
+
+@pytest.mark.parametrize("final_response", [None, "", "   \n\t"])
+def test_empty_final_response_falls_back_to_public_agent_summary(
+    final_response: str | None,
+) -> None:
+    workflow = FakeWorkflow(
+        results={"progress": result("progress", "Verified progress summary")},
+        final_response=final_response,
+    )
+    service, _ = make_service(workflow)
+
+    response = process(service, request(selected_agents=["progress"]))
+
+    assert response.reply == (
+        "Academic analysis completed.\n\n- Verified progress summary"
+    )
+
+
+def test_invalid_final_response_type_falls_back_without_raw_state_leakage() -> None:
+    workflow = FakeWorkflow(
+        results={"progress": result("progress", "Safe summary")},
+        final_response={"internal": "AgentState(...)"},  # type: ignore[arg-type]
+    )
+    service, _ = make_service(workflow)
+
+    response = process(service, request(selected_agents=["progress"]))
+
+    assert response.reply.endswith("- Safe summary")
+    assert "AgentState" not in response.reply
+    assert "AgentResult" not in response.reply
+
+
+def test_failed_status_does_not_expose_stale_final_response() -> None:
+    workflow = FakeWorkflow(
+        status=WorkflowStatus.FAILED,
+        final_response="AgentState(database password=secret)",
+    )
+    service, _ = make_service(workflow)
+
+    response = process(service, request(selected_agents=["progress"]))
+
+    assert response.reply == (
+        "Academic analysis could not be completed.\n\n"
+        "No academic result is available."
+    )
+    assert "password" not in response.reply
+
+
+def test_multi_agent_final_response_is_one_coherent_reply() -> None:
+    workflow = FakeWorkflow(
+        results={
+            "progress": result("progress", "Progress internal summary"),
+            "risk": result("risk", "Risk internal summary"),
+        },
+        final_response="One coherent tutor-facing response",
+    )
+    service, _ = make_service(workflow)
+
+    response = process(
+        service,
+        request(selected_agents=["progress", "risk"]),
+    )
+
+    assert response.reply == "One coherent tutor-facing response"
+
+
+def test_partial_workflow_generated_final_response_is_preserved() -> None:
+    final_response = (
+        "Verified progress information is available.\n\n"
+        "Availability note: risk information could not be verified."
+    )
+    workflow = FakeWorkflow(
+        status=WorkflowStatus.PARTIAL,
+        final_response=final_response,
+    )
+    service, _ = make_service(workflow)
+
+    response = process(service, request(selected_agents=["communication"]))
+
+    assert response.reply == final_response
 
 
 def test_multi_agent_summaries_follow_selected_agent_order():
