@@ -39,6 +39,7 @@ _AMBIGUOUS_ACADEMIC = re.compile(
 _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
     "calendar": (
         re.compile(r"\b(upcoming|next|future)\s+(?:academic\s+)?(?:deadlines?|events?)\b"),
+        re.compile(r"\bdeadlines?\b.*\b(?:coming up|upcoming|soon)\b"),
         re.compile(r"\b(?:academic|course|study|semester)\s+(?:deadlines?|calendar|schedule)\b"),
         re.compile(r"\bwhen\s+(?:is|are)\b.*\b(?:deadline|event|exam)\b"),
     ),
