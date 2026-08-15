@@ -11,6 +11,7 @@ from app.agents.state import AgentState, create_initial_state
 from app.agents.types import AgentResult, AgentRoute, WorkflowStatus
 from app.agents.workflow import create_academic_agent_workflow, create_default_agent_registry
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.services.fallback_response_service import FallbackResponseService
 from app.services.session_service import SessionService, session_service
 from app.services.conversation_memory import (
     ConversationMemoryStore,
@@ -38,6 +39,7 @@ class ChatService:
         intent_detector: IntentDetector | None = None,
         agent_selector: AgentSelector | None = None,
         dependency_resolver: DependencyResolver | None = None,
+        fallback_responses: FallbackResponseService | None = None,
     ) -> None:
         self._session_service = session_service
         self._workflow = workflow
@@ -48,6 +50,7 @@ class ChatService:
         self._dependency_resolver = dependency_resolver or DependencyResolver(
             self._registry
         )
+        self._fallback_responses = fallback_responses or FallbackResponseService()
 
     async def process_message(
         self,
@@ -83,6 +86,7 @@ class ChatService:
         selected_routes = list(request.selected_agents)
         detected_intent: str | None = None
         routing_failure: str | None = None
+        fallback_interaction_status = "failed"
 
         if selected_routes:
             routing_failure = self._validate_explicit_routes(selected_routes)
@@ -94,20 +98,32 @@ class ChatService:
                 plan = self._dependency_resolver.resolve(routing_result)
                 if plan.succeeded:
                     selected_routes = list(plan.ordered_routes)
+                    if (
+                        request.student_id is None
+                        and self._fallback_responses.requires_student_context(
+                            plan.ordered_routes
+                        )
+                    ):
+                        routing_failure = (
+                            self._fallback_responses.for_missing_student_context()
+                        )
+                        fallback_interaction_status = "completed"
+                        selected_routes = []
                 else:
-                    routing_failure = _automatic_routing_fallback(
-                        intent_result.intent,
-                        intent_result.is_ambiguous,
-                        plan.status,
-                    )
-                    if plan.errors:
+                    if intent_result.intent in {"general", "unknown"}:
+                        routing_failure = self._fallback_responses.for_non_academic(
+                            intent_result
+                        )
+                        fallback_interaction_status = "completed"
+                    else:
+                        routing_failure = (
+                            self._fallback_responses.for_internal_routing_failure()
+                        )
+                    if plan.errors and intent_result.intent not in {"general", "unknown"}:
                         logger.warning("Automatic academic routing failed: %s", plan.reason)
             except Exception:
                 logger.exception("Automatic academic routing failed unexpectedly.")
-                routing_failure = (
-                    "I could not route this academic request safely. Please clarify "
-                    "the academic information you need."
-                )
+                routing_failure = self._fallback_responses.for_internal_routing_failure()
 
         if selected_routes and routing_failure is None:
             reply, interaction_status = await self._run_workflow(
@@ -120,7 +136,7 @@ class ChatService:
             )
         else:
             reply = routing_failure or "No academic route is available for this request."
-            interaction_status = "completed" if detected_intent in {"general", "unknown"} else "failed"
+            interaction_status = fallback_interaction_status
 
         self._session_service.add_assistant_message(
             telegram_user_id=request.telegram_user_id,
@@ -212,23 +228,8 @@ class ChatService:
                 or self._registry.get(route) is None
             ):
                 logger.warning("Explicit academic route is not executable: %s", route)
-                return "I could not route this academic request safely."
+                return self._fallback_responses.for_internal_routing_failure()
         return None
-
-
-def _automatic_routing_fallback(
-    intent: str,
-    ambiguous: bool,
-    plan_status: str,
-) -> str:
-    if intent == "general":
-        return "No academic analysis was requested."
-    if intent == "unknown" and ambiguous:
-        return "Please clarify which academic information you want me to check."
-    if intent == "unknown":
-        return "I could not match that request to a supported academic analysis."
-    logger.warning("Academic execution plan was rejected with status: %s", plan_status)
-    return "I could not route this academic request safely. Please try again or clarify it."
 
 
 def _format_workflow_reply(state: AgentState) -> str:
