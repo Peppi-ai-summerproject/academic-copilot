@@ -91,7 +91,8 @@ def test_ambiguous_request_returns_controlled_fallback_and_preserves_session_his
 
     response = process(service, request())
 
-    assert response.reply == "Please clarify which academic information you want me to check."
+    assert "clarify" in response.reply.lower()
+    assert "progress" in response.reply.lower()
     assert workflow.states == []
     session = sessions.get_session(101)
     assert session is not None
@@ -170,29 +171,24 @@ def test_explicit_routes_override_detected_intent_without_dependency_expansion()
 
 
 @pytest.mark.parametrize(
-    ("message", "expected"),
+    ("message", "expected_text"),
     [
-        ("Hi", "No academic analysis was requested."),
-        (
-            "What is the weather tomorrow?",
-            "I could not match that request to a supported academic analysis.",
-        ),
-        (
-            "Check this student.",
-            "Please clarify which academic information you want me to check.",
-        ),
+        ("Hi", "academic copilot"),
+        ("What can you help me with?", "study rights"),
+        ("What is the weather tomorrow?", "focused on"),
+        ("Check this student.", "clarify"),
     ],
 )
 def test_non_routable_messages_do_not_execute_workflow(
     message: str,
-    expected: str,
+    expected_text: str,
 ) -> None:
     workflow = FakeWorkflow()
     service, _ = make_service(workflow)
 
     response = process(service, request(message=message))
 
-    assert response.reply == expected
+    assert expected_text in response.reply.lower()
     assert workflow.states == []
 
 
@@ -205,8 +201,42 @@ def test_selection_failure_does_not_execute_invalid_plan() -> None:
         request(message="Is student 123 at risk?", student_id=123),
     )
 
-    assert response.reply.startswith("I could not route this academic request safely")
+    assert "prepare the academic analysis safely" in response.reply
     assert workflow.states == []
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Is the student at risk?",
+        "How is the student progressing?",
+        "Give me an academic summary of this student.",
+    ],
+)
+def test_missing_student_context_is_requested_before_workflow(message: str) -> None:
+    workflow = FakeWorkflow()
+    service, sessions = make_service(workflow)
+
+    response = process(service, request(message=message, student_id=None))
+
+    assert "student identifier" in response.reply.lower()
+    assert workflow.states == []
+    session = sessions.get_session(101)
+    assert session.message_count == 1
+    assert [item.role for item in session.history] == ["user", "assistant"]
+
+
+def test_calendar_request_does_not_require_student_context() -> None:
+    workflow = FakeWorkflow(results={"calendar": result("calendar", "One deadline")})
+    service, _ = make_service(workflow, agent_registry=registry("calendar"))
+
+    process(
+        service,
+        request(message="Are there any upcoming academic deadlines?", student_id=None),
+    )
+
+    assert workflow.states[0].intent == "calendar"
+    assert workflow.states[0].selected_agents == ["calendar"]
 
 
 def test_workflow_request_maps_chat_context_to_initial_state():

@@ -162,3 +162,21 @@ def test_stored_messages_exclude_state_results_errors_tokens_and_request_ids():
 
     for forbidden in ("request_id", "agent_results", "MCP", "RAG", "token", "password"):
         assert forbidden not in text
+
+
+def test_general_fallback_turn_is_stored_once_in_trusted_memory():
+    store = InMemoryConversationMemoryStore()
+    chat_service, workflow = service(store)
+
+    response = run(
+        chat_service,
+        request(message="Hi", student_id=None, selected_agents=[]),
+    )
+
+    memory_scope = next(iter(store._messages))
+    messages = store.load(memory_scope).messages
+    assert [(item.role, item.content) for item in messages] == [
+        ("user", "Hi"),
+        ("assistant", response.reply),
+    ]
+    assert workflow.states == []
