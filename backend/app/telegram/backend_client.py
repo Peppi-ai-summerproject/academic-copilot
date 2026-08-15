@@ -22,6 +22,7 @@ class BackendClient:
         telegram_user_id: int,
         telegram_chat_id: int,
         username: str | None,
+        student_id: int | None = None,
     ) -> str:
         url = f"{self.base_url}/api/v1/chat/messages"
 
@@ -31,6 +32,8 @@ class BackendClient:
             "telegram_chat_id": telegram_chat_id,
             "username": username,
         }
+        if student_id is not None:
+            payload["student_id"] = student_id
         headers = (
             {"X-Internal-Service-Key": settings.internal_service_key}
             if settings.internal_service_key
