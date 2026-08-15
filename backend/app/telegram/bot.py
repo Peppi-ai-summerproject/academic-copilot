@@ -7,10 +7,13 @@ from telegram.ext import (
 
 from app.core.config import settings
 from app.telegram.commands import (
+    events_command,
     help_command,
-    placeholder_command,
+    progress_command,
+    risk_command,
     start_command,
     status_command,
+    student_command,
     unknown_command,
 )
 from app.telegram.handlers import (
@@ -38,12 +41,10 @@ def create_bot() -> Application:
         CommandHandler("status", status_command)
     )
 
-    application.add_handler(
-        CommandHandler(
-            ["student", "progress", "risk", "events"],
-            placeholder_command,
-        )
-    )
+    application.add_handler(CommandHandler("student", student_command))
+    application.add_handler(CommandHandler("progress", progress_command))
+    application.add_handler(CommandHandler("risk", risk_command))
+    application.add_handler(CommandHandler("events", events_command))
 
     application.add_handler(
         MessageHandler(

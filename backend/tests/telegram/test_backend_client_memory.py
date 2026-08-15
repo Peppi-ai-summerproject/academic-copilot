@@ -21,13 +21,18 @@ def test_backend_client_sends_internal_header_and_ignores_extra_response_field(m
     monkeypatch.setattr(module.settings, "internal_service_key", "test-only-key")
 
     reply = asyncio.run(module.BackendClient().send_message(
-        message="hello", telegram_user_id=1, telegram_chat_id=2, username="tutor"
+        message="hello",
+        telegram_user_id=1,
+        telegram_chat_id=2,
+        username="tutor",
+        student_id=42,
     ))
 
     assert reply == "Tutor response"
     assert client.post.call_args.kwargs["headers"] == {
         "X-Internal-Service-Key": "test-only-key"
     }
+    assert client.post.call_args.kwargs["json"]["student_id"] == 42
 
 
 def test_backend_client_omits_internal_header_when_key_is_unconfigured(monkeypatch):
