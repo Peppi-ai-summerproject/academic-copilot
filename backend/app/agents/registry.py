@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from typing import Dict, Type
+from typing import TYPE_CHECKING, Any, Dict, Type
 
-from app.agents.base import AcademicAgent
 from app.agents.types import AgentRoute
-from app.gateways.academic_tools import AcademicToolGateway
-from app.gateways.policy_context import PolicyContextGateway
+
+if TYPE_CHECKING:
+    from app.agents.base import AcademicAgent
+    from app.gateways.academic_tools import AcademicToolGateway
+    from app.gateways.policy_context import PolicyContextGateway
+else:
+    AcademicAgent = Any
+    AcademicToolGateway = Any
+    PolicyContextGateway = Any
 
 
 class AgentRegistry:
