@@ -12,6 +12,7 @@ SUPPORTED_ROUTES: tuple[AgentRoute, ...] = (
     "recommendation",
     "reporting",
     "communication",
+    "academic_data",
     "finish",
 )
 
@@ -23,6 +24,7 @@ AGENT_ROUTE_TO_AGENT_NAME: Mapping[AgentRoute, str] = {
     "recommendation": "RecommendationAgent",
     "reporting": "ReportingAgent",
     "communication": "CommunicationAgent",
+    "academic_data": "TutorDataQueryAgent",
     "finish": "Finish",
 }
 
@@ -37,4 +39,5 @@ ROUTE_INTENT_MAP: Mapping[str, AgentRoute] = {
     "report": "reporting",
     "reporting": "reporting",
     "communication": "communication",
+    "academic data": "academic_data",
 }

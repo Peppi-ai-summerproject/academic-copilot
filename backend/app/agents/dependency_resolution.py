@@ -33,6 +33,7 @@ DEFAULT_ROUTE_DEPENDENCIES: Mapping[AgentRoute, tuple[AgentRoute, ...]] = {
     # Communication accepts a variable set of prior results. A communication
     # intent alone carries no information from which to infer those sources.
     "communication": (),
+    "academic_data": (),
     "finish": (),
 }
 

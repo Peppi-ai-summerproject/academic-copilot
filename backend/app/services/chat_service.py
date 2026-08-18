@@ -12,6 +12,8 @@ from app.agents.types import AgentResult, AgentRoute, WorkflowStatus
 from app.agents.workflow import create_academic_agent_workflow, create_default_agent_registry
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.fallback_response_service import FallbackResponseService
+from app.services.academic_entity_resolver import AcademicEntityResolver
+from app.gateways.academic_tools import MCPAcademicToolGateway
 from app.services.session_service import SessionService, session_service
 from app.services.conversation_memory import (
     ConversationMemoryStore,
@@ -40,6 +42,7 @@ class ChatService:
         agent_selector: AgentSelector | None = None,
         dependency_resolver: DependencyResolver | None = None,
         fallback_responses: FallbackResponseService | None = None,
+        entity_resolver: AcademicEntityResolver | None = None,
     ) -> None:
         self._session_service = session_service
         self._workflow = workflow
@@ -51,6 +54,7 @@ class ChatService:
             self._registry
         )
         self._fallback_responses = fallback_responses or FallbackResponseService()
+        self._entity_resolver = entity_resolver or AcademicEntityResolver(MCPAcademicToolGateway())
 
     async def process_message(
         self,
@@ -87,6 +91,8 @@ class ChatService:
         detected_intent: str | None = None
         routing_failure: str | None = None
         fallback_interaction_status = "failed"
+        resolved_entities: list[dict] = []
+        query_parameters: dict = {}
 
         if selected_routes:
             routing_failure = self._validate_explicit_routes(selected_routes)
@@ -94,21 +100,34 @@ class ChatService:
             try:
                 intent_result = self._intent_detector.detect(request.message)
                 detected_intent = intent_result.intent
+                if intent_result.intent == "academic_data":
+                    query_parameters = {
+                        "capability": intent_result.capability,
+                        "query_parameters": intent_result.parameters or {},
+                    }
+                    for entity_type, reference in intent_result.entity_references:
+                        resolution = await self._entity_resolver.resolve(entity_type, reference)  # type: ignore[arg-type]
+                        resolved_entities.append(resolution.as_dict())
+                    unresolved = [row for row in resolved_entities if row["status"] != "RESOLVED"]
+                    if unresolved:
+                        routing_failure = _resolution_fallback(unresolved[0])
+                        fallback_interaction_status = "completed"
                 routing_result = self._agent_selector.select(intent_result)
                 plan = self._dependency_resolver.resolve(routing_result)
                 if plan.succeeded:
-                    selected_routes = list(plan.ordered_routes)
-                    if (
-                        request.student_id is None
-                        and self._fallback_responses.requires_student_context(
-                            plan.ordered_routes
-                        )
-                    ):
-                        routing_failure = (
-                            self._fallback_responses.for_missing_student_context()
-                        )
-                        fallback_interaction_status = "completed"
-                        selected_routes = []
+                    if routing_failure is None:
+                        selected_routes = list(plan.ordered_routes)
+                        if (
+                            request.student_id is None
+                            and self._fallback_responses.requires_student_context(
+                                plan.ordered_routes
+                            )
+                        ):
+                            routing_failure = (
+                                self._fallback_responses.for_missing_student_context()
+                            )
+                            fallback_interaction_status = "completed"
+                            selected_routes = []
                 else:
                     if intent_result.intent in {"general", "unknown"}:
                         routing_failure = self._fallback_responses.for_non_academic(
@@ -133,6 +152,8 @@ class ChatService:
                 conversation_id=conversation_id,
                 memory=memory,
                 include_telegram_context=memory_scope is None,
+                resolved_entities=resolved_entities,
+                query_parameters=query_parameters,
             )
         else:
             reply = routing_failure or "No academic route is available for this request."
@@ -171,6 +192,8 @@ class ChatService:
         conversation_id: UUID,
         memory,
         include_telegram_context: bool,
+        resolved_entities: list[dict],
+        query_parameters: dict,
     ) -> tuple[str, str]:
         state = create_initial_state(
             user_message=request.message,
@@ -182,6 +205,8 @@ class ChatService:
         )
         state.intent = detected_intent
         state.selected_agents = list(selected_routes)
+        state.resolved_entities = resolved_entities
+        state.parameters.update(query_parameters)
 
         try:
             result = await self._workflow.run(state)
@@ -263,6 +288,15 @@ def _format_workflow_reply(state: AgentState) -> str:
     }.get(state.workflow_status, "Academic analysis ended with an unknown status.")
 
     return f"{status_label}\n\n{body}"
+
+
+def _resolution_fallback(entity: dict) -> str:
+    label = str(entity.get("entity_type", "entity")).lower()
+    if entity.get("status") == "AMBIGUOUS":
+        candidates = entity.get("candidates") or []
+        names = [str(row.get("student_number") or row.get("course_code") or row.get("name") or row.get("course_name")) for row in candidates]
+        return f"I found multiple matching {label}s: {', '.join(names)}. Which one do you mean?"
+    return f"I could not find the requested {label}."
 
 
 _agent_registry = create_default_agent_registry()

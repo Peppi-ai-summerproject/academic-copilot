@@ -12,6 +12,7 @@ from typing import Literal, cast
 
 from app.agents.routing import ROUTE_INTENT_MAP
 from app.agents.types import AgentRoute
+from app.agents.tutor_query_intent import detect_tutor_query
 
 
 IntentName = Literal[
@@ -22,6 +23,7 @@ IntentName = Literal[
     "recommendation",
     "reporting",
     "communication",
+    "academic_data",
     "general",
     "unknown",
 ]
@@ -97,6 +99,9 @@ class IntentResult:
     matched_terms: tuple[str, ...]
     is_ambiguous: bool
     reason: IntentReason
+    capability: str | None = None
+    entity_references: tuple[tuple[str, str], ...] = ()
+    parameters: dict[str, str] | None = None
 
 
 class IntentDetector:
@@ -139,6 +144,19 @@ class IntentDetector:
                 dict.fromkeys(term for route in winners for term in matches[route])
             )
             return IntentResult("unknown", None, 0.0, evidence, True, "ambiguous")
+
+        if tutor_query := detect_tutor_query(message):
+            return IntentResult(
+                "academic_data",
+                "academic_data",
+                0.9,
+                (tutor_query.capability,),
+                False,
+                "matched",
+                tutor_query.capability,
+                tutor_query.entity_references,
+                tutor_query.parameters,
+            )
 
         if any(pattern.search(normalized) for pattern in _GENERAL):
             return IntentResult("general", None, 0.95, (), False, "general")
