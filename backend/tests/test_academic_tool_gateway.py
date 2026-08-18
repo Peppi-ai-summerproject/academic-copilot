@@ -98,3 +98,25 @@ def test_gateway_delegates_enrollment_tools() -> None:
     enrollments_tool.assert_called_once_with(student_id=4)
     enrollment_tool.assert_called_once_with(student_id=4, course_id=2)
     assert result["enrollment"]["enrollment_id"] == 3
+
+
+def test_gateway_delegates_teacher_assignment_tools() -> None:
+    course_teachers_tool = Mock(return_value={"success": True, "teachers": []})
+    teacher_courses_tool = Mock(return_value={"success": True, "assignments": []})
+    gateway = MCPAcademicToolGateway(
+        course_teachers_tool=course_teachers_tool,
+        teacher_courses_tool=teacher_courses_tool,
+    )
+
+    course_result = asyncio.run(
+        gateway.get_course_teachers(course_code="DIN24", role="LEAD_TEACHER")
+    )
+    teacher_result = asyncio.run(gateway.get_teacher_courses(teacher_id=8))
+
+    assert course_result["teachers"] == []
+    assert teacher_result["assignments"] == []
+    course_teachers_tool.assert_called_once_with(
+        course_code="DIN24",
+        role="LEAD_TEACHER",
+    )
+    teacher_courses_tool.assert_called_once_with(teacher_id=8)

@@ -54,23 +54,38 @@ class TutorRepository:
         ).mappings().all()
         return [dict(row) for row in rows]
 
-    def list_courses_for_teacher(self, tutor_id: int) -> list[dict[str, Any]]:
+    def list_courses_for_teacher(
+        self,
+        tutor_id: int,
+        *,
+        assignment_role: str | None = None,
+    ) -> list[dict[str, Any]]:
+        role_clause = ""
+        parameters: dict[str, Any] = {"tutor_id": tutor_id}
+        if assignment_role is not None:
+            role_clause = "AND assignment.assignment_role = :assignment_role"
+            parameters["assignment_role"] = assignment_role
         rows = self._session.execute(
             text(
-                """
+                f"""
                 SELECT
                     course.id,
                     course.course_code,
                     course.course_name,
                     course.credits,
+                    course.programme_code,
+                    course.semester,
+                    course.is_active,
                     assignment.assignment_role
                 FROM teacher_course_assignments AS assignment
                 INNER JOIN courses AS course ON course.id = assignment.course_id
                 WHERE assignment.tutor_id = :tutor_id
-                ORDER BY course.course_code ASC, course.id ASC
+                  {role_clause}
+                ORDER BY course.course_code ASC, course.id ASC,
+                         assignment.assignment_role ASC
                 """
             ),
-            {"tutor_id": tutor_id},
+            parameters,
         ).mappings().all()
         return [dict(row) for row in rows]
 

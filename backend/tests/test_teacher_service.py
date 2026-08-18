@@ -11,6 +11,20 @@ def test_teacher_lookup_returns_supported_contact_data() -> None:
     assert result["teacher"]["email"] == "anna@peppi.example"
 
 
+def test_teacher_lookup_preserves_unavailable_email_as_null() -> None:
+    repository = Mock()
+    repository.get_by_id.return_value = {
+        "id": 1,
+        "display_name": "Anna Korhonen",
+        "email": None,
+        "is_active": True,
+    }
+    result = TeacherService(repository).get_teacher(1)
+    assert result["success"] is True
+    assert result["teacher"]["email"] is None
+    assert "phone" not in result["teacher"]
+
+
 def test_teacher_lookup_not_found_and_invalid_id_are_machine_readable() -> None:
     repository = Mock()
     repository.get_by_id.return_value = None

@@ -11,6 +11,7 @@ from app.mcp.tools.enrollments import (
     get_enrollment,
     get_student_enrollments,
 )
+from app.mcp.tools.teacher_assignments import get_course_teachers, get_teacher_courses
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
@@ -43,6 +44,8 @@ def register_tools(server: FastMCP) -> None:
     server.add_tool(get_course_roster, name="get_course_roster", description="List students enrolled in a course, optionally filtered by enrollment status.")
     server.add_tool(get_student_enrollments, name="get_student_enrollments", description="List a student's course enrollments, optionally filtered by enrollment status.")
     server.add_tool(get_enrollment, name="get_enrollment", description="Retrieve one student-course enrollment by numeric IDs.")
+    server.add_tool(get_course_teachers, name="get_course_teachers", description="List active teachers assigned to a course, optionally filtered by assignment role.")
+    server.add_tool(get_teacher_courses, name="get_teacher_courses", description="List courses assigned to a teacher, optionally filtered by assignment role.")
 
     server.add_tool(
         get_progress,

@@ -261,4 +261,6 @@ def test_register_tools_registers_academic_discovery_tools() -> None:
         "get_course_roster",
         "get_student_enrollments",
         "get_enrollment",
+        "get_course_teachers",
+        "get_teacher_courses",
     } <= tool_names
