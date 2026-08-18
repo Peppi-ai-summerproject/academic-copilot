@@ -17,6 +17,7 @@ from app.mcp.tools.courses import get_course, search_courses
 from app.mcp.tools.teachers import get_teacher, search_teachers
 from app.mcp.tools.student_dashboard import get_student_dashboard
 from app.mcp.tools.study_right import get_study_right
+from app.mcp.tools.results import get_course_results, get_student_results, get_course_completion_analytics
 
 
 EXPECTED_HANDLERS = {
@@ -34,6 +35,9 @@ EXPECTED_HANDLERS = {
     "search_courses": search_courses,
     "get_teacher": get_teacher,
     "search_teachers": search_teachers,
+    "get_course_results": get_course_results,
+    "get_student_results": get_student_results,
+    "get_course_completion_analytics": get_course_completion_analytics,
 }
 
 EXPECTED_INPUT_CONTRACTS = {
@@ -81,6 +85,9 @@ EXPECTED_INPUT_CONTRACTS = {
         {"query": (None, None), "limit": ("integer", 20), "offset": ("integer", 0)},
         set(),
     ),
+    "get_course_results": ({"course_code": ("string", None), "status": (None, None)}, {"course_code"}),
+    "get_student_results": ({"student_id": ("integer", None), "status": (None, None)}, {"student_id"}),
+    "get_course_completion_analytics": ({"course_code": ("string", None)}, {"course_code"}),
 }
 
 

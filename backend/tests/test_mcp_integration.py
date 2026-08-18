@@ -39,6 +39,9 @@ EXPECTED_TOOLS = {
     "search_courses",
     "get_teacher",
     "search_teachers",
+    "get_course_results",
+    "get_student_results",
+    "get_course_completion_analytics",
 }
 
 

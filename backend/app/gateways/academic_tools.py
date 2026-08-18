@@ -18,6 +18,7 @@ from app.mcp.tools.events import get_upcoming_events
 from app.mcp.tools.search_students import search_students
 from app.mcp.tools.courses import get_course, search_courses
 from app.mcp.tools.teachers import get_teacher, search_teachers
+from app.mcp.tools.results import get_course_results, get_student_results, get_course_completion_analytics
 
 ToolResponse = dict[str, Any]
 AcademicTool = Callable[[int], ToolResponse]
@@ -58,6 +59,9 @@ class AcademicToolGateway(Protocol):
     async def get_teacher(self, teacher_id: int) -> ToolResponse: ...
 
     async def search_teachers(self, **kwargs: Any) -> ToolResponse: ...
+    async def get_course_results(self, **kwargs: Any) -> ToolResponse: ...
+    async def get_student_results(self, **kwargs: Any) -> ToolResponse: ...
+    async def get_course_completion_analytics(self, **kwargs: Any) -> ToolResponse: ...
 
 
 class MCPAcademicToolGateway:
@@ -80,6 +84,9 @@ class MCPAcademicToolGateway:
         search_courses_tool: SearchTool = search_courses,
         teacher_tool: AcademicTool = get_teacher,
         search_teachers_tool: SearchTool = search_teachers,
+        course_results_tool: SearchTool = get_course_results,
+        student_results_tool: SearchTool = get_student_results,
+        completion_analytics_tool: SearchTool = get_course_completion_analytics,
     ) -> None:
         self._student_tool = student_tool
         self._progress_tool = progress_tool
@@ -90,6 +97,9 @@ class MCPAcademicToolGateway:
         self._search_courses_tool = search_courses_tool
         self._teacher_tool = teacher_tool
         self._search_teachers_tool = search_teachers_tool
+        self._course_results_tool = course_results_tool
+        self._student_results_tool = student_results_tool
+        self._completion_analytics_tool = completion_analytics_tool
 
     async def get_student(self, student_id: int) -> ToolResponse:
         return await self._invoke("get_student", self._student_tool, student_id)
@@ -121,6 +131,12 @@ class MCPAcademicToolGateway:
 
     async def search_teachers(self, **kwargs: Any) -> ToolResponse:
         return await self._invoke_kwargs("search_teachers", self._search_teachers_tool, kwargs)
+    async def get_course_results(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_course_results", self._course_results_tool, kwargs)
+    async def get_student_results(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_student_results", self._student_results_tool, kwargs)
+    async def get_course_completion_analytics(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_course_completion_analytics", self._completion_analytics_tool, kwargs)
 
     @staticmethod
     async def _invoke(
