@@ -78,3 +78,23 @@ def test_gateway_delegates_discovery_tools_and_preserves_response() -> None:
 
     assert result is response
     course_search_tool.assert_called_once_with(query="software", limit=5)
+
+
+def test_gateway_delegates_enrollment_tools() -> None:
+    roster_tool = Mock(return_value={"success": True, "students": []})
+    enrollments_tool = Mock(return_value={"success": True, "courses": []})
+    enrollment_tool = Mock(return_value={"success": True, "enrollment": {"enrollment_id": 3}})
+    gateway = MCPAcademicToolGateway(
+        course_roster_tool=roster_tool,
+        student_enrollments_tool=enrollments_tool,
+        enrollment_tool=enrollment_tool,
+    )
+
+    asyncio.run(gateway.get_course_roster(course_id=2, enrollment_status="ENROLLED"))
+    asyncio.run(gateway.get_student_enrollments(student_id=4))
+    result = asyncio.run(gateway.get_enrollment(student_id=4, course_id=2))
+
+    roster_tool.assert_called_once_with(course_id=2, enrollment_status="ENROLLED")
+    enrollments_tool.assert_called_once_with(student_id=4)
+    enrollment_tool.assert_called_once_with(student_id=4, course_id=2)
+    assert result["enrollment"]["enrollment_id"] == 3

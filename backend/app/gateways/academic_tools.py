@@ -18,6 +18,11 @@ from app.mcp.tools.events import get_upcoming_events
 from app.mcp.tools.search_students import search_students
 from app.mcp.tools.courses import get_course, search_courses
 from app.mcp.tools.teachers import get_teacher, search_teachers
+from app.mcp.tools.enrollments import (
+    get_course_roster,
+    get_enrollment,
+    get_student_enrollments,
+)
 
 ToolResponse = dict[str, Any]
 AcademicTool = Callable[[int], ToolResponse]
@@ -59,6 +64,12 @@ class AcademicToolGateway(Protocol):
 
     async def search_teachers(self, **kwargs: Any) -> ToolResponse: ...
 
+    async def get_course_roster(self, **kwargs: Any) -> ToolResponse: ...
+
+    async def get_student_enrollments(self, **kwargs: Any) -> ToolResponse: ...
+
+    async def get_enrollment(self, **kwargs: Any) -> ToolResponse: ...
+
 
 class MCPAcademicToolGateway:
     """In-process adapter over the existing synchronous MCP tool functions.
@@ -80,6 +91,9 @@ class MCPAcademicToolGateway:
         search_courses_tool: SearchTool = search_courses,
         teacher_tool: AcademicTool = get_teacher,
         search_teachers_tool: SearchTool = search_teachers,
+        course_roster_tool: SearchTool = get_course_roster,
+        student_enrollments_tool: SearchTool = get_student_enrollments,
+        enrollment_tool: SearchTool = get_enrollment,
     ) -> None:
         self._student_tool = student_tool
         self._progress_tool = progress_tool
@@ -90,6 +104,9 @@ class MCPAcademicToolGateway:
         self._search_courses_tool = search_courses_tool
         self._teacher_tool = teacher_tool
         self._search_teachers_tool = search_teachers_tool
+        self._course_roster_tool = course_roster_tool
+        self._student_enrollments_tool = student_enrollments_tool
+        self._enrollment_tool = enrollment_tool
 
     async def get_student(self, student_id: int) -> ToolResponse:
         return await self._invoke("get_student", self._student_tool, student_id)
@@ -121,6 +138,15 @@ class MCPAcademicToolGateway:
 
     async def search_teachers(self, **kwargs: Any) -> ToolResponse:
         return await self._invoke_kwargs("search_teachers", self._search_teachers_tool, kwargs)
+
+    async def get_course_roster(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_course_roster", self._course_roster_tool, kwargs)
+
+    async def get_student_enrollments(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_student_enrollments", self._student_enrollments_tool, kwargs)
+
+    async def get_enrollment(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_enrollment", self._enrollment_tool, kwargs)
 
     @staticmethod
     async def _invoke(

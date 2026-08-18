@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 
 ResultStatus = Literal["PASSED", "FAILED"]
+EnrollmentStatus = Literal["ENROLLED", "IN_PROGRESS", "COMPLETED", "WITHDRAWN"]
 
 
 class AcademicRecordRepository:
@@ -15,10 +16,20 @@ class AcademicRecordRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def list_courses_for_student(self, student_id: int) -> list[dict[str, Any]]:
+    def list_courses_for_student(
+        self,
+        student_id: int,
+        *,
+        enrollment_status: EnrollmentStatus | None = None,
+    ) -> list[dict[str, Any]]:
+        status_clause = ""
+        parameters: dict[str, Any] = {"student_id": student_id}
+        if enrollment_status is not None:
+            status_clause = "AND enrollment.enrollment_status = :enrollment_status"
+            parameters["enrollment_status"] = enrollment_status
         rows = self._session.execute(
             text(
-                """
+                f"""
                 SELECT
                     course.id,
                     course.course_code,
@@ -29,32 +40,77 @@ class AcademicRecordRepository:
                 FROM course_enrollments AS enrollment
                 INNER JOIN courses AS course ON course.id = enrollment.course_id
                 WHERE enrollment.student_id = :student_id
+                  {status_clause}
                 ORDER BY course.course_code ASC, course.id ASC
                 """
             ),
-            {"student_id": student_id},
+            parameters,
         ).mappings().all()
         return [dict(row) for row in rows]
 
-    def list_students_for_course(self, course_id: int) -> list[dict[str, Any]]:
+    def list_students_for_course(
+        self,
+        course_id: int,
+        *,
+        enrollment_status: EnrollmentStatus | None = None,
+    ) -> list[dict[str, Any]]:
+        status_clause = ""
+        parameters: dict[str, Any] = {"course_id": course_id}
+        if enrollment_status is not None:
+            status_clause = "AND enrollment.enrollment_status = :enrollment_status"
+            parameters["enrollment_status"] = enrollment_status
         rows = self._session.execute(
             text(
-                """
+                f"""
                 SELECT
                     student.id,
                     student.student_number,
                     student.name,
                     student.email,
-                    enrollment.enrollment_status
+                    student.programme,
+                    student.status AS student_status,
+                    enrollment.enrollment_status,
+                    enrollment.enrolled_at
                 FROM course_enrollments AS enrollment
                 INNER JOIN students AS student ON student.id = enrollment.student_id
                 WHERE enrollment.course_id = :course_id
+                  {status_clause}
                 ORDER BY student.name ASC, student.student_number ASC, student.id ASC
                 """
             ),
-            {"course_id": course_id},
+            parameters,
         ).mappings().all()
         return [dict(row) for row in rows]
+
+    def get_enrollment(
+        self,
+        student_id: int,
+        course_id: int,
+    ) -> dict[str, Any] | None:
+        row = self._session.execute(
+            text(
+                """
+                SELECT
+                    enrollment.id AS enrollment_id,
+                    enrollment.student_id,
+                    student.student_number,
+                    student.name AS student_name,
+                    enrollment.course_id,
+                    course.course_code,
+                    course.course_name,
+                    course.credits,
+                    enrollment.enrollment_status,
+                    enrollment.enrolled_at
+                FROM course_enrollments AS enrollment
+                INNER JOIN students AS student ON student.id = enrollment.student_id
+                INNER JOIN courses AS course ON course.id = enrollment.course_id
+                WHERE enrollment.student_id = :student_id
+                  AND enrollment.course_id = :course_id
+                """
+            ),
+            {"student_id": student_id, "course_id": course_id},
+        ).mappings().first()
+        return dict(row) if row is not None else None
 
     def list_results_for_student(
         self,

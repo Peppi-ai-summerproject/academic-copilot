@@ -6,6 +6,11 @@ from app.mcp.tools.report import generate_report
 from app.mcp.tools.student import get_student, get_student_by_number
 from app.mcp.tools.courses import get_course, search_courses
 from app.mcp.tools.teachers import get_teacher, search_teachers
+from app.mcp.tools.enrollments import (
+    get_course_roster,
+    get_enrollment,
+    get_student_enrollments,
+)
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
@@ -35,6 +40,9 @@ def register_tools(server: FastMCP) -> None:
     server.add_tool(search_courses, name="search_courses", description="Search course names and codes, or list available courses.")
     server.add_tool(get_teacher, name="get_teacher", description="Retrieve a teacher directory record by numeric ID.")
     server.add_tool(search_teachers, name="search_teachers", description="Search teacher names or list the teacher directory.")
+    server.add_tool(get_course_roster, name="get_course_roster", description="List students enrolled in a course, optionally filtered by enrollment status.")
+    server.add_tool(get_student_enrollments, name="get_student_enrollments", description="List a student's course enrollments, optionally filtered by enrollment status.")
+    server.add_tool(get_enrollment, name="get_enrollment", description="Retrieve one student-course enrollment by numeric IDs.")
 
     server.add_tool(
         get_progress,
@@ -101,4 +109,3 @@ def register_tools(server: FastMCP) -> None:
             "academic or tutor actions."
         ),
     )
-
