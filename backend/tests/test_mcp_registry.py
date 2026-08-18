@@ -247,3 +247,10 @@ def test_registered_get_student_dashboard_has_description() -> None:
     assert "student" in dashboard_tool.description.lower()
     assert "profile" in dashboard_tool.description.lower() or            "overview" in dashboard_tool.description.lower()
 
+
+def test_register_tools_registers_academic_discovery_tools() -> None:
+    server = FastMCP(name="test-mcp-server")
+    register_tools(server)
+    tool_names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert {"get_student_by_number", "get_course", "search_courses", "get_teacher", "search_teachers"} <= tool_names
+

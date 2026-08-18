@@ -33,3 +33,22 @@ def get_student(student_id: int) -> dict[str, Any]:
         }
     finally:
         database_session.close()
+
+
+def get_student_by_number(student_number: str) -> dict[str, Any]:
+    """Retrieve a student by their exact, case-insensitive student number."""
+    from app.db.database import SessionLocal
+
+    database_session = SessionLocal()
+    try:
+        return StudentService(StudentRepository(database_session)).get_student_by_number(
+            student_number
+        )
+    except Exception:
+        return {
+            "success": False,
+            "error": "DATABASE_ERROR",
+            "message": "Student information could not be retrieved.",
+        }
+    finally:
+        database_session.close()

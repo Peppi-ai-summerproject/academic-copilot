@@ -12,7 +12,9 @@ from app.mcp.tools.health import ping
 from app.mcp.tools.progress import get_progress
 from app.mcp.tools.report import generate_report
 from app.mcp.tools.search_students import search_students
-from app.mcp.tools.student import get_student
+from app.mcp.tools.student import get_student, get_student_by_number
+from app.mcp.tools.courses import get_course, search_courses
+from app.mcp.tools.teachers import get_teacher, search_teachers
 from app.mcp.tools.student_dashboard import get_student_dashboard
 from app.mcp.tools.study_right import get_study_right
 
@@ -27,6 +29,11 @@ EXPECTED_HANDLERS = {
     "get_upcoming_events": get_upcoming_events,
     "search_students": search_students,
     "get_student_dashboard": get_student_dashboard,
+    "get_student_by_number": get_student_by_number,
+    "get_course": get_course,
+    "search_courses": search_courses,
+    "get_teacher": get_teacher,
+    "search_teachers": search_teachers,
 }
 
 EXPECTED_INPUT_CONTRACTS = {
@@ -59,6 +66,20 @@ EXPECTED_INPUT_CONTRACTS = {
     "get_student_dashboard": (
         {"student_id": ("integer", None)},
         {"student_id"},
+    ),
+    "get_student_by_number": ({"student_number": ("string", None)}, {"student_number"}),
+    "get_course": (
+        {"course_id": (None, None), "course_code": (None, None)},
+        set(),
+    ),
+    "search_courses": (
+        {"query": (None, None), "limit": ("integer", 20), "offset": ("integer", 0)},
+        set(),
+    ),
+    "get_teacher": ({"teacher_id": ("integer", None)}, {"teacher_id"}),
+    "search_teachers": (
+        {"query": (None, None), "limit": ("integer", 20), "offset": ("integer", 0)},
+        set(),
     ),
 }
 

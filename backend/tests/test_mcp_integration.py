@@ -34,6 +34,11 @@ EXPECTED_TOOLS = {
     "search_students",
     "generate_report",
     "get_student_dashboard",
+    "get_student_by_number",
+    "get_course",
+    "search_courses",
+    "get_teacher",
+    "search_teachers",
 }
 
 

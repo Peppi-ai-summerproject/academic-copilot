@@ -24,7 +24,8 @@ class StudentRepository:
                 programme,
                 start_date,
                 status,
-                programme_code
+                programme_code,
+                email
             FROM students
             WHERE id = :student_id
             """
@@ -39,6 +40,22 @@ class StudentRepository:
             return None
 
         return dict(result)
+
+    def get_by_student_number(self, student_number: str) -> dict[str, Any] | None:
+        """Return a student by the exact, case-insensitive student number."""
+
+        result = self._session.execute(
+            text(
+                """
+                SELECT id, student_number, name, email, group_name, programme,
+                       start_date, status, programme_code
+                FROM students
+                WHERE LOWER(student_number) = LOWER(:student_number)
+                """
+            ),
+            {"student_number": student_number},
+        ).mappings().first()
+        return dict(result) if result is not None else None
 
     def search_students(
         self,
@@ -96,7 +113,8 @@ class StudentRepository:
                 programme,
                 start_date,
                 status,
-                programme_code
+                programme_code,
+                email
             FROM students
             {where_clause}
             ORDER BY name ASC, student_number ASC, id ASC
