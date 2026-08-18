@@ -15,6 +15,7 @@ AgentRoute = Literal[
     "recommendation",
     "reporting",
     "communication",
+    "academic_data",
     "finish",
 ]
 
@@ -30,6 +31,7 @@ class AgentName(str, Enum):
     COMMUNICATION = "communication"
     RISK = "risk"
     REPORTING = "reporting"
+    ACADEMIC_DATA = "academic_data"
 
 
 class WorkflowStatus(str, Enum):

@@ -27,6 +27,7 @@ def test_agent_name_has_expected_members():
         "recommendation",
         "communication",
         "reporting",
+        "academic_data",
     }
 
 
