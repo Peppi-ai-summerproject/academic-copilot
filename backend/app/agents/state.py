@@ -28,6 +28,7 @@ class AgentState(BaseModel):
     student_id: int | None = Field(default=None)
     student_name: str | None = Field(default=None)
     programme: str | None = Field(default=None)
+    resolved_entities: list[dict[str, Any]] = Field(default_factory=list)
 
     # Routing context (managed by Supervisor/Router — Issue #79)
     intent: str | None = Field(default=None)
@@ -97,6 +98,7 @@ def create_initial_state(
         student_id=student_id,
         student_name=None,
         programme=None,
+        resolved_entities=[],
         intent=None,
         parameters=parameters or {},
         selected_agents=[],
