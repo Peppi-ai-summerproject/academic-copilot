@@ -16,6 +16,7 @@ from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
 from app.mcp.tools.search_students import search_students
 from app.mcp.tools.student_dashboard import get_student_dashboard
+from app.mcp.tools.results import get_course_results, get_student_results, get_course_completion_analytics
 
 
 def register_tools(server: FastMCP) -> None:
@@ -43,6 +44,9 @@ def register_tools(server: FastMCP) -> None:
     server.add_tool(get_course_roster, name="get_course_roster", description="List students enrolled in a course, optionally filtered by enrollment status.")
     server.add_tool(get_student_enrollments, name="get_student_enrollments", description="List a student's course enrollments, optionally filtered by enrollment status.")
     server.add_tool(get_enrollment, name="get_enrollment", description="Retrieve one student-course enrollment by numeric IDs.")
+    server.add_tool(get_course_results, name="get_course_results", description="Return enrolled students' course results, including unfinished records.")
+    server.add_tool(get_student_results, name="get_student_results", description="Return a student's course results and unfinished enrollments.")
+    server.add_tool(get_course_completion_analytics, name="get_course_completion_analytics", description="Calculate enrollment-based pass, failure, and completion analytics for a course.")
 
     server.add_tool(
         get_progress,

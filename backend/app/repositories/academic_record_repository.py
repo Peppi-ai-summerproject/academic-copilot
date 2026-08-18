@@ -136,6 +136,34 @@ class AcademicRecordRepository:
             result_status,
         )
 
+    def list_course_result_view(self, course_id: int) -> list[dict[str, Any]]:
+        """Return every enrollment once, including those with no completion."""
+        return self._list_result_view("enrollment.course_id = :entity_id", course_id)
+
+    def list_student_result_view(self, student_id: int) -> list[dict[str, Any]]:
+        """Return every enrolled course once, including unfinished work."""
+        return self._list_result_view("enrollment.student_id = :entity_id", student_id)
+
+    def _list_result_view(self, clause: str, entity_id: int) -> list[dict[str, Any]]:
+        rows = self._session.execute(text(f"""
+            SELECT student.id AS student_id, student.student_number,
+                   student.name AS student_name, course.id AS course_id,
+                   course.course_code, course.course_name, completion.credits,
+                   completion.grade, completion.completion_date,
+                   CASE WHEN completion.result_status IS NOT NULL THEN completion.result_status
+                        WHEN enrollment.enrollment_status = 'IN_PROGRESS' THEN 'IN_PROGRESS'
+                        ELSE 'NO_RESULT' END AS result_status
+            FROM course_enrollments AS enrollment
+            INNER JOIN students AS student ON student.id = enrollment.student_id
+            INNER JOIN courses AS course ON course.id = enrollment.course_id
+            LEFT JOIN course_completions AS completion
+              ON completion.student_id = enrollment.student_id
+             AND completion.course_id = enrollment.course_id
+            WHERE {clause}
+            ORDER BY course.course_code ASC, student.name ASC, student.id ASC
+        """), {"entity_id": entity_id}).mappings().all()
+        return [dict(row) for row in rows]
+
     def _list_results(
         self,
         entity_clause: str,
