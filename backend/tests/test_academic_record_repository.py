@@ -44,6 +44,44 @@ def test_list_students_for_course_returns_roster_with_contact() -> None:
     assert rows[0]["email"] == "elina@example.invalid"
 
 
+@pytest.mark.parametrize("status", ["ENROLLED", "IN_PROGRESS", "COMPLETED", "WITHDRAWN"])
+def test_enrollment_lists_filter_canonical_status(status) -> None:
+    session = _session_with_rows()
+    repository = AcademicRecordRepository(session)
+
+    repository.list_courses_for_student(7, enrollment_status=status)
+    statement, params = session.execute.call_args.args
+    assert "enrollment.enrollment_status = :enrollment_status" in statement.text
+    assert params == {"student_id": 7, "enrollment_status": status}
+
+    repository.list_students_for_course(1, enrollment_status=status)
+    statement, params = session.execute.call_args.args
+    assert "enrollment.enrollment_status = :enrollment_status" in statement.text
+    assert params == {"course_id": 1, "enrollment_status": status}
+
+
+def test_get_enrollment_returns_joined_record_or_none() -> None:
+    session = Mock()
+    session.execute.return_value.mappings.return_value.first.return_value = {
+        "enrollment_id": 9,
+        "student_id": 7,
+        "course_id": 1,
+        "enrollment_status": "ENROLLED",
+    }
+
+    row = AcademicRecordRepository(session).get_enrollment(7, 1)
+
+    assert row == {
+        "enrollment_id": 9,
+        "student_id": 7,
+        "course_id": 1,
+        "enrollment_status": "ENROLLED",
+    }
+    statement, params = session.execute.call_args.args
+    assert "course_enrollments" in statement.text
+    assert params == {"student_id": 7, "course_id": 1}
+
+
 @pytest.mark.parametrize("status", ["PASSED", "FAILED"])
 def test_results_for_student_can_filter_canonical_result_status(status) -> None:
     session = _session_with_rows()

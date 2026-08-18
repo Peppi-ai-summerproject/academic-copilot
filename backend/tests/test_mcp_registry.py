@@ -252,5 +252,13 @@ def test_register_tools_registers_academic_discovery_tools() -> None:
     server = FastMCP(name="test-mcp-server")
     register_tools(server)
     tool_names = {tool.name for tool in asyncio.run(server.list_tools())}
-    assert {"get_student_by_number", "get_course", "search_courses", "get_teacher", "search_teachers"} <= tool_names
-
+    assert {
+        "get_student_by_number",
+        "get_course",
+        "search_courses",
+        "get_teacher",
+        "search_teachers",
+        "get_course_roster",
+        "get_student_enrollments",
+        "get_enrollment",
+    } <= tool_names

@@ -15,6 +15,7 @@ from app.mcp.tools.search_students import search_students
 from app.mcp.tools.student import get_student, get_student_by_number
 from app.mcp.tools.courses import get_course, search_courses
 from app.mcp.tools.teachers import get_teacher, search_teachers
+from app.mcp.tools.enrollments import get_course_roster, get_enrollment, get_student_enrollments
 from app.mcp.tools.student_dashboard import get_student_dashboard
 from app.mcp.tools.study_right import get_study_right
 
@@ -34,6 +35,9 @@ EXPECTED_HANDLERS = {
     "search_courses": search_courses,
     "get_teacher": get_teacher,
     "search_teachers": search_teachers,
+    "get_course_roster": get_course_roster,
+    "get_student_enrollments": get_student_enrollments,
+    "get_enrollment": get_enrollment,
 }
 
 EXPECTED_INPUT_CONTRACTS = {
@@ -80,6 +84,18 @@ EXPECTED_INPUT_CONTRACTS = {
     "search_teachers": (
         {"query": (None, None), "limit": ("integer", 20), "offset": ("integer", 0)},
         set(),
+    ),
+    "get_course_roster": (
+        {"course_id": ("integer", None), "enrollment_status": (None, None)},
+        {"course_id"},
+    ),
+    "get_student_enrollments": (
+        {"student_id": ("integer", None), "enrollment_status": (None, None)},
+        {"student_id"},
+    ),
+    "get_enrollment": (
+        {"student_id": ("integer", None), "course_id": ("integer", None)},
+        {"student_id", "course_id"},
     ),
 }
 

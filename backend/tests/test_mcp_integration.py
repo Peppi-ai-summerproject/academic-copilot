@@ -39,6 +39,9 @@ EXPECTED_TOOLS = {
     "search_courses",
     "get_teacher",
     "search_teachers",
+    "get_course_roster",
+    "get_student_enrollments",
+    "get_enrollment",
 }
 
 
