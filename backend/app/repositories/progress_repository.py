@@ -26,6 +26,7 @@ class ProgressRepository:
             FROM students s
             LEFT JOIN course_completions cc
                 ON cc.student_id = s.id
+               AND COALESCE(cc.result_status, 'PASSED') = 'PASSED'
             WHERE s.id = :student_id
             GROUP BY
                 s.id,

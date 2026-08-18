@@ -37,6 +37,8 @@ def test_get_student_progress_data_returns_progress_data() -> None:
 
     parameters = session.execute.call_args.args[1]
     assert parameters == {"student_id": 1}
+    statement = session.execute.call_args.args[0]
+    assert "COALESCE(cc.result_status, 'PASSED') = 'PASSED'" in statement.text
 
 
 def test_get_student_progress_data_returns_none_when_student_not_found() -> None:

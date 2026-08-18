@@ -40,6 +40,33 @@ class StudentRepository:
 
         return dict(result)
 
+    def get_by_student_number(
+        self,
+        student_number: str,
+    ) -> dict[str, Any] | None:
+        """Return a student by the human-facing academic identifier."""
+
+        result = self._session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    student_number,
+                    name,
+                    email,
+                    group_name,
+                    programme,
+                    start_date,
+                    status,
+                    programme_code
+                FROM students
+                WHERE LOWER(student_number) = LOWER(:student_number)
+                """
+            ),
+            {"student_number": student_number.strip()},
+        ).mappings().first()
+        return dict(result) if result is not None else None
+
     def search_students(
         self,
         query: str | None = None,
@@ -156,4 +183,3 @@ class StudentRepository:
                 {"active_status": "ACTIVE"},
             ).mappings().all()
         return [int(row["id"]) for row in rows]
-
