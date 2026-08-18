@@ -38,6 +38,24 @@ def test_get_by_id_returns_none_when_student_is_missing() -> None:
     assert result is None
 
 
+def test_get_by_student_number_returns_contact_record() -> None:
+    session = Mock()
+    row = {
+        "id": 1,
+        "student_number": "12345",
+        "name": "Mikael Virtanen",
+        "email": "mikael@example.invalid",
+    }
+    session.execute.return_value.mappings.return_value.first.return_value = row
+
+    result = StudentRepository(session).get_by_student_number("12345")
+
+    assert result == row
+    statement, params = session.execute.call_args.args
+    assert "LOWER(student_number)" in statement.text
+    assert params == {"student_number": "12345"}
+
+
 # ── search_students tests ─────────────────────────────────────────────────────
 
 def _make_session_with_rows(rows: list[dict], total: int) -> "Mock":
@@ -200,4 +218,3 @@ def test_list_active_student_ids_intersects_requested_ids_with_active_students()
     assert result == [3]
     _, parameters = session.execute.call_args.args
     assert parameters == {"active_status": "ACTIVE", "student_ids": [3, 9]}
-

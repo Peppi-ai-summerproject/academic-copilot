@@ -78,3 +78,34 @@ def test_list_active_tutor_recipients_for_student_requires_assignment_and_provis
     assert "tutor.telegram_user_id IS NOT NULL" in statement
     assert "tutor.telegram_chat_id IS NOT NULL" in statement
     assert params == {"student_id": 10}
+
+
+def test_get_teacher_by_id_returns_supported_contact_information():
+    session = Mock()
+    row = {
+        "id": 3,
+        "display_name": "Anna Example",
+        "email": "anna@example.invalid",
+        "is_active": True,
+    }
+    session.execute.return_value.mappings.return_value.first.return_value = row
+    assert TutorRepository(session).get_by_id(3) == row
+
+
+def test_search_teacher_by_name_is_case_insensitive():
+    session = _session_with_rows({"id": 3, "display_name": "Anna Example"})
+    assert TutorRepository(session).search_by_name("ANNA")[0]["id"] == 3
+    _, params = session.execute.call_args.args
+    assert params == {"name_pattern": "%anna%"}
+
+
+def test_list_courses_for_teacher_supports_multiple_assignments():
+    session = _session_with_rows(
+        {"id": 1, "course_code": "DBS24", "assignment_role": "TEACHER"},
+        {"id": 2, "course_code": "DIN24", "assignment_role": "LEAD_TEACHER"},
+    )
+    courses = TutorRepository(session).list_courses_for_teacher(3)
+    assert [course["course_code"] for course in courses] == ["DBS24", "DIN24"]
+    statement, params = session.execute.call_args.args
+    assert "teacher_course_assignments" in statement.text
+    assert params == {"tutor_id": 3}

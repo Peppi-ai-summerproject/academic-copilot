@@ -27,6 +27,53 @@ class TutorRepository:
         ).mappings().all()
         return [dict(row) for row in rows]
 
+    def get_by_id(self, tutor_id: int) -> dict[str, Any] | None:
+        row = self._session.execute(
+            text(
+                """
+                SELECT id, display_name, email, is_active
+                FROM tutors
+                WHERE id = :tutor_id
+                """
+            ),
+            {"tutor_id": tutor_id},
+        ).mappings().first()
+        return dict(row) if row is not None else None
+
+    def search_by_name(self, query: str) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            text(
+                """
+                SELECT id, display_name, email, is_active
+                FROM tutors
+                WHERE LOWER(display_name) LIKE :name_pattern
+                ORDER BY display_name ASC, id ASC
+                """
+            ),
+            {"name_pattern": f"%{query.strip().lower()}%"},
+        ).mappings().all()
+        return [dict(row) for row in rows]
+
+    def list_courses_for_teacher(self, tutor_id: int) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            text(
+                """
+                SELECT
+                    course.id,
+                    course.course_code,
+                    course.course_name,
+                    course.credits,
+                    assignment.assignment_role
+                FROM teacher_course_assignments AS assignment
+                INNER JOIN courses AS course ON course.id = assignment.course_id
+                WHERE assignment.tutor_id = :tutor_id
+                ORDER BY course.course_code ASC, course.id ASC
+                """
+            ),
+            {"tutor_id": tutor_id},
+        ).mappings().all()
+        return [dict(row) for row in rows]
+
     def list_students_for_tutor(self, tutor_id: int) -> list[dict[str, Any]]:
         rows = self._session.execute(
             text(
