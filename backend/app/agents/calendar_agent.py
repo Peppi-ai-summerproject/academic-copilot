@@ -7,6 +7,7 @@ from app.agents.base import AcademicAgent, AgentResult
 from app.agents.state import AgentState
 from app.agents.types import AgentRoute
 from app.core.logger import logger
+from app.gateways.academic_tools import AcademicToolGateway
 
 
 class CalendarAgent(AcademicAgent):
@@ -18,6 +19,12 @@ class CalendarAgent(AcademicAgent):
         "and returns structured calendar information for the current workflow."
     )
     route: AgentRoute = "calendar"
+
+    def __init__(self, gateway: AcademicToolGateway | None = None) -> None:
+        # Calendar currently uses its date-filtered MCP event adapter directly.
+        # Accept the shared registry dependency so it follows the same creation
+        # contract as the other academic agents.
+        self._gateway = gateway
 
     async def run(self, state: AgentState) -> AgentResult:
         logger.info(
@@ -68,10 +75,20 @@ class CalendarAgent(AcademicAgent):
             end_date,
         )
 
-        tool_result = self._get_upcoming_events(
-            start_date=start_date,
-            end_date=end_date,
-        )
+        if self._gateway is not None:
+            try:
+                tool_result = await self._gateway.get_upcoming_events()
+            except Exception:
+                tool_result = {
+                    "success": False,
+                    "error": "CALENDAR_GATEWAY_ERROR",
+                    "message": "Academic event data is unavailable.",
+                }
+        else:
+            tool_result = self._get_upcoming_events(
+                start_date=start_date,
+                end_date=end_date,
+            )
 
         if not tool_result.get("success", False):
             logger.error(

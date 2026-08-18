@@ -134,7 +134,7 @@ def test_supported_telegram_message_crosses_real_application_and_returns_reply(
             update_id=1001,
             user_id=7001,
             chat_id=8001,
-            text="Hello Academic Copilot",
+            text="Hi",
         ),
     )
 
@@ -144,8 +144,8 @@ def test_supported_telegram_message_crosses_real_application_and_returns_reply(
     assert len(bot.actions) == 1
     assert len(bot.messages) == 1
     assert bot.messages[0]["chat_id"] == 8001
-    assert "Backend received your message successfully" in bot.messages[0]["text"]
-    assert "Hello Academic Copilot" in bot.messages[0]["text"]
+    assert "Academic Copilot" in bot.messages[0]["text"]
+    assert "Backend received your message successfully" not in bot.messages[0]["text"]
     session = sessions.get_session(7001)
     assert session is not None
     assert session.message_count == 1
@@ -158,8 +158,8 @@ def test_sequential_telegram_users_keep_session_and_response_data_isolated(
     client, _, bot, sessions = journey
 
     for update_id, user_id, chat_id, text in (
-        (2001, 7101, 8101, "Student Alpha synthetic request"),
-        (2002, 7202, 8202, "Student Beta synthetic request"),
+        (2001, 7101, 8101, "Hi"),
+        (2002, 7202, 8202, "What's the weather today?"),
     ):
         response = client.post(
             "/api/v1/telegram/webhook",
@@ -174,10 +174,10 @@ def test_sequential_telegram_users_keep_session_and_response_data_isolated(
         assert response.status_code == 200
 
     assert [message["chat_id"] for message in bot.messages] == [8101, 8202]
-    assert "Student Alpha" in bot.messages[0]["text"]
-    assert "Student Beta" not in bot.messages[0]["text"]
-    assert "Student Beta" in bot.messages[1]["text"]
-    assert "Student Alpha" not in bot.messages[1]["text"]
+    assert "Academic Copilot" in bot.messages[0]["text"]
+    assert "focused on" not in bot.messages[0]["text"]
+    assert "focused on" in bot.messages[1]["text"]
+    assert "Hi!" not in bot.messages[1]["text"]
     assert sessions.get_session(7101).telegram_chat_id == 8101
     assert sessions.get_session(7202).telegram_chat_id == 8202
 
