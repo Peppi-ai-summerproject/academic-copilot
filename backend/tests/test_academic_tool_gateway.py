@@ -67,3 +67,14 @@ def test_gateway_rejects_invalid_tool_response() -> None:
 
     with pytest.raises(AcademicToolGatewayError, match="get_student"):
         asyncio.run(gateway.get_student(1))
+
+
+def test_gateway_delegates_discovery_tools_and_preserves_response() -> None:
+    response = {"success": True, "courses": []}
+    course_search_tool = Mock(return_value=response)
+    gateway = MCPAcademicToolGateway(search_courses_tool=course_search_tool)
+
+    result = asyncio.run(gateway.search_courses(query="software", limit=5))
+
+    assert result is response
+    course_search_tool.assert_called_once_with(query="software", limit=5)

@@ -3,7 +3,9 @@ from mcp.server.fastmcp import FastMCP
 from app.mcp.tools.health import ping
 from app.mcp.tools.progress import get_progress
 from app.mcp.tools.report import generate_report
-from app.mcp.tools.student import get_student
+from app.mcp.tools.student import get_student, get_student_by_number
+from app.mcp.tools.courses import get_course, search_courses
+from app.mcp.tools.teachers import get_teacher, search_teachers
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.curriculum import get_curriculum
 from app.mcp.tools.events import get_upcoming_events
@@ -28,6 +30,11 @@ def register_tools(server: FastMCP) -> None:
             "using the student's numeric database ID."
         ),
     )
+    server.add_tool(get_student_by_number, name="get_student_by_number", description="Retrieve a student profile using an exact student number.")
+    server.add_tool(get_course, name="get_course", description="Retrieve a course by its numeric ID or exact course code.")
+    server.add_tool(search_courses, name="search_courses", description="Search course names and codes, or list available courses.")
+    server.add_tool(get_teacher, name="get_teacher", description="Retrieve a teacher directory record by numeric ID.")
+    server.add_tool(search_teachers, name="search_teachers", description="Search teacher names or list the teacher directory.")
 
     server.add_tool(
         get_progress,

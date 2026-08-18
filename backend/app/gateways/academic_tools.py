@@ -15,10 +15,14 @@ from app.mcp.tools.progress import get_progress
 from app.mcp.tools.student import get_student
 from app.mcp.tools.study_right import get_study_right
 from app.mcp.tools.events import get_upcoming_events
+from app.mcp.tools.search_students import search_students
+from app.mcp.tools.courses import get_course, search_courses
+from app.mcp.tools.teachers import get_teacher, search_teachers
 
 ToolResponse = dict[str, Any]
 AcademicTool = Callable[[int], ToolResponse]
 EventTool = Callable[[], ToolResponse]
+SearchTool = Callable[..., ToolResponse]
 
 
 class AcademicToolGatewayError(RuntimeError):
@@ -45,6 +49,16 @@ class AcademicToolGateway(Protocol):
 
     async def get_upcoming_events(self) -> ToolResponse: ...
 
+    async def search_students(self, **kwargs: Any) -> ToolResponse: ...
+
+    async def get_course(self, **kwargs: Any) -> ToolResponse: ...
+
+    async def search_courses(self, **kwargs: Any) -> ToolResponse: ...
+
+    async def get_teacher(self, teacher_id: int) -> ToolResponse: ...
+
+    async def search_teachers(self, **kwargs: Any) -> ToolResponse: ...
+
 
 class MCPAcademicToolGateway:
     """In-process adapter over the existing synchronous MCP tool functions.
@@ -61,11 +75,21 @@ class MCPAcademicToolGateway:
         progress_tool: AcademicTool = get_progress,
         study_right_tool: AcademicTool = get_study_right,
         upcoming_events_tool: EventTool = get_upcoming_events,
+        search_students_tool: SearchTool = search_students,
+        course_tool: SearchTool = get_course,
+        search_courses_tool: SearchTool = search_courses,
+        teacher_tool: AcademicTool = get_teacher,
+        search_teachers_tool: SearchTool = search_teachers,
     ) -> None:
         self._student_tool = student_tool
         self._progress_tool = progress_tool
         self._study_right_tool = study_right_tool
         self._upcoming_events_tool = upcoming_events_tool
+        self._search_students_tool = search_students_tool
+        self._course_tool = course_tool
+        self._search_courses_tool = search_courses_tool
+        self._teacher_tool = teacher_tool
+        self._search_teachers_tool = search_teachers_tool
 
     async def get_student(self, student_id: int) -> ToolResponse:
         return await self._invoke("get_student", self._student_tool, student_id)
@@ -82,6 +106,21 @@ class MCPAcademicToolGateway:
         return await self._invoke_no_args(
             "get_upcoming_events", self._upcoming_events_tool
         )
+
+    async def search_students(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("search_students", self._search_students_tool, kwargs)
+
+    async def get_course(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("get_course", self._course_tool, kwargs)
+
+    async def search_courses(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("search_courses", self._search_courses_tool, kwargs)
+
+    async def get_teacher(self, teacher_id: int) -> ToolResponse:
+        return await self._invoke("get_teacher", self._teacher_tool, teacher_id)
+
+    async def search_teachers(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("search_teachers", self._search_teachers_tool, kwargs)
 
     @staticmethod
     async def _invoke(
@@ -103,6 +142,20 @@ class MCPAcademicToolGateway:
         tool: EventTool,
     ) -> ToolResponse:
         response = await asyncio.to_thread(tool)
+        if not isinstance(response, dict):
+            raise AcademicToolGatewayError(
+                tool_name,
+                f"expected a dictionary response, got {type(response).__name__}",
+            )
+        return response
+
+    @staticmethod
+    async def _invoke_kwargs(
+        tool_name: str,
+        tool: SearchTool,
+        kwargs: dict[str, Any],
+    ) -> ToolResponse:
+        response = await asyncio.to_thread(tool, **kwargs)
         if not isinstance(response, dict):
             raise AcademicToolGatewayError(
                 tool_name,

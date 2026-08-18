@@ -1,3 +1,5 @@
+"""Database access for the canonical course catalogue."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -11,6 +13,19 @@ class CourseRepository:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def get_by_id(self, course_id: int) -> dict[str, Any] | None:
+        row = self._session.execute(
+            text(
+                """
+                SELECT id, course_code, course_name, credits,
+                       programme_code, semester, is_active
+                FROM courses WHERE id = :course_id
+                """
+            ),
+            {"course_id": course_id},
+        ).mappings().first()
+        return dict(row) if row is not None else None
 
     def get_by_code(self, course_code: str) -> dict[str, Any] | None:
         row = self._session.execute(
@@ -30,18 +45,14 @@ class CourseRepository:
         parameters: dict[str, Any] = {}
         where_clause = ""
         if query and query.strip():
-            where_clause = (
-                "WHERE LOWER(course_code) LIKE :query "
-                "OR LOWER(course_name) LIKE :query"
-            )
+            where_clause = "WHERE LOWER(course_code) LIKE :query OR LOWER(course_name) LIKE :query"
             parameters["query"] = f"%{query.strip().lower()}%"
         rows = self._session.execute(
             text(
                 f"""
                 SELECT id, course_code, course_name, credits,
                        programme_code, semester, is_active
-                FROM courses
-                {where_clause}
+                FROM courses {where_clause}
                 ORDER BY course_code ASC, id ASC
                 """
             ),
@@ -53,15 +64,11 @@ class CourseRepository:
         rows = self._session.execute(
             text(
                 """
-                SELECT
-                    tutor.id,
-                    tutor.display_name,
-                    tutor.email,
-                    assignment.assignment_role
+                SELECT tutor.id, tutor.display_name, tutor.email,
+                       assignment.assignment_role
                 FROM teacher_course_assignments AS assignment
                 INNER JOIN tutors AS tutor ON tutor.id = assignment.tutor_id
-                WHERE assignment.course_id = :course_id
-                  AND tutor.is_active = TRUE
+                WHERE assignment.course_id = :course_id AND tutor.is_active = TRUE
                 ORDER BY tutor.display_name ASC, tutor.id ASC
                 """
             ),

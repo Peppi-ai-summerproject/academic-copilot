@@ -32,3 +32,21 @@ class StudentService:
             "success": True,
             "student": student,
         }
+
+    def get_student_by_number(self, student_number: str) -> dict[str, Any]:
+        """Return a student by their exact academic identifier."""
+        if not isinstance(student_number, str) or not student_number.strip():
+            return {
+                "success": False,
+                "error": "INVALID_STUDENT_NUMBER",
+                "message": "Student number must be a non-empty string.",
+            }
+
+        student = self._repository.get_by_student_number(student_number.strip())
+        if student is None:
+            return {
+                "success": False,
+                "error": "STUDENT_NOT_FOUND",
+                "message": "Student with this student number was not found.",
+            }
+        return {"success": True, "student": student}

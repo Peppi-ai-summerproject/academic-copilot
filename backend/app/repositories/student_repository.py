@@ -24,7 +24,8 @@ class StudentRepository:
                 programme,
                 start_date,
                 status,
-                programme_code
+                programme_code,
+                email
             FROM students
             WHERE id = :student_id
             """
@@ -123,7 +124,8 @@ class StudentRepository:
                 programme,
                 start_date,
                 status,
-                programme_code
+                programme_code,
+                email
             FROM students
             {where_clause}
             ORDER BY name ASC, student_number ASC, id ASC
