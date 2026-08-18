@@ -148,6 +148,7 @@ def create_default_agent_registry() -> AgentRegistry:
     from app.agents.reporting_agent import ReportingAgent
     from app.agents.risk_detection_agent import RiskDetectionAgent
     from app.agents.study_rights_agent import StudyRightsAgent
+    from app.agents.academic_data_query_agent import AcademicDataQueryAgent
 
     registry = AgentRegistry()
     registry.register("calendar", CalendarAgent)
@@ -157,6 +158,7 @@ def create_default_agent_registry() -> AgentRegistry:
     registry.register("recommendation", RecommendationAgent)
     registry.register("reporting", ReportingAgent)
     registry.register("communication", CommunicationAgent)
+    registry.register("academic_data", AcademicDataQueryAgent)
     return registry
 
 

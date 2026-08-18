@@ -15,6 +15,7 @@ AgentRoute = Literal[
     "recommendation",
     "reporting",
     "communication",
+    "academic_data",
     "finish",
 ]
 

@@ -12,6 +12,7 @@ SUPPORTED_ROUTES: tuple[AgentRoute, ...] = (
     "recommendation",
     "reporting",
     "communication",
+    "academic_data",
     "finish",
 )
 
