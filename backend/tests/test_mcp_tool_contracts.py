@@ -41,6 +41,7 @@ EXPECTED_HANDLERS = {
     "get_enrollment": get_enrollment,
     "get_course_results": get_course_results,
     "get_student_results": get_student_results,
+    "get_course_completion_analytics": get_course_completion_analytics,
 }
 
 EXPECTED_INPUT_CONTRACTS = {
@@ -102,6 +103,7 @@ EXPECTED_INPUT_CONTRACTS = {
     ),
     "get_course_results": ({"course_code": ("string", None), "status": (None, None)}, {"course_code"}),
     "get_student_results": ({"student_id": ("integer", None), "status": (None, None)}, {"student_id"}),
+    "get_course_completion_analytics": ({"course_code": ("string", None)}, {"course_code"}),
 }
 
 
