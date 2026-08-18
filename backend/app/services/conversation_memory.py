@@ -36,6 +36,7 @@ class ConversationMemoryStore(Protocol):
         assistant_message: str,
         selected_agents: list[str],
         interaction_status: str,
+        resolved_entities: list[dict] | None = None,
     ) -> None: ...
 
 
@@ -49,6 +50,7 @@ class InMemoryConversationMemoryStore:
     def __init__(self) -> None:
         self._mappings: dict[tuple[int, int], UUID] = {}
         self._messages: dict[MemoryScope, list[MemoryMessage]] = {}
+        self._entities: dict[MemoryScope, list[dict]] = {}
 
     def resolve_telegram_conversation(self, user_id: int, chat_id: int) -> UUID:
         return self._mappings.setdefault((user_id, chat_id), uuid4())
@@ -58,6 +60,7 @@ class InMemoryConversationMemoryStore:
             conversation_id=scope.conversation_id,
             student_id=scope.student_id,
             messages=list(self._messages.get(scope, [])),
+            resolved_entities=list(self._entities.get(scope, [])),
         )
 
     def save_turn(
@@ -68,6 +71,7 @@ class InMemoryConversationMemoryStore:
         assistant_message: str,
         selected_agents: list[str],
         interaction_status: str,
+        resolved_entities: list[dict] | None = None,
     ) -> None:
         del selected_agents
         if interaction_status not in {"completed", "partial"}:
@@ -79,6 +83,8 @@ class InMemoryConversationMemoryStore:
             MemoryMessage(role="assistant", content=_bounded_text(assistant_message), interaction_status=interaction_status, created_at=now),
         ])
         self._messages[scope] = messages[-MAX_MEMORY_MESSAGES:]
+        if resolved_entities:
+            self._entities[scope] = list(resolved_entities)
 
 
 class SQLAlchemyConversationMemoryStore:
@@ -159,7 +165,9 @@ class SQLAlchemyConversationMemoryStore:
         assistant_message: str,
         selected_agents: list[str],
         interaction_status: str,
+        resolved_entities: list[dict] | None = None,
     ) -> None:
+        del resolved_entities
         if interaction_status not in {"completed", "partial"}:
             return
         session = self._session_factory()

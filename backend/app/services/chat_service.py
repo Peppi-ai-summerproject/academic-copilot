@@ -26,6 +26,10 @@ from app.db.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 
+def _is_context_reference(message: str) -> bool:
+    return message.casefold().strip().startswith(("she", "he", "this course", "that course"))
+
+
 class AgentWorkflow(Protocol):
     async def run(self, state: AgentState) -> AgentState: ...
 
@@ -93,6 +97,8 @@ class ChatService:
         fallback_interaction_status = "failed"
         resolved_entities: list[dict] = []
         query_parameters: dict = {}
+        if memory and _is_context_reference(request.message) and len(memory.resolved_entities) == 1:
+            resolved_entities = list(memory.resolved_entities)
 
         if selected_routes:
             routing_failure = self._validate_explicit_routes(selected_routes)
@@ -177,6 +183,7 @@ class ChatService:
                     assistant_message=reply,
                     selected_agents=[str(route) for route in selected_routes],
                     interaction_status=interaction_status,
+                    resolved_entities=resolved_entities,
                 )
             except Exception:
                 logger.warning("Conversation memory could not be saved safely.")
