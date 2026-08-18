@@ -109,3 +109,14 @@ def test_list_courses_for_teacher_supports_multiple_assignments():
     statement, params = session.execute.call_args.args
     assert "teacher_course_assignments" in statement.text
     assert params == {"tutor_id": 3}
+
+
+def test_list_courses_for_teacher_filters_exact_role():
+    session = _session_with_rows()
+    TutorRepository(session).list_courses_for_teacher(
+        3,
+        assignment_role="LEAD_TEACHER",
+    )
+    statement, params = session.execute.call_args.args
+    assert "assignment.assignment_role = :assignment_role" in statement.text
+    assert params == {"tutor_id": 3, "assignment_role": "LEAD_TEACHER"}

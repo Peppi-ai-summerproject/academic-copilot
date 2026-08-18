@@ -66,3 +66,12 @@ def test_list_teachers_returns_contact_and_assignment_role() -> None:
     statement, params = session.execute.call_args.args
     assert "teacher_course_assignments" in statement.text
     assert params == {"course_id": 4}
+
+
+def test_list_teachers_filters_exact_role_and_uses_stable_order() -> None:
+    session = _session_with_rows()
+    CourseRepository(session).list_teachers(4, assignment_role="LEAD_TEACHER")
+    statement, params = session.execute.call_args.args
+    assert "assignment.assignment_role = :assignment_role" in statement.text
+    assert "ORDER BY assignment.assignment_role ASC" in statement.text
+    assert params == {"course_id": 4, "assignment_role": "LEAD_TEACHER"}
