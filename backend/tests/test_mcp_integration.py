@@ -44,6 +44,9 @@ EXPECTED_TOOLS = {
     "get_enrollment",
     "get_course_teachers",
     "get_teacher_courses",
+    "get_course_results",
+    "get_student_results",
+    "get_course_completion_analytics",
 }
 
 
