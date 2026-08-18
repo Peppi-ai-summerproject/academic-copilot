@@ -213,7 +213,7 @@ def test_max_steps_bounds_collaboration_without_duplicate_execution():
     assert result.workflow_status is WorkflowStatus.PARTIAL
 
 
-def test_missing_collaborator_accumulates_error_and_preserves_completed_results():
+def test_calendar_and_partial_collaborators_preserve_completed_results():
     state = create_initial_state(user_message="Analyse and format", student_id=1)
     state.selected_agents = ["progress", "calendar", "reporting", "communication"]
 
@@ -224,8 +224,8 @@ def test_missing_collaborator_accumulates_error_and_preserves_completed_results(
     assert result.current_agent is None
     assert result.step_count == 4
     assert "progress" in result.agent_results
-    assert "calendar" not in result.agent_results
-    assert "No registered agent for route 'calendar'." in result.errors
+    assert result.agent_results["calendar"].status == "SUCCESS"
+    assert "No registered agent for route 'calendar'." not in result.errors
     assert result.workflow_status is WorkflowStatus.PARTIAL
     assert any("study-right" in warning for warning in result.warnings)
     assert any("unavailable" in warning for warning in result.warnings)
