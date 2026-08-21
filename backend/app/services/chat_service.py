@@ -133,6 +133,14 @@ class ChatService:
                     else:
                         resolved_entities = merge_canonical_entities(stored_entities, current_resolutions)
                     missing = missing_entities(query_parameters.get("capability"), resolved_entities)
+                    if (
+                        query_parameters.get("capability") == "teacher_contact"
+                        and not intent_result.entity_references
+                        and entity_for(resolved_entities, "TEACHER") is None
+                        and entity_for(resolved_entities, "STUDENT") is not None
+                    ):
+                        query_parameters["capability"] = "student_lookup"
+                        missing = ()
                     if not unresolved and missing:
                         routing_failure = _missing_entity_fallback(missing)
                         fallback_interaction_status = "completed"

@@ -33,7 +33,7 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         if student and course:
             return _match("student_course_result", student, course, result_filter="FAILED")
         return _match("course_results", course, result_filter="FAILED")
-    if re.search(r"\b(passed|pass)\b", lower) and course:
+    if re.search(r"\b(passed|pass)\b", lower):
         if student or re.search(r"\b(?:she|he|they)\b", lower):
             return _match("student_course_result", student, course, result_filter="PASSED")
         return _match("course_results", course, result_filter="PASSED")
@@ -50,7 +50,11 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("course_teachers", course, role=role)
     if re.search(r"\b(which|what|show).*courses?\b.*\b(teach|teaching)\b", lower) or re.search(r"\bcourses? does\b.*\bteach", lower):
         return _match("teacher_courses", teacher)
-    if re.search(r"\b(email|contact)\b", lower) and ("teacher" in lower or teacher or re.search(r"\b(?:his|her|their)\b", lower)):
+    if re.search(r"\b(email|contact)\b", lower) and (
+        "teacher" in lower
+        or teacher
+        or re.search(r"\b(?:his|her|their)\b", lower)
+    ):
         return _match("teacher_contact", teacher)
     if re.search(r"\b(find|show) teacher\b", lower):
         return _match("teacher_lookup", teacher)
@@ -62,7 +66,13 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("student_lookup", student)
     if re.search(r"\b(show me all courses|list (?:all )?courses)\b", lower):
         return TutorQueryMatch("course_search")
-    if (re.search(r"\b(find course|what is|what about|show (?:me )?course)\b", lower) or re.match(r"^show (?:me )?", lower)) and course:
+    if (
+        re.search(
+            r"\b(find (?:the )?.+ course|find course|what is|what about|show (?:me )?course)\b",
+            lower,
+        )
+        or re.match(r"^show (?:me )?", lower)
+    ) and course:
         return _match("course_lookup", course)
     if match := re.search(r"^(?:now\s+)?(?:find|show me|show)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)\.?$", text, re.IGNORECASE):
         return _match("student_lookup", ("STUDENT", match.group(1)))
