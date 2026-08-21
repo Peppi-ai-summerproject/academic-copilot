@@ -181,6 +181,8 @@ class AcademicRecordRepository:
                 SELECT
                     completion.id,
                     completion.student_id,
+                    student.student_number,
+                    student.name AS student_name,
                     completion.course_id,
                     course.course_code,
                     course.course_name,
@@ -190,6 +192,7 @@ class AcademicRecordRepository:
                     completion.grade,
                     completion.completion_date
                 FROM course_completions AS completion
+                INNER JOIN students AS student ON student.id = completion.student_id
                 INNER JOIN courses AS course ON course.id = completion.course_id
                 WHERE {entity_clause}
                   {status_clause}

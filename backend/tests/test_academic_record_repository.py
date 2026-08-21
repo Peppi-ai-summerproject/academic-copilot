@@ -105,4 +105,6 @@ def test_results_for_course_supports_pass_fail_counts_without_reimplementing_pol
     assert [row["result_status"] for row in rows] == ["PASSED", "FAILED"]
     statement, params = session.execute.call_args.args
     assert "completion.course_id = :entity_id" in statement.text
+    assert "student.name AS student_name" in statement.text
+    assert "INNER JOIN students AS student" in statement.text
     assert params == {"entity_id": 1}
