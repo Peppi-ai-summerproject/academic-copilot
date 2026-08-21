@@ -26,6 +26,9 @@ class DeterministicAcademicGateway:
         {"id": 9, "student_number": "1111111", "name": "Anna Laine", "email": "laine@example.test", "programme": "Business"},
         {"id": 1, "student_number": "S001", "name": "Mikael Virtanen", "email": "mikael@example.test", "programme": "ICT"},
         {"id": 2, "student_number": "S002", "name": "Aino Mäkinen", "email": "aino@example.test", "programme": "ICT"},
+        {"id": 40, "student_number": "DEMO22101", "name": "Elina Demo", "email": "elina@example.test", "programme": "ICT"},
+        {"id": 41, "student_number": "DEMO22102", "name": "Oskari Example", "email": "oskari@example.test", "programme": "ICT"},
+        {"id": 42, "student_number": "DEMO22103", "name": "Noora Noresult", "email": "noora@example.test", "programme": "ICT"},
     ]
     courses = [
         {"id": 24, "course_code": "DIN24", "course_name": "Digital Innovation", "credits": 5},
@@ -103,6 +106,8 @@ class DeterministicAcademicGateway:
         rows = [
             {"student_name": "Anna Korhonen", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 5},
             {"student_name": "John Smith", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
+            {"student_name": "Elina Demo", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 5},
+            {"student_name": "Oskari Example", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
         ]
         if kwargs.get("status"):
             rows = [row for row in rows if row["result_status"] == kwargs["status"]]
@@ -110,10 +115,18 @@ class DeterministicAcademicGateway:
 
     async def get_student_results(self, **kwargs):
         self._record("get_student_results", **kwargs)
-        rows = [
-            {"course_code": "DIN24", "result_status": "PASSED", "grade": 5},
-            {"course_code": "MAT101", "result_status": "FAILED", "grade": 0},
-        ]
+        rows_by_student = {
+            40: [{"course_code": "DIN24", "result_status": "PASSED", "grade": 5}],
+            41: [{"course_code": "DIN24", "result_status": "FAILED", "grade": 0}],
+            42: [{"course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
+        }
+        rows = rows_by_student.get(
+            kwargs["student_id"],
+            [
+                {"course_code": "DIN24", "result_status": "PASSED", "grade": 5},
+                {"course_code": "MAT101", "result_status": "FAILED", "grade": 0},
+            ],
+        )
         if kwargs.get("status"):
             rows = [row for row in rows if row["result_status"] == kwargs["status"]]
         return {"success": True, "results": rows}
@@ -252,6 +265,43 @@ def test_student_course_result_grade_and_unrelated_context_preservation(copilot)
     reply = ask(copilot, "What grade did she get?").reply
     assert "MAT101" in reply and "grade 0" in reply
     assert {kind: row["canonical_id"] for kind, row in active_entities(copilot).items()} == {"STUDENT": 7, "COURSE": 101}
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    ("student", "pronoun", "expected_status", "expected_grade"),
+    [
+        ("Elina Demo", "she", "PASSED", 5),
+        ("Oskari Example", "he", "FAILED", 0),
+    ],
+)
+def test_student_course_yes_no_returns_actual_pass_or_fail_result(
+    copilot, student, pronoun, expected_status, expected_grade
+):
+    ask(copilot, f"Show me {student}.")
+
+    result = ask(copilot, f"Did {pronoun} pass DIN24?").reply
+    grade = ask(copilot, f"What grade did {pronoun} get?").reply
+
+    assert expected_status in result
+    assert f"grade {expected_grade}" in result
+    assert expected_status in grade
+    assert f"grade {expected_grade}" in grade
+
+
+@pytest.mark.e2e
+def test_student_course_yes_no_reports_none_when_student_has_no_course_result(copilot):
+    ask(copilot, "Show me Noora Noresult.")
+
+    assert ask(copilot, "Did she pass DIN24?").reply.endswith("Results: none found.")
+
+
+@pytest.mark.e2e
+def test_course_level_passed_query_still_filters_to_passed_students(copilot):
+    reply = ask(copilot, "Who passed DIN24?").reply
+
+    assert "Elina Demo" in reply and "PASSED" in reply
+    assert "Oskari Example" not in reply
 
 
 @pytest.mark.e2e

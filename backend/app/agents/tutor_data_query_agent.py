@@ -49,7 +49,7 @@ class TutorDataQueryAgent:
         if capability == "course_results": return await self._gateway.get_course_results(course_code=_course_code(course), status=params.get("result_filter"))
         if capability == "course_analytics": return await self._gateway.get_course_completion_analytics(course_code=_course_code(course))
         if capability == "student_course_result":
-            result = await self._gateway.get_student_results(student_id=student["canonical_id"], status=params.get("result_filter"))
+            result = await self._gateway.get_student_results(student_id=student["canonical_id"])
             if result.get("success"):
                 rows = result.get("results", result.get("courses", []))
                 result = {**result, "results": [row for row in rows if row.get("course_code") == _course_code(course)]}
