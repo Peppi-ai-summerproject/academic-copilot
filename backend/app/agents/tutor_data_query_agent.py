@@ -85,6 +85,20 @@ def _summary(capability: str, response: dict[str, Any]) -> str:
             ("course code", course.get("course_code")),
             ("credits", course.get("credits") or course.get("ects")),
         )
+    if capability == "course_search":
+        courses = response.get("courses", [])
+        summary = _rows("Courses", courses, _course_label)
+        pagination = response.get("pagination")
+        if courses and isinstance(pagination, dict) and pagination.get("has_more") is True:
+            returned = pagination.get("returned")
+            total = pagination.get("total")
+            if isinstance(returned, int) and isinstance(total, int):
+                return (
+                    f"{summary} Showing {returned} of {total} courses on this page; "
+                    "more results are available."
+                )
+            return f"{summary} More results are available."
+        return summary
     if capability == "teacher_lookup" or capability == "teacher_contact":
         teacher = response.get("teacher", {})
         return _profile(

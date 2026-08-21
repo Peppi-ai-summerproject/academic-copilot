@@ -55,7 +55,15 @@ class DeterministicAcademicGateway:
         self._record("search_courses", **kwargs)
         query = kwargs.get("query")
         rows = self.courses if query is None else self._matches(self.courses, query, "course_code", "course_name")
-        return {"success": True, "courses": deepcopy(rows)}
+        return {
+            "success": True,
+            "pagination": {
+                "returned": len(rows),
+                "total": len(rows),
+                "has_more": False,
+            },
+            "courses": deepcopy(rows),
+        }
 
     async def search_teachers(self, **kwargs):
         self._record("search_teachers", **kwargs)
@@ -177,6 +185,15 @@ def test_course_discovery_by_code_and_name(copilot):
     assert "DIN24" in ask(copilot, "Show me course DIN24.").reply
     assert "Software Engineering" in ask(copilot, "Find the Software Engineering course.").reply
     assert active_entities(copilot)["COURSE"]["canonical_id"] == 202
+
+
+@pytest.mark.e2e
+def test_course_catalogue_response_contains_meaningful_course_content(copilot):
+    reply = ask(copilot, "Show me all courses.").reply
+
+    assert "DIN24" in reply and "Digital Innovation" in reply
+    assert "MAT101" in reply and "Mathematics" in reply
+    assert "Academic course search query completed" not in reply
 
 
 @pytest.mark.e2e
