@@ -68,6 +68,32 @@ class TutorDataQueryAgent:
             if not any(row.get("id") == course["canonical_id"] for row in group_courses.get("courses", [])):
                 return {"success": True, "teachers": [], "relationship_valid": False}
             return await self._gateway.get_course_teachers(course_id=course["canonical_id"])
+        if capability == "group_course_results":
+            group_courses = await self._gateway.get_student_group_courses(group["canonical_id"])
+            if not group_courses.get("success"):
+                return group_courses
+            if not any(row.get("id") == course["canonical_id"] for row in group_courses.get("courses", [])):
+                return {"success": True, "results": [], "relationship_valid": False}
+            group_students = await self._gateway.get_student_group_students(group["canonical_id"])
+            if not group_students.get("success"):
+                return group_students
+            results = await self._gateway.get_course_results(
+                course_code=_course_code(course), status=params.get("result_filter")
+            )
+            if not results.get("success"):
+                return results
+            students = group_students.get("students", [])
+            identities = {
+                value
+                for row in students
+                for value in (row.get("id"), row.get("student_number"), row.get("name"))
+                if value is not None
+            }
+            scoped = [
+                row for row in results.get("results", [])
+                if any(row.get(key) in identities for key in ("student_id", "student_number", "student_name"))
+            ]
+            return {**results, "group": group_students.get("group"), "results": scoped}
         return {"success": False, "error": "UNSUPPORTED_TUTOR_QUERY"}
 
 
@@ -127,6 +153,8 @@ def _summary(capability: str, response: dict[str, Any]) -> str:
         return _rows(f"Courses for {code}", response.get("courses", []), _course_label)
     if capability == "group_course_teachers" and response.get("relationship_valid") is False:
         return "That course is not associated with the active student group."
+    if capability == "group_course_results" and response.get("relationship_valid") is False:
+        return "That course is not associated with the active student group."
     if capability == "course_roster":
         return _rows(
             "Enrolled students", response.get("students", []), _student_label
@@ -141,7 +169,7 @@ def _summary(capability: str, response: dict[str, Any]) -> str:
             or "recorded"
         )
         return f"Enrollment status: {status}."
-    if capability in {"course_results", "student_course_result"}:
+    if capability in {"course_results", "student_course_result", "group_course_results"}:
         return _rows("Results", response.get("results", []), _result_label)
     if capability == "course_analytics":
         analytics = response.get("analytics", {})

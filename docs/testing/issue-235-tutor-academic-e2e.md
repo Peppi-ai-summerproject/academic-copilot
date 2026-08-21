@@ -14,9 +14,9 @@ assignments, progress, risk, study rights, entity switching, multi-entity
 context, failed/ambiguous resolution, missing context, session isolation, and a
 multi-turn Telegram-handler journey.
 
-Fixture assumptions are intentionally deterministic: DIN24 has a 50% pass rate,
-MAT101 has a 25% pass rate, Anna passed DIN24 with grade 5, John failed, and
-Matti teaches DIN24. The context assertions verify that only canonical identity
+Fixture assumptions are intentionally deterministic: DIN24 is a student group,
+DII101 is Digital Innovation Foundations, and course-specific results use canonical
+course codes rather than the group code. The context assertions verify that only canonical identity
 metadata is retained; academic records continue to be fetched through the
 gateway on each query.
 

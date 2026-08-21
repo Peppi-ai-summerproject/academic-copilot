@@ -19,13 +19,13 @@ def entity(kind, identifier, *, display_name=None, candidates=None, status="RESO
 def test_creates_minimal_canonical_student_course_and_teacher_context():
     context = canonical_entities([
         entity("STUDENT", 1, display_name="Anna", candidates=[{"student_number": "S1", "programme": "ICT"}]),
-        entity("COURSE", 2, display_name="Digital", candidates=[{"course_code": "DIN24", "roster": [1]}]),
+        entity("COURSE", 2, display_name="Digital", candidates=[{"course_code": "DII101", "roster": [1]}]),
         entity("TEACHER", 3, display_name="Matti", candidates=[{"email": "matti@example.test"}]),
     ])
 
     assert [row["canonical_id"] for row in context] == [1, 2, 3]
     assert context[0]["candidates"] == [{"student_number": "S1"}]
-    assert context[1]["candidates"] == [{"course_code": "DIN24"}]
+    assert context[1]["candidates"] == [{"course_code": "DII101"}]
     assert "academic_record" not in repr(context)
     assert "email" not in repr(context)
 

@@ -9,7 +9,7 @@ class Gateway:
     async def get_student_enrollments(self, **kwargs): return {"success": True, "enrollments": []}
 
 def test_dispatches_course_results_through_gateway():
-    state=create_initial_state(user_message="results", parameters={"academic_operation":"course_results", "course_code":"DIN24"})
+    state=create_initial_state(user_message="results", parameters={"academic_operation":"course_results", "course_code":"DII101"})
     result=asyncio.run(AcademicDataQueryAgent(Gateway()).run(state))
     assert result.status == "SUCCESS"
 

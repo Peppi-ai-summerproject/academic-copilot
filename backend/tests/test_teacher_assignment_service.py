@@ -17,7 +17,7 @@ def dependencies():
     }
     courses.get_by_id.return_value = {
         "id": 4,
-        "course_code": "DIN24",
+        "course_code": "DII101",
         "course_name": "Digital Innovation Foundations",
     }
     courses.get_by_code.return_value = courses.get_by_id.return_value
@@ -73,7 +73,7 @@ def test_teacher_with_multiple_courses_and_nullable_contact(dependencies) -> Non
     teachers.get_by_id.return_value["email"] = None
     teachers.list_courses_for_teacher.return_value = [
         {"id": 1, "course_code": "DBS24", "assignment_role": "TEACHER"},
-        {"id": 4, "course_code": "DIN24", "assignment_role": "LEAD_TEACHER"},
+        {"id": 4, "course_code": "DII101", "assignment_role": "LEAD_TEACHER"},
     ]
     result = TeacherAssignmentService(teachers, courses).get_teacher_courses(8)
     assert result["success"] is True
@@ -128,13 +128,13 @@ def test_course_identifier_requires_exactly_one_supported_identifier(dependencie
     teachers, courses = dependencies
     service = TeacherAssignmentService(teachers, courses)
     assert service.get_course_teachers()["error"] == "INVALID_COURSE_IDENTIFIER"
-    assert service.get_course_teachers(course_id=4, course_code="DIN24")["error"] == "INVALID_COURSE_IDENTIFIER"
+    assert service.get_course_teachers(course_id=4, course_code="DII101")["error"] == "INVALID_COURSE_IDENTIFIER"
 
 
 def test_search_contract_identifiers_compose_with_assignment_contract(dependencies) -> None:
     teachers, courses = dependencies
     service = TeacherAssignmentService(teachers, courses)
     teacher_search_row = {"id": 8, "display_name": "Anna Example"}
-    course_search_row = {"id": 4, "course_code": "DIN24"}
+    course_search_row = {"id": 4, "course_code": "DII101"}
     assert service.get_teacher_courses(teacher_search_row["id"])["success"] is True
     assert service.get_course_teachers(course_id=course_search_row["id"])["success"] is True

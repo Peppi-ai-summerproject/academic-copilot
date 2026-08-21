@@ -81,7 +81,7 @@ list course rosters and student enrollments; list/filter passed and failed
 results; and traverse teacher-course assignments. In-progress/not-completed
 students are represented by enrollment rows without a passed completion.
 
-Counts such as “how many passed DIN24” should be derived from repository results
+Counts such as “how many passed DII101” should be derived from repository results
 or implemented as a future optimized repository query when Issue #222 defines
 the MCP response contract. No answer is hard-coded here.
 
