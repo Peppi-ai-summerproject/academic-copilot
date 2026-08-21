@@ -29,14 +29,29 @@ class DeterministicAcademicGateway:
         {"id": 40, "student_number": "DEMO22101", "name": "Elina Demo", "email": "elina@example.test", "programme": "ICT"},
         {"id": 41, "student_number": "DEMO22102", "name": "Oskari Example", "email": "oskari@example.test", "programme": "ICT"},
         {"id": 42, "student_number": "DEMO22103", "name": "Sofia Sample", "email": "sofia@example.test", "programme": "ICT"},
+        {"id": 43, "student_number": "DEMO25201", "name": "Aava Achiever", "email": "aava@example.test", "programme": "ICT"},
+        {"id": 44, "student_number": "DEMO25202", "name": "Niko Normal", "email": "niko@example.test", "programme": "ICT"},
+        {"id": 45, "student_number": "DEMO25203", "name": "Petra Partial", "email": "petra@example.test", "programme": "ICT"},
+        {"id": 46, "student_number": "DEMO25204", "name": "Matias Multiple", "email": "matias@example.test", "programme": "ICT"},
+        {"id": 47, "student_number": "DEMO25205", "name": "Liisa Delayed", "email": "liisa@example.test", "programme": "ICT"},
+        {"id": 48, "student_number": "DEMO25206", "name": "Eero Mixed", "email": "eero@example.test", "programme": "ICT"},
     ]
     courses = [
         {"id": 24, "course_code": "DII101", "course_name": "Digital Innovation Foundations", "credits": 5},
         {"id": 25, "course_code": "DBS24", "course_name": "Database Systems", "credits": 5},
-        {"id": 26, "course_code": "WEB24", "course_name": "Web Development", "credits": 5},
+        {"id": 26, "course_code": "WEB24", "course_name": "Web Application Development", "credits": 5},
         {"id": 103, "course_code": "DE103", "course_name": "Database Systems", "credits": 5},
         {"id": 101, "course_code": "MAT101", "course_name": "Mathematics", "credits": 5},
         {"id": 202, "course_code": "SWE20", "course_name": "Software Engineering", "credits": 5},
+        {"id": 301, "course_code": "BUS101", "course_name": "Business Foundations", "credits": 5},
+        {"id": 302, "course_code": "PRG101", "course_name": "Programming Basics", "credits": 5},
+        {"id": 303, "course_code": "UXD101", "course_name": "User Experience Design", "credits": 5},
+        {"id": 304, "course_code": "NET101", "course_name": "Network Fundamentals", "credits": 5},
+        {"id": 305, "course_code": "PRJ101", "course_name": "Project Skills", "credits": 5},
+        {"id": 306, "course_code": "DAT102", "course_name": "Data Analytics", "credits": 5},
+        {"id": 307, "course_code": "API102", "course_name": "API Development", "credits": 5},
+        {"id": 308, "course_code": "SEC102", "course_name": "Application Security", "credits": 5},
+        {"id": 309, "course_code": "CLD102", "course_name": "Cloud Fundamentals", "credits": 5},
     ]
     groups = [
         {"id": 240, "group_code": "DIN24", "group_name": "Digital Innovation 2024", "programme_code": "DIN2024S", "programme_name": "Business IT"},
@@ -113,13 +128,14 @@ class DeterministicAcademicGateway:
     async def get_student_group_students(self, group_id):
         self._record("get_student_group_students", group_id=group_id)
         group = next((row for row in self.groups if row["id"] == group_id), None)
-        rows = self.students[5:8] if group_id == 240 else self.students[:2]
+        rows = [row for row in self.students if 40 <= row["id"] <= 48] if group_id == 240 else self.students[:2]
         return {"success": True, "group": deepcopy(group), "students": deepcopy(rows)}
 
     async def get_student_group_courses(self, group_id):
         self._record("get_student_group_courses", group_id=group_id)
         group = next((row for row in self.groups if row["id"] == group_id), None)
-        rows = self.courses[:3] if group_id == 240 else self.courses[4:]
+        din_codes = {"DII101", "DBS24", "WEB24", "BUS101", "PRG101", "UXD101", "NET101", "PRJ101", "DAT102", "API102", "SEC102", "CLD102"}
+        rows = [row for row in self.courses if row["course_code"] in din_codes] if group_id == 240 else [row for row in self.courses if row["course_code"] in {"MAT101", "SWE20"}]
         return {"success": True, "group": deepcopy(group), "courses": deepcopy(rows)}
 
     async def get_course_roster(self, **kwargs):
@@ -136,13 +152,36 @@ class DeterministicAcademicGateway:
 
     async def get_course_results(self, **kwargs):
         self._record("get_course_results", **kwargs)
-        elina_grade = 4 if kwargs["course_code"] == "DBS24" else 5
-        rows = [
+        outsiders = [
             {"student_id": 7, "student_name": "Anna Korhonen", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 4},
             {"student_id": 8, "student_name": "John Smith", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 1},
-            {"student_id": 40, "student_name": "Elina Demo", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": elina_grade},
-            {"student_id": 41, "student_name": "Oskari Example", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
         ]
+        if kwargs["course_code"] == "DBS24":
+            rows = outsiders + [
+                {"student_id": 40, "student_name": "Elina Demo", "course_code": "DBS24", "result_status": "PASSED", "grade": 4},
+                {"student_id": 41, "student_name": "Oskari Example", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
+                {"student_id": 43, "student_name": "Aava Achiever", "course_code": "DBS24", "result_status": "PASSED", "grade": 5},
+                {"student_id": 45, "student_name": "Petra Partial", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
+                {"student_id": 46, "student_name": "Matias Multiple", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
+                {"student_id": 48, "student_name": "Eero Mixed", "course_code": "DBS24", "result_status": "PASSED", "grade": 4},
+            ]
+        elif kwargs["course_code"] == "DII101":
+            rows = outsiders + [
+                {"student_id": 40, "student_name": "Elina Demo", "course_code": "DII101", "result_status": "PASSED", "grade": 5},
+                {"student_id": 41, "student_name": "Oskari Example", "course_code": "DII101", "result_status": "FAILED", "grade": 0},
+                *[
+                    {"student_id": student_id, "student_name": name, "course_code": "DII101", "result_status": "PASSED", "grade": grade}
+                    for student_id, name, grade in ((43, "Aava Achiever", 5), (44, "Niko Normal", 3), (45, "Petra Partial", 3), (46, "Matias Multiple", 2), (47, "Liisa Delayed", 3), (48, "Eero Mixed", 4))
+                ],
+            ]
+        elif kwargs["course_code"] == "WEB24":
+            rows = outsiders + [
+                {"student_id": 43, "student_name": "Aava Achiever", "course_code": "WEB24", "result_status": "PASSED", "grade": 5},
+                {"student_id": 46, "student_name": "Matias Multiple", "course_code": "WEB24", "result_status": "FAILED", "grade": 0},
+                {"student_id": 48, "student_name": "Eero Mixed", "course_code": "WEB24", "result_status": "FAILED", "grade": 0},
+            ]
+        else:
+            rows = outsiders
         if kwargs.get("status"):
             rows = [row for row in rows if row["result_status"] == kwargs["status"]]
         return {"success": True, "results": rows}
@@ -295,7 +334,7 @@ def test_student_group_lookup_lists_students_and_courses_with_context(copilot):
 
     assert "DII101" in courses and "Digital Innovation Foundations" in courses
     assert "DBS24" in courses and "Database Systems" in courses
-    assert "WEB24" in courses and "Web Development" in courses
+    assert "WEB24" in courses and "Web Application Development" in courses
     assert "DIN24 —" not in courses
     assert "Elina Demo" in students and "Oskari Example" in students
     assert active_entities(copilot)["STUDENT_GROUP"]["canonical_id"] == 240
@@ -354,6 +393,27 @@ def test_group_scoped_results_filter_status_and_exclude_outside_students(
     entities = active_entities(copilot)
     assert entities["STUDENT_GROUP"]["canonical_id"] == 240
     assert entities["COURSE"]["canonical_id"] == 25
+    expected = (
+        {"Elina Demo", "Aava Achiever", "Eero Mixed"}
+        if status == "passed"
+        else {"Oskari Example", "Petra Partial", "Matias Multiple"}
+    )
+    assert all(name in reply for name in expected)
+
+
+@pytest.mark.e2e
+def test_group_scoped_dii_and_web_results_are_diverse_and_truthful(copilot):
+    dii_passed = ask(copilot, "Who passed Digital Innovation Foundations in DIN24?").reply
+    dii_failed = ask(copilot, "Who failed Digital Innovation Foundations in DIN24?").reply
+    web_passed = ask(copilot, "Who passed Web Application Development in DIN24?").reply
+    web_failed = ask(copilot, "Who failed Web Application Development in DIN24?").reply
+
+    assert "Elina Demo" in dii_passed and "Aava Achiever" in dii_passed
+    assert "Oskari Example" not in dii_passed and "Sofia Sample" not in dii_passed
+    assert "Oskari Example" in dii_failed and "Elina Demo" not in dii_failed
+    assert "Aava Achiever" in web_passed
+    assert "Matias Multiple" in web_failed and "Eero Mixed" in web_failed
+    assert "Sofia Sample" not in web_passed and "Sofia Sample" not in web_failed
 
 
 @pytest.mark.e2e
