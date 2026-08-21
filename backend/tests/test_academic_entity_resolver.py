@@ -6,7 +6,8 @@ class Gateway:
     async def search_courses(self, **kwargs): return {"success": True, "courses": self.courses}
     async def search_teachers(self, **kwargs): return {"success": True, "teachers": self.teachers}
     async def search_student_groups(self, **kwargs): return {"success": True, "groups": self.groups}
-    students=[]; courses=[]; teachers=[]; groups=[]
+    async def get_student_group_courses(self, group_id): return {"success": True, "courses": self.group_courses}
+    students=[]; courses=[]; teachers=[]; groups=[]; group_courses=[]
 
 def test_resolves_exact_identifiers_and_names():
     g=Gateway(); g.students=[{"id": 1,"student_number":"S1","name":"Aino"}]; g.courses=[{"id":2,"course_code":"DII101","course_name":"Digital"}]
@@ -58,3 +59,31 @@ def test_existing_student_course_name_and_teacher_resolution_remain_canonical():
     assert (student.entity_type, student.canonical_id) == ("STUDENT", 2)
     assert (course.entity_type, course.canonical_id) == ("COURSE", 25)
     assert (teacher.entity_type, teacher.canonical_id) == ("TEACHER", 34)
+
+def test_ambiguous_course_can_be_narrowed_by_canonical_group_membership():
+    g=Gateway(); g.students=[]; g.teachers=[]; g.groups=[]
+    g.courses=[
+        {"id":25,"course_code":"DBS24","course_name":"Database Systems"},
+        {"id":103,"course_code":"DE103","course_name":"Database Systems"},
+    ]
+    g.group_courses=[{"id":25,"course_code":"DBS24","course_name":"Database Systems"}]
+    resolver=AcademicEntityResolver(g)
+    ambiguous=asyncio.run(resolver.resolve("COURSE","Database Systems"))
+    narrowed=asyncio.run(resolver.narrow_ambiguous_course_to_group(ambiguous, 240))
+    assert ambiguous.status == "AMBIGUOUS"
+    assert (narrowed.status, narrowed.canonical_id) == ("RESOLVED", 25)
+
+def test_group_narrowing_preserves_zero_and_multiple_candidate_ambiguity():
+    g=Gateway(); g.students=[]; g.teachers=[]; g.groups=[]
+    g.courses=[
+        {"id":25,"course_code":"DBS24","course_name":"Database Systems"},
+        {"id":103,"course_code":"DE103","course_name":"Database Systems"},
+    ]
+    resolver=AcademicEntityResolver(g)
+    ambiguous=asyncio.run(resolver.resolve("COURSE","Database Systems"))
+    g.group_courses=[]
+    assert asyncio.run(resolver.narrow_ambiguous_course_to_group(ambiguous, 240)).status == "AMBIGUOUS"
+    g.group_courses=[{"id":25}, {"id":103}]
+    still_ambiguous=asyncio.run(resolver.narrow_ambiguous_course_to_group(ambiguous, 240))
+    assert still_ambiguous.status == "AMBIGUOUS"
+    assert len(still_ambiguous.candidates) == 2

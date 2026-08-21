@@ -12,6 +12,7 @@ class SearchGateway(Protocol):
     async def search_courses(self, **kwargs: Any) -> dict[str, Any]: ...
     async def search_teachers(self, **kwargs: Any) -> dict[str, Any]: ...
     async def search_student_groups(self, **kwargs: Any) -> dict[str, Any]: ...
+    async def get_student_group_courses(self, group_id: int) -> dict[str, Any]: ...
 
 @dataclass(frozen=True)
 class ResolvedAcademicEntity:
@@ -54,6 +55,38 @@ class AcademicEntityResolver:
         if len(candidates) != 1: return ResolvedAcademicEntity(entity_type, normalized, "AMBIGUOUS", candidates=safe)
         row = candidates[0]; identifier = int(row["id"])
         return ResolvedAcademicEntity(entity_type, normalized, "RESOLVED", identifier, self._name(entity_type, row), safe)
+
+    async def narrow_ambiguous_course_to_group(
+        self, resolution: ResolvedAcademicEntity, group_id: int
+    ) -> ResolvedAcademicEntity:
+        """Narrow an ambiguous global course match using canonical group membership."""
+        if resolution.entity_type != "COURSE" or resolution.status != "AMBIGUOUS":
+            return resolution
+        response = await self._gateway.get_student_group_courses(group_id)
+        if not response.get("success"):
+            return resolution
+        group_course_ids = {
+            row.get("id") for row in response.get("courses", []) if isinstance(row, dict)
+        }
+        candidates = tuple(
+            row for row in resolution.candidates
+            if row.get("course_id") in group_course_ids
+        )
+        if len(candidates) == 1:
+            candidate = candidates[0]
+            return ResolvedAcademicEntity(
+                "COURSE",
+                resolution.input,
+                "RESOLVED",
+                int(candidate["course_id"]),
+                str(candidate.get("course_name") or candidate.get("course_code")),
+                candidates,
+            )
+        if len(candidates) > 1:
+            return ResolvedAcademicEntity(
+                "COURSE", resolution.input, "AMBIGUOUS", candidates=candidates
+            )
+        return resolution
     @staticmethod
     def _exact(kind: EntityType, row: dict[str, Any], text: str) -> bool:
         value = {"STUDENT": row.get("student_number") or row.get("name"), "COURSE": row.get("course_code") or row.get("course_name"), "TEACHER": row.get("display_name"), "STUDENT_GROUP": row.get("group_code") or row.get("group_name")}[kind]

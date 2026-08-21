@@ -114,6 +114,17 @@ class ChatService:
                     current_resolutions: list[dict] = []
                     for entity_type, reference in intent_result.entity_references:
                         resolution = await self._entity_resolver.resolve(entity_type, reference)  # type: ignore[arg-type]
+                        active_group = entity_for(current_resolutions, "STUDENT_GROUP") or entity_for(
+                            stored_entities, "STUDENT_GROUP"
+                        )
+                        narrow = getattr(self._entity_resolver, "narrow_ambiguous_course_to_group", None)
+                        if (
+                            entity_type == "COURSE"
+                            and resolution.status == "AMBIGUOUS"
+                            and active_group is not None
+                            and callable(narrow)
+                        ):
+                            resolution = await narrow(resolution, active_group["canonical_id"])
                         current_resolutions.append(resolution.as_dict())
                     # A bare named lookup is historically classified as a student.
                     # Resolve it through the remaining canonical namespaces without
