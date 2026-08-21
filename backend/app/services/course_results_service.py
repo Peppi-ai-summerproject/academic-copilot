@@ -15,8 +15,15 @@ class CourseResultsService:
         if not course.get("success"): return course
         valid = self._status(status)
         if valid is not None: return valid
-        rows = self._records.list_course_result_view(course["course"]["id"])
-        if status: rows = [row for row in rows if row["result_status"] == status.upper()]
+        normalized_status = status.upper() if status else None
+        if normalized_status in {"PASSED", "FAILED"}:
+            rows = self._records.list_results_for_course(
+                course["course"]["id"], result_status=normalized_status
+            )
+        else:
+            rows = self._records.list_course_result_view(course["course"]["id"])
+            if normalized_status:
+                rows = [row for row in rows if row["result_status"] == normalized_status]
         return {"success": True, "course": course["course"], "count": len(rows), "results": rows}
 
     def student_results(self, student_id: int, status: str | None = None) -> dict[str, Any]:
