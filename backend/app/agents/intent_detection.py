@@ -54,6 +54,7 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
     ),
     "study_rights": (
         re.compile(r"\b(?:her|his|their)\s+study[- ]rights?\b"),
+        re.compile(r"\b(?:her|his|their)\s+study[- ]right\s+status\b"),
         re.compile(r"\bstudy\s+rights?\b"),
         re.compile(r"\b(?:valid|active|expired?|expiring|extend)\b.*\b(?:study|enrolment)\b"),
         re.compile(r"\b(?:study|enrolment)\b.*\b(?:valid|active|expired?|expiring|extension)\b"),

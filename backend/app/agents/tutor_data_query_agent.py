@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from app.agents.state import AgentState
@@ -69,6 +70,112 @@ def _course_code(course: dict[str, Any]) -> str:
 
 
 def _summary(capability: str, response: dict[str, Any]) -> str:
-    counts = ("student_count", "teacher_count", "assignment_count", "course_count")
-    detail = next((f" ({response[key]})" for key in counts if key in response), "")
-    return f"Academic {capability.replace('_', ' ')} query completed{detail}."
+    if capability == "student_lookup":
+        student = response.get("student", {})
+        return _profile(
+            student.get("name", "Student"),
+            ("student number", student.get("student_number")),
+            ("email", student.get("email")),
+            ("programme", student.get("programme")),
+        )
+    if capability == "course_lookup":
+        course = response.get("course", {})
+        return _profile(
+            course.get("course_name") or course.get("name") or "Course",
+            ("course code", course.get("course_code")),
+            ("credits", course.get("credits") or course.get("ects")),
+        )
+    if capability == "teacher_lookup" or capability == "teacher_contact":
+        teacher = response.get("teacher", {})
+        return _profile(
+            teacher.get("display_name") or teacher.get("name") or "Teacher",
+            ("email", teacher.get("email")),
+        )
+    if capability == "course_roster":
+        return _rows(
+            "Enrolled students", response.get("students", []), _student_label
+        )
+    if capability == "student_enrollments":
+        return _rows("Courses", response.get("enrollments", []), _course_label)
+    if capability == "enrollment":
+        enrollment = response.get("enrollment", {})
+        status = (
+            enrollment.get("status")
+            or enrollment.get("enrollment_status")
+            or "recorded"
+        )
+        return f"Enrollment status: {status}."
+    if capability in {"course_results", "student_course_result"}:
+        return _rows("Results", response.get("results", []), _result_label)
+    if capability == "course_analytics":
+        analytics = response.get("analytics", {})
+        pass_rate = analytics.get("pass_rate")
+        completion_rate = analytics.get("completion_rate")
+        parts = []
+        if isinstance(pass_rate, (int, float)):
+            parts.append(f"pass rate {pass_rate * 100:.1f}%")
+        if isinstance(completion_rate, (int, float)):
+            parts.append(f"completion rate {completion_rate * 100:.1f}%")
+        if analytics.get("enrolled_count") is not None:
+            parts.append(f"{analytics['enrolled_count']} enrolled")
+        return "Course analytics: " + ", ".join(parts) + "."
+    if capability == "course_teachers":
+        return _rows("Teachers", response.get("teachers", []), _teacher_label)
+    if capability == "teacher_courses":
+        rows = response.get("courses", response.get("assignments", []))
+        return _rows("Teaching assignments", rows, _course_label)
+    return f"Academic {capability.replace('_', ' ')} query completed."
+
+
+def _profile(name: Any, *fields: tuple[str, Any]) -> str:
+    details = [
+        f"{label}: {value}" for label, value in fields if value not in (None, "")
+    ]
+    return f"{name}" + (f" — {', '.join(details)}." if details else ".")
+
+
+def _rows(
+    title: str,
+    rows: Any,
+    formatter: Callable[[dict[str, Any]], str],
+) -> str:
+    if not isinstance(rows, list) or not rows:
+        return f"{title}: none found."
+    labels = [formatter(row) for row in rows if isinstance(row, dict)]
+    return f"{title}: " + "; ".join(labels) + "."
+
+
+def _student_label(row: dict[str, Any]) -> str:
+    return str(
+        row.get("name")
+        or row.get("student_name")
+        or row.get("student_number")
+        or "Student"
+    )
+
+
+def _course_label(row: dict[str, Any]) -> str:
+    code = row.get("course_code")
+    name = row.get("course_name") or row.get("name")
+    return " — ".join(str(value) for value in (code, name) if value) or "Course"
+
+
+def _teacher_label(row: dict[str, Any]) -> str:
+    name = row.get("display_name") or row.get("name") or "Teacher"
+    email = row.get("email")
+    return f"{name} ({email})" if email else str(name)
+
+
+def _result_label(row: dict[str, Any]) -> str:
+    subject = row.get("student_name") or row.get("course_code") or "Result"
+    status = row.get("result_status") or row.get("status")
+    grade = row.get("grade")
+    details = [
+        str(value)
+        for value in (
+            status,
+            f"grade {grade}" if grade is not None else None,
+        )
+        if value
+    ]
+    return f"{subject}: " + ", ".join(details)
