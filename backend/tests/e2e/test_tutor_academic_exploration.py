@@ -34,6 +34,7 @@ class DeterministicAcademicGateway:
         {"id": 24, "course_code": "DII101", "course_name": "Digital Innovation Foundations", "credits": 5},
         {"id": 25, "course_code": "DBS24", "course_name": "Database Systems", "credits": 5},
         {"id": 26, "course_code": "WEB24", "course_name": "Web Development", "credits": 5},
+        {"id": 103, "course_code": "DE103", "course_name": "Database Systems", "credits": 5},
         {"id": 101, "course_code": "MAT101", "course_name": "Mathematics", "credits": 5},
         {"id": 202, "course_code": "SWE20", "course_name": "Software Engineering", "credits": 5},
     ]
@@ -118,7 +119,7 @@ class DeterministicAcademicGateway:
     async def get_student_group_courses(self, group_id):
         self._record("get_student_group_courses", group_id=group_id)
         group = next((row for row in self.groups if row["id"] == group_id), None)
-        rows = self.courses[:3] if group_id == 240 else self.courses[3:]
+        rows = self.courses[:3] if group_id == 240 else self.courses[4:]
         return {"success": True, "group": deepcopy(group), "courses": deepcopy(rows)}
 
     async def get_course_roster(self, **kwargs):
@@ -148,9 +149,9 @@ class DeterministicAcademicGateway:
     async def get_student_results(self, **kwargs):
         self._record("get_student_results", **kwargs)
         rows_by_student = {
-            40: [{"course_code": "DII101", "result_status": "PASSED", "grade": 5}],
-            41: [{"course_code": "DII101", "result_status": "FAILED", "grade": 0}],
-            42: [{"course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
+            40: [{"student_name": "Elina Demo", "course_code": "DII101", "result_status": "PASSED", "grade": 5}],
+            41: [{"student_name": "Oskari Example", "course_code": "DII101", "result_status": "FAILED", "grade": 0}],
+            42: [{"student_name": "Noora Noresult", "course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
         }
         rows = rows_by_student.get(
             kwargs["student_id"],
@@ -264,7 +265,7 @@ def test_failed_or_ambiguous_switch_keeps_previous_canonical_student(copilot):
 @pytest.mark.e2e
 def test_course_discovery_by_code_and_name(copilot):
     assert "DII101" in ask(copilot, "Show me DII101.").reply
-    assert "Database Systems" in ask(copilot, "Show me Database Systems.").reply
+    assert "Software Engineering" in ask(copilot, "Show me Software Engineering.").reply
     assert "Software Engineering" in ask(copilot, "Find the Software Engineering course.").reply
     assert active_entities(copilot)["COURSE"]["canonical_id"] == 202
 
@@ -297,14 +298,24 @@ def test_student_group_lookup_lists_students_and_courses_with_context(copilot):
 @pytest.mark.e2e
 def test_group_course_teacher_composes_canonical_relationship(copilot):
     ask(copilot, "Show me DIN24.")
+    assert "DBS24" in ask(copilot, "Which courses does it have?").reply
     reply = ask(copilot, "Who teaches Database Systems?").reply
 
     assert "Matti Virtanen" in reply
     assert ("get_student_group_courses", {"group_id": 240}) in copilot[1].calls
     assert ("get_course_teachers", {"course_id": 25}) in copilot[1].calls
+    assert active_entities(copilot)["COURSE"]["canonical_id"] == 25
 
     explicit = ask(copilot, "Who teaches Database Systems for DIN24?").reply
     assert "Matti Virtanen" in explicit
+
+
+@pytest.mark.e2e
+def test_course_name_ambiguity_without_group_context_still_clarifies(copilot):
+    reply = ask(copilot, "Who teaches Database Systems?", user=801, chat=901).reply
+
+    assert "multiple matching courses" in reply
+    assert "DBS24" in reply and "DE103" in reply
 
 
 @pytest.mark.e2e
@@ -401,6 +412,41 @@ def test_student_course_yes_no_reports_none_when_student_has_no_course_result(co
     ask(copilot, "Show me Noora Noresult.")
 
     assert ask(copilot, "Did she pass DII101?").reply.endswith("Results: none found.")
+
+
+@pytest.mark.e2e
+def test_explicit_student_in_result_question_replaces_stale_student_only(copilot):
+    ask(copilot, "Show me Elina Demo.")
+    assert "PASSED" in ask(copilot, "Did she pass DII101?").reply
+
+    reply = ask(copilot, "Did Oskari pass DII101?").reply
+
+    assert "Oskari Example" in reply
+    assert "FAILED" in reply and "grade 0" in reply
+    assert "Elina Demo" not in reply
+    entities = active_entities(copilot)
+    assert entities["STUDENT"]["canonical_id"] == 41
+    assert entities["COURSE"]["canonical_id"] == 24
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("Did Unknown Student pass DII101?", "could not find"),
+        ("Did Anna pass DII101?", "multiple matching students"),
+    ],
+)
+def test_unresolved_explicit_student_never_falls_back_to_stale_student(
+    copilot, message, expected
+):
+    ask(copilot, "Show me Elina Demo.")
+
+    reply = ask(copilot, message).reply
+
+    assert expected in reply
+    assert "Elina Demo: PASSED" not in reply
+    assert active_entities(copilot)["STUDENT"]["canonical_id"] == 40
 
 
 @pytest.mark.e2e

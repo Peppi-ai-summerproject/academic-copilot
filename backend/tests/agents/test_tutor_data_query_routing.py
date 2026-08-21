@@ -34,6 +34,8 @@ from app.agents.tutor_data_query_agent import TutorDataQueryAgent
         ("Who teaches Database Systems for DIN24?", "group_course_teachers", {}),
         ("Who passed Database Systems in DIN24?", "group_course_results", {"result_filter": "PASSED"}),
         ("Who failed Database Systems in DIN24?", "group_course_results", {"result_filter": "FAILED"}),
+        ("Did Oskari pass DII101?", "student_course_result", {}),
+        ("Did Unknown Student pass DII101?", "student_course_result", {}),
     ],
 )
 def test_realistic_tutor_queries_map_to_capabilities(message, capability, parameters):
@@ -47,6 +49,15 @@ def test_realistic_tutor_queries_map_to_capabilities(message, capability, parame
 def test_multi_entity_query_preserves_student_and_course_references():
     result = detect_intent("Did Anna Korhonen pass DII101?")
     assert result.entity_references == (("STUDENT", "Anna Korhonen"), ("COURSE", "DII101"))
+
+
+def test_explicit_student_in_result_question_is_extracted_without_verb_suffix():
+    assert detect_intent("Did Oskari pass DII101?").entity_references == (
+        ("STUDENT", "Oskari"), ("COURSE", "DII101")
+    )
+    assert detect_intent("Did Unknown Student pass DII101?").entity_references == (
+        ("STUDENT", "Unknown Student"), ("COURSE", "DII101")
+    )
 
 
 def test_unicode_student_name_and_alphanumeric_number_are_preserved_for_resolution():

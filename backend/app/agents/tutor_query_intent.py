@@ -135,6 +135,7 @@ def _student_reference(text: str) -> tuple[str, str] | None:
     if match := _STUDENT_NUMBER.search(text):
         return ("STUDENT", match.group(0))
     patterns = (
+        rf"\b(?:did|has)\s+({_PERSON_NAME})\s+(?:pass|passed|fail|failed|complete|completed)\b",
         rf"(?:student|has|did|is|how is)\s+({_PERSON_NAME})",
         rf"which courses is\s+({_PERSON_NAME})",
     )
