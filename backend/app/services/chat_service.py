@@ -22,12 +22,14 @@ from app.services.conversation_memory import (
     telegram_owner_reference,
 )
 from app.db.database import SessionLocal
+from app.services.conversation_context import (
+    canonical_entities,
+    entity_for,
+    merge_canonical_entities,
+    missing_entities,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _is_context_reference(message: str) -> bool:
-    return message.casefold().strip().startswith(("she", "he", "this course", "that course"))
 
 
 class AgentWorkflow(Protocol):
@@ -95,11 +97,9 @@ class ChatService:
         detected_intent: str | None = None
         routing_failure: str | None = None
         fallback_interaction_status = "failed"
-        resolved_entities: list[dict] = []
+        stored_entities = canonical_entities(memory.resolved_entities if memory else [])
+        resolved_entities: list[dict] = list(stored_entities)
         query_parameters: dict = {}
-        if memory and _is_context_reference(request.message) and len(memory.resolved_entities) == 1:
-            resolved_entities = list(memory.resolved_entities)
-
         if selected_routes:
             routing_failure = self._validate_explicit_routes(selected_routes)
         else:
@@ -111,12 +111,30 @@ class ChatService:
                         "capability": intent_result.capability,
                         "query_parameters": intent_result.parameters or {},
                     }
+                    current_resolutions: list[dict] = []
                     for entity_type, reference in intent_result.entity_references:
                         resolution = await self._entity_resolver.resolve(entity_type, reference)  # type: ignore[arg-type]
-                        resolved_entities.append(resolution.as_dict())
-                    unresolved = [row for row in resolved_entities if row["status"] != "RESOLVED"]
+                        current_resolutions.append(resolution.as_dict())
+                    # A bare person lookup is historically classified as a student.
+                    # If no student exists, safely try the teacher namespace instead.
+                    if (
+                        intent_result.capability == "student_lookup"
+                        and len(current_resolutions) == 1
+                        and current_resolutions[0]["status"] == "NOT_FOUND"
+                    ):
+                        teacher = await self._entity_resolver.resolve("TEACHER", intent_result.entity_references[0][1])
+                        if teacher.status != "NOT_FOUND":
+                            current_resolutions = [teacher.as_dict()]
+                            query_parameters["capability"] = "teacher_lookup"
+                    unresolved = [row for row in current_resolutions if row["status"] != "RESOLVED"]
                     if unresolved:
                         routing_failure = _resolution_fallback(unresolved[0])
+                        fallback_interaction_status = "completed"
+                    else:
+                        resolved_entities = merge_canonical_entities(stored_entities, current_resolutions)
+                    missing = missing_entities(query_parameters.get("capability"), resolved_entities)
+                    if not unresolved and missing:
+                        routing_failure = _missing_entity_fallback(missing)
                         fallback_interaction_status = "completed"
                 routing_result = self._agent_selector.select(intent_result)
                 plan = self._dependency_resolver.resolve(routing_result)
@@ -125,6 +143,7 @@ class ChatService:
                         selected_routes = list(plan.ordered_routes)
                         if (
                             request.student_id is None
+                            and entity_for(resolved_entities, "STUDENT") is None
                             and self._fallback_responses.requires_student_context(
                                 plan.ordered_routes
                             )
@@ -213,6 +232,10 @@ class ChatService:
         state.intent = detected_intent
         state.selected_agents = list(selected_routes)
         state.resolved_entities = resolved_entities
+        student = entity_for(resolved_entities, "STUDENT")
+        if state.student_id is None and student is not None:
+            state.student_id = student["canonical_id"]
+            state.student_name = student.get("display_name")
         state.parameters.update(query_parameters)
 
         try:
@@ -265,13 +288,11 @@ class ChatService:
 
 
 def _format_workflow_reply(state: AgentState) -> str:
-    if state.workflow_status is WorkflowStatus.FAILED:
-        return (
-            "Academic analysis could not be completed.\n\n"
-            "No academic result is available."
-        )
-
-    if isinstance(state.final_response, str) and state.final_response.strip():
+    if (
+        state.workflow_status is not WorkflowStatus.FAILED
+        and isinstance(state.final_response, str)
+        and state.final_response.strip()
+    ):
         return state.final_response.strip()
 
     summaries = [
@@ -304,6 +325,13 @@ def _resolution_fallback(entity: dict) -> str:
         names = [str(row.get("student_number") or row.get("course_code") or row.get("name") or row.get("course_name")) for row in candidates]
         return f"I found multiple matching {label}s: {', '.join(names)}. Which one do you mean?"
     return f"I could not find the requested {label}."
+
+
+def _missing_entity_fallback(entity_types: tuple[str, ...]) -> str:
+    labels = {"STUDENT": "student", "COURSE": "course", "TEACHER": "teacher"}
+    if len(entity_types) == 1:
+        return f"Which {labels[entity_types[0]]} do you mean?"
+    return "Which " + " and ".join(labels[kind] for kind in entity_types) + " do you mean?"
 
 
 _agent_registry = create_default_agent_registry()

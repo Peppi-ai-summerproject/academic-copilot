@@ -135,9 +135,9 @@ class SQLAlchemyConversationMemoryStore:
         try:
             rows = session.execute(
                 text("""
-                    SELECT role, content, interaction_status, created_at
+                    SELECT role, content, interaction_status, created_at, resolved_entities
                     FROM (
-                        SELECT id, role, content, interaction_status, created_at
+                        SELECT id, role, content, interaction_status, created_at, resolved_entities
                         FROM conversation_memory_messages
                         WHERE conversation_id = :conversation_id
                           AND owner_type = :owner_type
@@ -149,10 +149,32 @@ class SQLAlchemyConversationMemoryStore:
                 """),
                 {**_scope_params(scope), "limit": MAX_MEMORY_MESSAGES},
             ).mappings().all()
+            entities = next(
+                (
+                    list(row["resolved_entities"])
+                    for row in reversed(rows)
+                    if row.get("resolved_entities")
+                ),
+                [],
+            )
             return ConversationMemorySnapshot(
                 conversation_id=scope.conversation_id,
                 student_id=scope.student_id,
-                messages=[MemoryMessage.model_validate(dict(row)) for row in rows],
+                messages=[
+                    MemoryMessage.model_validate(
+                        {
+                            key: row[key]
+                            for key in (
+                                "role",
+                                "content",
+                                "interaction_status",
+                                "created_at",
+                            )
+                        }
+                    )
+                    for row in rows
+                ],
+                resolved_entities=entities,
             )
         finally:
             session.close()
@@ -167,7 +189,6 @@ class SQLAlchemyConversationMemoryStore:
         interaction_status: str,
         resolved_entities: list[dict] | None = None,
     ) -> None:
-        del resolved_entities
         if interaction_status not in {"completed", "partial"}:
             return
         session = self._session_factory()
@@ -180,15 +201,17 @@ class SQLAlchemyConversationMemoryStore:
                 **_scope_params(scope),
                 "selected_agents": json.dumps(selected_agents),
                 "interaction_status": interaction_status,
+                "resolved_entities": json.dumps(resolved_entities or []),
             }
             for role, content in (("user", user_message), ("assistant", assistant_message)):
                 session.execute(
                     text("""
                         INSERT INTO conversation_memory_messages
                             (conversation_id, owner_type, owner_reference, student_id,
-                             role, content, selected_agents, interaction_status)
+                             role, content, selected_agents, interaction_status, resolved_entities)
                         VALUES (:conversation_id, :owner_type, :owner_reference, :student_id,
-                                :role, :content, CAST(:selected_agents AS JSONB), :interaction_status)
+                                :role, :content, CAST(:selected_agents AS JSONB), :interaction_status,
+                                CAST(:resolved_entities AS JSONB))
                     """),
                     {**params, "role": role, "content": _bounded_text(content)},
                 )
