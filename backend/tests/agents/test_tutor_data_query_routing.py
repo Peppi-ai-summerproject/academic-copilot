@@ -16,22 +16,24 @@ from app.agents.tutor_data_query_agent import TutorDataQueryAgent
         ("Find student 202600123.", "student_lookup", {}),
         ("Find student S002.", "student_lookup", {}),
         ("How is Anna Korhonen progressing?", "student_progress", {}),
-        ("What is DIN24?", "course_lookup", {}),
+        ("What is DII101?", "course_lookup", {}),
         ("Show me all courses.", "course_search", {}),
-        ("Who is enrolled in DIN24?", "course_roster", {}),
+        ("Who is enrolled in DII101?", "course_roster", {}),
         ("Which courses is Anna Korhonen enrolled in?", "student_enrollments", {}),
-        ("Who passed DIN24?", "course_results", {"result_filter": "PASSED"}),
-        ("Students who didn't pass DIN24", "course_results", {"result_filter": "FAILED"}),
-        ("What is the pass rate for DIN24?", "course_analytics", {}),
-        ("Did Anna Korhonen pass DIN24?", "student_course_result", {}),
+        ("Who passed DII101?", "course_results", {"result_filter": "PASSED"}),
+        ("Students who didn't pass DII101", "course_results", {"result_filter": "FAILED"}),
+        ("What is the pass rate for DII101?", "course_analytics", {}),
+        ("Did Anna Korhonen pass DII101?", "student_course_result", {}),
         ("Find teacher Matti Virtanen.", "teacher_lookup", {}),
         ("What is Matti Virtanen's email?", "teacher_contact", {}),
-        ("Who is responsible for DIN24?", "course_teachers", {"role": "LEAD_TEACHER"}),
+        ("Who is responsible for DII101?", "course_teachers", {"role": "LEAD_TEACHER"}),
         ("Which courses does Matti Virtanen teach?", "teacher_courses", {}),
         ("Show me DIN24.", "academic_lookup", {}),
         ("Which students are in DIN24?", "group_students", {}),
         ("Which courses does DIN24 have?", "group_courses", {}),
         ("Who teaches Database Systems for DIN24?", "group_course_teachers", {}),
+        ("Who passed Database Systems in DIN24?", "group_course_results", {"result_filter": "PASSED"}),
+        ("Who failed Database Systems in DIN24?", "group_course_results", {"result_filter": "FAILED"}),
     ],
 )
 def test_realistic_tutor_queries_map_to_capabilities(message, capability, parameters):
@@ -43,8 +45,8 @@ def test_realistic_tutor_queries_map_to_capabilities(message, capability, parame
 
 
 def test_multi_entity_query_preserves_student_and_course_references():
-    result = detect_intent("Did Anna Korhonen pass DIN24?")
-    assert result.entity_references == (("STUDENT", "Anna Korhonen"), ("COURSE", "DIN24"))
+    result = detect_intent("Did Anna Korhonen pass DII101?")
+    assert result.entity_references == (("STUDENT", "Anna Korhonen"), ("COURSE", "DII101"))
 
 
 def test_unicode_student_name_and_alphanumeric_number_are_preserved_for_resolution():
@@ -69,12 +71,12 @@ def test_data_agent_executes_resolved_course_results_capability():
     gateway.get_course_results = AsyncMock(return_value={"success": True, "results": []})
     state = _state(
         "course_results",
-        [{"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 4, "candidates": [{"course_code": "DIN24"}]}],
+        [{"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 4, "candidates": [{"course_code": "DII101"}]}],
         {"result_filter": "FAILED"},
     )
     result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
     assert result.status == "SUCCESS"
-    gateway.get_course_results.assert_awaited_once_with(course_code="DIN24", status="FAILED")
+    gateway.get_course_results.assert_awaited_once_with(course_code="DII101", status="FAILED")
 
 
 def test_data_agent_executes_multi_entity_enrollment_capability():
@@ -105,7 +107,7 @@ def test_student_course_yes_no_query_returns_actual_result_without_status_filter
             "success": True,
             "results": [
                 {
-                    "course_code": "DIN24",
+                    "course_code": "DII101",
                     "result_status": result_status,
                     "grade": grade,
                 }
@@ -120,7 +122,7 @@ def test_student_course_yes_no_query_returns_actual_result_without_status_filter
                 "entity_type": "COURSE",
                 "status": "RESOLVED",
                 "canonical_id": 24,
-                "candidates": [{"course_code": "DIN24"}],
+                "candidates": [{"course_code": "DII101"}],
             },
         ],
         {"result_filter": "PASSED"},
@@ -151,7 +153,7 @@ def test_student_course_query_reports_none_only_when_course_result_is_absent():
                 "entity_type": "COURSE",
                 "status": "RESOLVED",
                 "canonical_id": 24,
-                "candidates": [{"course_code": "DIN24"}],
+                "candidates": [{"course_code": "DII101"}],
             },
         ],
     )
@@ -169,7 +171,7 @@ def test_course_search_renders_multiple_course_codes_and_names():
             "success": True,
             "pagination": {"returned": 2, "total": 2, "has_more": False},
             "courses": [
-                {"course_code": "DIN24", "course_name": "Digital Innovation"},
+                {"course_code": "DII101", "course_name": "Digital Innovation Foundations"},
                 {"course_code": "MAT101", "course_name": "Mathematics"},
             ],
         }
@@ -178,7 +180,7 @@ def test_course_search_renders_multiple_course_codes_and_names():
     result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("course_search", [])))
 
     assert result.status == "SUCCESS"
-    assert "DIN24" in result.summary and "Digital Innovation" in result.summary
+    assert "DII101" in result.summary and "Digital Innovation Foundations" in result.summary
     assert "MAT101" in result.summary and "Mathematics" in result.summary
     assert "query completed" not in result.summary.lower()
     gateway.search_courses.assert_awaited_once_with()
@@ -206,7 +208,7 @@ def test_course_search_discloses_when_more_paginated_results_exist():
             "success": True,
             "pagination": {"returned": 2, "total": 27, "has_more": True},
             "courses": [
-                {"course_code": "DIN24", "course_name": "Digital Innovation"},
+                {"course_code": "DII101", "course_name": "Digital Innovation Foundations"},
                 {"course_code": "MAT101", "course_name": "Mathematics"},
             ],
         }
@@ -224,7 +226,7 @@ def test_course_lookup_rendering_remains_unchanged():
         return_value={
             "success": True,
             "course": {
-                "course_code": "DIN24",
+                "course_code": "DII101",
                 "course_name": "Digital Innovation",
                 "credits": 5,
             },
@@ -238,7 +240,7 @@ def test_course_lookup_rendering_remains_unchanged():
     result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
 
     assert "Digital Innovation" in result.summary
-    assert "course code: DIN24" in result.summary
+    assert "course code: DII101" in result.summary
     assert "credits: 5" in result.summary
 
 
@@ -246,10 +248,10 @@ def test_group_capabilities_render_canonical_content_and_validate_composition():
     gateway = Mock()
     gateway.get_student_group = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24", "group_name": "Digital Innovation", "programme_code": "DIN2024S"}})
     gateway.get_student_group_students = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24"}, "students": [{"student_number": "S002", "name": "Aino Mäkinen"}]})
-    gateway.get_student_group_courses = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24"}, "courses": [{"id": 101, "course_code": "DII101", "course_name": "Database Systems"}]})
+    gateway.get_student_group_courses = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24"}, "courses": [{"id": 102, "course_code": "DBS24", "course_name": "Database Systems"}]})
     gateway.get_course_teachers = AsyncMock(return_value={"success": True, "teachers": [{"display_name": "Matti Virtanen", "email": "matti@example.test"}]})
     group = {"entity_type": "STUDENT_GROUP", "status": "RESOLVED", "canonical_id": 24}
-    course = {"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 101}
+    course = {"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 102}
 
     lookup = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_lookup", [group])))
     students = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_students", [group])))
@@ -258,7 +260,7 @@ def test_group_capabilities_render_canonical_content_and_validate_composition():
 
     assert "DIN24" in lookup.summary and "Digital Innovation" in lookup.summary
     assert "Aino Mäkinen" in students.summary
-    assert "DII101" in courses.summary and "Database Systems" in courses.summary
+    assert "DBS24" in courses.summary and "Database Systems" in courses.summary
     assert "Matti Virtanen" in teachers.summary
     assert "query completed" not in teachers.summary.lower()
 
@@ -274,3 +276,23 @@ def test_group_course_teacher_query_rejects_unassociated_course_without_teacher_
     result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_course_teachers", entities)))
     assert "not associated" in result.summary
     gateway.get_course_teachers.assert_not_awaited()
+
+
+def test_group_course_results_compose_roster_and_existing_course_results():
+    gateway = Mock()
+    gateway.get_student_group_courses = AsyncMock(return_value={"success": True, "courses": [{"id": 25, "course_code": "DBS24"}]})
+    gateway.get_student_group_students = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24"}, "students": [{"id": 40, "name": "Elina Demo"}]})
+    gateway.get_course_results = AsyncMock(return_value={"success": True, "results": [
+        {"student_id": 40, "student_name": "Elina Demo", "result_status": "PASSED", "grade": 5},
+        {"student_id": 7, "student_name": "Outside Student", "result_status": "PASSED", "grade": 4},
+    ]})
+    entities = [
+        {"entity_type": "STUDENT_GROUP", "status": "RESOLVED", "canonical_id": 240},
+        {"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 25, "candidates": [{"course_code": "DBS24"}]},
+    ]
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_course_results", entities, {"result_filter": "PASSED"})))
+
+    assert "Elina Demo" in result.summary
+    assert "Outside Student" not in result.summary
+    gateway.get_course_results.assert_awaited_once_with(course_code="DBS24", status="PASSED")

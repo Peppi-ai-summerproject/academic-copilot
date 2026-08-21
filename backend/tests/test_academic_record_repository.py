@@ -15,7 +15,7 @@ def test_list_courses_for_student_returns_enrollment_state() -> None:
     session = _session_with_rows(
         {
             "id": 1,
-            "course_code": "DIN24",
+            "course_code": "DII101",
             "course_name": "Digital Innovation Foundations",
             "credits": 5,
             "enrollment_status": "IN_PROGRESS",
@@ -98,8 +98,8 @@ def test_results_for_student_can_filter_canonical_result_status(status) -> None:
 
 def test_results_for_course_supports_pass_fail_counts_without_reimplementing_policy() -> None:
     session = _session_with_rows(
-        {"student_id": 7, "course_code": "DIN24", "result_status": "PASSED"},
-        {"student_id": 8, "course_code": "DIN24", "result_status": "FAILED"},
+        {"student_id": 7, "course_code": "DII101", "result_status": "PASSED"},
+        {"student_id": 8, "course_code": "DII101", "result_status": "FAILED"},
     )
     rows = AcademicRecordRepository(session).list_results_for_course(1)
     assert [row["result_status"] for row in rows] == ["PASSED", "FAILED"]

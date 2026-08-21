@@ -11,13 +11,13 @@ def test_get_course_teachers_delegates_identifiers_role_and_closes() -> None:
         teacher_assignments, "_service", return_value=service
     ):
         result = teacher_assignments.get_course_teachers(
-            course_code="DIN24",
+            course_code="DII101",
             role="LEAD_TEACHER",
         )
     assert result["success"] is True
     service.get_course_teachers.assert_called_once_with(
         course_id=None,
-        course_code="DIN24",
+        course_code="DII101",
         role="LEAD_TEACHER",
     )
     session.close.assert_called_once_with()

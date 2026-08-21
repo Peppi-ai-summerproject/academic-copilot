@@ -32,6 +32,13 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("group_course_teachers", ("STUDENT_GROUP", match.group(2)), ("COURSE", match.group(1)))
     if match := re.search(r"^who teaches\s+(?!it\b)(.+?)\??$", text, re.IGNORECASE):
         return _match("group_course_teachers", ("COURSE", match.group(1)))
+    if match := re.search(r"\bwho\s+(passed|failed)\s+(.+?)\s+in\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
+        return _match(
+            "group_course_results",
+            ("STUDENT_GROUP", match.group(3)),
+            ("COURSE", match.group(2)),
+            result_filter=match.group(1).upper(),
+        )
     if match := re.search(r"\bwhich students? (?:are )?in\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
         return _match("group_students", ("STUDENT_GROUP", match.group(1)))
     if re.search(r"\bwhich students? (?:are )?in it\b", lower):

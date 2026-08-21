@@ -25,6 +25,7 @@ CAPABILITY_ENTITY_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "group_students": ("STUDENT_GROUP",),
     "group_courses": ("STUDENT_GROUP",),
     "group_course_teachers": ("STUDENT_GROUP", "COURSE"),
+    "group_course_results": ("STUDENT_GROUP", "COURSE"),
 }
 
 

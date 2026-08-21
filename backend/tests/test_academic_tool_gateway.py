@@ -109,14 +109,14 @@ def test_gateway_delegates_teacher_assignment_tools() -> None:
     )
 
     course_result = asyncio.run(
-        gateway.get_course_teachers(course_code="DIN24", role="LEAD_TEACHER")
+        gateway.get_course_teachers(course_code="DII101", role="LEAD_TEACHER")
     )
     teacher_result = asyncio.run(gateway.get_teacher_courses(teacher_id=8))
 
     assert course_result["teachers"] == []
     assert teacher_result["assignments"] == []
     course_teachers_tool.assert_called_once_with(
-        course_code="DIN24",
+        course_code="DII101",
         role="LEAD_TEACHER",
     )
     teacher_courses_tool.assert_called_once_with(teacher_id=8)

@@ -31,7 +31,9 @@ class DeterministicAcademicGateway:
         {"id": 42, "student_number": "DEMO22103", "name": "Noora Noresult", "email": "noora@example.test", "programme": "ICT"},
     ]
     courses = [
-        {"id": 24, "course_code": "DII101", "course_name": "Database Systems", "credits": 5},
+        {"id": 24, "course_code": "DII101", "course_name": "Digital Innovation Foundations", "credits": 5},
+        {"id": 25, "course_code": "DBS24", "course_name": "Database Systems", "credits": 5},
+        {"id": 26, "course_code": "WEB24", "course_name": "Web Development", "credits": 5},
         {"id": 101, "course_code": "MAT101", "course_name": "Mathematics", "credits": 5},
         {"id": 202, "course_code": "SWE20", "course_name": "Software Engineering", "credits": 5},
     ]
@@ -45,6 +47,7 @@ class DeterministicAcademicGateway:
         {"id": 31, "display_name": "Matti Virtanen", "email": "matti@example.test"},
         {"id": 32, "display_name": "Alex North", "email": "alex.n@example.test"},
         {"id": 33, "display_name": "Alex South", "email": "alex.s@example.test"},
+        {"id": 34, "display_name": "Anna Example", "email": "anna.teacher@example.test"},
     ]
 
     def __init__(self) -> None:
@@ -109,12 +112,13 @@ class DeterministicAcademicGateway:
     async def get_student_group_students(self, group_id):
         self._record("get_student_group_students", group_id=group_id)
         group = next((row for row in self.groups if row["id"] == group_id), None)
-        return {"success": True, "group": deepcopy(group), "students": deepcopy(self.students[:2])}
+        rows = self.students[5:8] if group_id == 240 else self.students[:2]
+        return {"success": True, "group": deepcopy(group), "students": deepcopy(rows)}
 
     async def get_student_group_courses(self, group_id):
         self._record("get_student_group_courses", group_id=group_id)
         group = next((row for row in self.groups if row["id"] == group_id), None)
-        rows = self.courses[:2] if group_id == 240 else self.courses[1:]
+        rows = self.courses[:3] if group_id == 240 else self.courses[3:]
         return {"success": True, "group": deepcopy(group), "courses": deepcopy(rows)}
 
     async def get_course_roster(self, **kwargs):
@@ -132,10 +136,10 @@ class DeterministicAcademicGateway:
     async def get_course_results(self, **kwargs):
         self._record("get_course_results", **kwargs)
         rows = [
-            {"student_name": "Anna Korhonen", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 5},
-            {"student_name": "John Smith", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
-            {"student_name": "Elina Demo", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 5},
-            {"student_name": "Oskari Example", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
+            {"student_id": 7, "student_name": "Anna Korhonen", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 4},
+            {"student_id": 8, "student_name": "John Smith", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 1},
+            {"student_id": 40, "student_name": "Elina Demo", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 5},
+            {"student_id": 41, "student_name": "Oskari Example", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
         ]
         if kwargs.get("status"):
             rows = [row for row in rows if row["result_status"] == kwargs["status"]]
@@ -269,7 +273,8 @@ def test_course_discovery_by_code_and_name(copilot):
 def test_course_catalogue_response_contains_meaningful_course_content(copilot):
     reply = ask(copilot, "Show me all courses.").reply
 
-    assert "DII101" in reply and "Database Systems" in reply
+    assert "DII101" in reply and "Digital Innovation Foundations" in reply
+    assert "DBS24" in reply and "Database Systems" in reply
     assert "MAT101" in reply and "Mathematics" in reply
     assert "Academic course search query completed" not in reply
 
@@ -280,8 +285,11 @@ def test_student_group_lookup_lists_students_and_courses_with_context(copilot):
     courses = ask(copilot, "Which courses does it have?").reply
     students = ask(copilot, "Which students are in it?").reply
 
-    assert "DII101" in courses and "Database Systems" in courses
-    assert "Anna Korhonen" in students and "John Smith" in students
+    assert "DII101" in courses and "Digital Innovation Foundations" in courses
+    assert "DBS24" in courses and "Database Systems" in courses
+    assert "WEB24" in courses and "Web Development" in courses
+    assert "DIN24 —" not in courses
+    assert "Elina Demo" in students and "Oskari Example" in students
     assert active_entities(copilot)["STUDENT_GROUP"]["canonical_id"] == 240
     assert "COURSE" not in active_entities(copilot)
 
@@ -293,14 +301,50 @@ def test_group_course_teacher_composes_canonical_relationship(copilot):
 
     assert "Matti Virtanen" in reply
     assert ("get_student_group_courses", {"group_id": 240}) in copilot[1].calls
-    assert ("get_course_teachers", {"course_id": 24}) in copilot[1].calls
+    assert ("get_course_teachers", {"course_id": 25}) in copilot[1].calls
+
+    explicit = ask(copilot, "Who teaches Database Systems for DIN24?").reply
+    assert "Matti Virtanen" in explicit
+
+
+@pytest.mark.e2e
+def test_group_course_teacher_rejects_course_outside_group(copilot):
+    reply = ask(copilot, "Who teaches Mathematics for DIN24?").reply
+
+    assert "not associated" in reply
+    assert not any(name == "get_course_teachers" for name, _ in copilot[1].calls)
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    ("status", "included", "excluded", "outsider"),
+    [
+        ("passed", "Elina Demo", "Oskari Example", "Anna Korhonen"),
+        ("failed", "Oskari Example", "Elina Demo", "John Smith"),
+    ],
+)
+def test_group_scoped_results_filter_status_and_exclude_outside_students(
+    copilot, status, included, excluded, outsider
+):
+    reply = ask(copilot, f"Who {status} Database Systems in DIN24?").reply
+
+    assert included in reply
+    assert excluded not in reply
+    assert outsider not in reply
+    entities = active_entities(copilot)
+    assert entities["STUDENT_GROUP"]["canonical_id"] == 240
+    assert entities["COURSE"]["canonical_id"] == 25
 
 
 @pytest.mark.e2e
 def test_group_switch_and_failed_or_ambiguous_resolution_context_rules(copilot):
     ask(copilot, "Show me DIN24.")
+    assert "Elina Demo" in ask(copilot, "Which students are in it?").reply
     ask(copilot, "Show me BIT24.")
     assert active_entities(copilot)["STUDENT_GROUP"]["canonical_id"] == 241
+    switched_students = ask(copilot, "Which students are in it?").reply
+    assert "Anna Korhonen" in switched_students
+    assert "Elina Demo" not in switched_students
 
     assert "could not find" in ask(copilot, "Show me XYZ999.").reply
     assert "BIT24" in ask(copilot, "Which courses does it have?").reply
@@ -458,7 +502,7 @@ class CapturingMessage:
 
 
 @pytest.mark.e2e
-def test_telegram_handler_multi_turn_course_context_and_chat_isolation(copilot, monkeypatch):
+def test_telegram_handler_multi_turn_group_and_student_workflow(copilot, monkeypatch):
     monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
 
     async def send(text, user, chat):
@@ -471,6 +515,13 @@ def test_telegram_handler_multi_turn_course_context_and_chat_isolation(copilot, 
         await handlers.handle_message(update, None)
         return message.replies[0]
 
-    assert "DII101" in asyncio.run(send("Show DII101.", 41, 51))
-    assert "Matti Virtanen" in asyncio.run(send("Who teaches it?", 41, 51))
-    assert "Which course" in asyncio.run(send("Who teaches it?", 42, 52))
+    assert "DIN24" in asyncio.run(send("Show me DIN24.", 41, 51))
+    assert "Elina Demo" in asyncio.run(send("Which students are in it?", 41, 51))
+    courses = asyncio.run(send("Which courses does it have?", 41, 51))
+    assert "DII101" in courses and "DBS24" in courses and "WEB24" in courses
+    assert "Matti Virtanen" in asyncio.run(send("Who teaches Database Systems?", 41, 51))
+    assert "Elina Demo" in asyncio.run(send("Show me Elina Demo.", 41, 51))
+    result = asyncio.run(send("Did she pass DII101?", 41, 51))
+    assert "PASSED" in result and "grade 5" in result
+    assert "grade 5" in asyncio.run(send("What grade did she get?", 41, 51))
+    assert "Which student group" in asyncio.run(send("Which students are in it?", 42, 52))

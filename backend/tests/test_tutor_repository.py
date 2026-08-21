@@ -102,10 +102,10 @@ def test_search_teacher_by_name_is_case_insensitive():
 def test_list_courses_for_teacher_supports_multiple_assignments():
     session = _session_with_rows(
         {"id": 1, "course_code": "DBS24", "assignment_role": "TEACHER"},
-        {"id": 2, "course_code": "DIN24", "assignment_role": "LEAD_TEACHER"},
+        {"id": 2, "course_code": "DII101", "assignment_role": "LEAD_TEACHER"},
     )
     courses = TutorRepository(session).list_courses_for_teacher(3)
-    assert [course["course_code"] for course in courses] == ["DBS24", "DIN24"]
+    assert [course["course_code"] for course in courses] == ["DBS24", "DII101"]
     statement, params = session.execute.call_args.args
     assert "teacher_course_assignments" in statement.text
     assert params == {"tutor_id": 3}

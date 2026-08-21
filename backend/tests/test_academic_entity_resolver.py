@@ -44,3 +44,17 @@ def test_unknown_student_group_is_not_found():
     g=Gateway(); g.students=[]; g.courses=[]; g.teachers=[]; g.groups=[]
     result=asyncio.run(AcademicEntityResolver(g).resolve("STUDENT_GROUP","UNKNOWN24"))
     assert result.status == "NOT_FOUND"
+
+def test_existing_student_course_name_and_teacher_resolution_remain_canonical():
+    g=Gateway(); g.groups=[]
+    g.students=[{"id":2,"student_number":"S002","name":"Aino Mäkinen"}]
+    g.courses=[]; g.teachers=[]
+    resolver=AcademicEntityResolver(g)
+    student=asyncio.run(resolver.resolve("STUDENT","Aino Mäkinen"))
+    g.students=[]; g.courses=[{"id":25,"course_code":"DBS24","course_name":"Database Systems"}]
+    course=asyncio.run(resolver.resolve("COURSE","Database Systems"))
+    g.courses=[]; g.teachers=[{"id":34,"display_name":"Anna Example"}]
+    teacher=asyncio.run(resolver.resolve("TEACHER","Anna Example"))
+    assert (student.entity_type, student.canonical_id) == ("STUDENT", 2)
+    assert (course.entity_type, course.canonical_id) == ("COURSE", 25)
+    assert (teacher.entity_type, teacher.canonical_id) == ("TEACHER", 34)
