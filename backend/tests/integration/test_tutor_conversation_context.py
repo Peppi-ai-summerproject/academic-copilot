@@ -25,10 +25,15 @@ class RecordingWorkflow:
 
 class Resolver:
     async def resolve(self, kind, text):
+        if kind == "ACADEMIC_CODE":
+            group = await self.resolve("STUDENT_GROUP", text)
+            if group.status != "NOT_FOUND":
+                return group
+            return await self.resolve("COURSE", text)
         rows = {
             ("STUDENT", "Anna Korhonen"): (7, "Anna Korhonen", [{"student_number": "S7"}]),
             ("STUDENT", "John Smith"): (8, "John Smith", [{"student_number": "S8"}]),
-            ("COURSE", "DIN24"): (24, "Digital Innovation", [{"course_code": "DIN24"}]),
+            ("COURSE", "DII101"): (24, "Digital Innovation", [{"course_code": "DII101"}]),
             ("COURSE", "MAT101"): (101, "Mathematics", [{"course_code": "MAT101"}]),
             ("TEACHER", "Matti Virtanen"): (31, "Matti Virtanen", []),
         }
@@ -79,7 +84,7 @@ def test_student_context_reaches_specialized_and_data_routes_across_turns():
 def test_course_context_is_reused_and_explicit_course_wins():
     service, workflow = harness()
     for message in (
-        "Show me DIN24.", "Who teaches it?", "Who is enrolled?", "Who failed?",
+        "Show me DII101.", "Who teaches it?", "Who is enrolled?", "Who failed?",
         "Who failed MAT101?", "What is the pass rate?",
     ):
         send(service, message)
@@ -104,7 +109,7 @@ def test_teacher_context_is_reused_for_pronoun_followups():
 
 def test_student_and_course_coexist_and_course_switch_preserves_student():
     service, workflow = harness()
-    for message in ("Show me Anna Korhonen.", "Did she pass DIN24?", "What grade did she get?", "What about MAT101?"):
+    for message in ("Show me Anna Korhonen.", "Did she pass DII101?", "What grade did she get?", "What about MAT101?"):
         send(service, message)
 
     assert entity_ids(workflow.states[1]) == {"STUDENT": 7, "COURSE": 24}
@@ -114,7 +119,7 @@ def test_student_and_course_coexist_and_course_switch_preserves_student():
 
 def test_student_switching_updates_student_and_preserves_course():
     service, workflow = harness()
-    for message in ("Show me DIN24.", "Show me Anna Korhonen.", "Now show John Smith.", "How is he progressing?"):
+    for message in ("Show me DII101.", "Show me Anna Korhonen.", "Now show John Smith.", "How is he progressing?"):
         send(service, message)
 
     assert entity_ids(workflow.states[2]) == {"STUDENT": 8, "COURSE": 24}
@@ -132,7 +137,7 @@ def test_missing_context_clarifies_and_sessions_are_isolated():
 
 def test_failed_resolution_does_not_replace_previous_course():
     service, workflow = harness()
-    send(service, "Show me DIN24.")
+    send(service, "Show me DII101.")
     response = send(service, "Show me XYZ999.")
     send(service, "What is the pass rate?")
 

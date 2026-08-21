@@ -58,3 +58,17 @@ def test_group_lists_multiple_independent_courses() -> None:
     assert "FROM student_group_courses" in statement.text
     assert "INNER JOIN courses" in statement.text
     assert params == {"group_id": 24}
+
+
+def test_group_lookup_by_id_and_search_return_canonical_rows() -> None:
+    row = {"id": 24, "group_code": "DIN24", "group_name": "Digital Innovation"}
+    session = Mock()
+    session.execute.return_value.mappings.return_value.first.return_value = row
+    repository = StudentGroupRepository(session)
+
+    assert repository.get_by_id(24) == row
+    assert session.execute.call_args.args[1] == {"group_id": 24}
+
+    session.execute.return_value.mappings.return_value.all.return_value = [row]
+    assert repository.search(" din ") == [row]
+    assert session.execute.call_args.args[1] == {"query": "%din%"}

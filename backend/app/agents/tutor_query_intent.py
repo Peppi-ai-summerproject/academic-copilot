@@ -28,6 +28,23 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
     student = _student_reference(text)
     teacher = _teacher_reference(text)
 
+    if match := re.search(r"\bwho teaches\s+(.+?)\s+for\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
+        return _match("group_course_teachers", ("STUDENT_GROUP", match.group(2)), ("COURSE", match.group(1)))
+    if match := re.search(r"^who teaches\s+(?!it\b)(.+?)\??$", text, re.IGNORECASE):
+        return _match("group_course_teachers", ("COURSE", match.group(1)))
+    if match := re.search(r"\bwhich students? (?:are )?in\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
+        return _match("group_students", ("STUDENT_GROUP", match.group(1)))
+    if re.search(r"\bwhich students? (?:are )?in it\b", lower):
+        return _match("group_students")
+    if match := re.search(r"\bwhich courses? does\s+([A-Za-z]{2,}\d{2,})\s+have\b", text, re.IGNORECASE):
+        return _match("group_courses", ("STUDENT_GROUP", match.group(1)))
+    if re.search(r"\bwhich courses? does it have\b", lower):
+        return _match("group_courses")
+    if match := re.search(r"^(?:show me|show|find)\s+(?:group\s+)?([A-Za-z]{2,}\d{2,})\.?$", text, re.IGNORECASE):
+        return _match("academic_lookup", ("ACADEMIC_CODE", match.group(1)))
+    if match := re.search(r"^(?:show me|show|find)\s+(?:group|cohort)\s+(.+?)\.?$", text, re.IGNORECASE):
+        return _match("group_lookup", ("STUDENT_GROUP", match.group(1)))
+
     if re.search(r"\b(pass rate|failure rate|completion rate|how many .*completed)\b", lower):
         return _match("course_analytics", course)
     if re.search(r"\b(?:what grade|which grade)\b", lower):

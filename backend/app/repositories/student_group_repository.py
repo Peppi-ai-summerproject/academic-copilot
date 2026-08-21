@@ -32,6 +32,48 @@ class StudentGroupRepository:
         ).mappings().first()
         return dict(row) if row is not None else None
 
+    def get_by_id(self, group_id: int) -> dict[str, Any] | None:
+        row = self._session.execute(
+            text(
+                """
+                SELECT student_group.id, student_group.group_code,
+                       student_group.group_name, student_group.programme_id,
+                       programme.programme_code, programme.programme_name,
+                       student_group.is_active
+                FROM student_groups AS student_group
+                INNER JOIN degree_programmes AS programme
+                    ON programme.id = student_group.programme_id
+                WHERE student_group.id = :group_id
+                """
+            ),
+            {"group_id": group_id},
+        ).mappings().first()
+        return dict(row) if row is not None else None
+
+    def search(self, query: str | None = None) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        where = ""
+        if query:
+            where = "WHERE LOWER(group_code) LIKE :query OR LOWER(group_name) LIKE :query"
+            params["query"] = f"%{query.strip().lower()}%"
+        rows = self._session.execute(
+            text(
+                f"""
+                SELECT student_group.id, student_group.group_code,
+                       student_group.group_name, student_group.programme_id,
+                       programme.programme_code, programme.programme_name,
+                       student_group.is_active
+                FROM student_groups AS student_group
+                INNER JOIN degree_programmes AS programme
+                    ON programme.id = student_group.programme_id
+                {where}
+                ORDER BY student_group.group_code ASC, student_group.id ASC
+                """
+            ),
+            params,
+        ).mappings().all()
+        return [dict(row) for row in rows]
+
     def list_students(self, group_id: int) -> list[dict[str, Any]]:
         rows = self._session.execute(
             text(

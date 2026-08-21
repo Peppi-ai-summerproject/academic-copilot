@@ -28,6 +28,10 @@ from app.agents.tutor_data_query_agent import TutorDataQueryAgent
         ("What is Matti Virtanen's email?", "teacher_contact", {}),
         ("Who is responsible for DIN24?", "course_teachers", {"role": "LEAD_TEACHER"}),
         ("Which courses does Matti Virtanen teach?", "teacher_courses", {}),
+        ("Show me DIN24.", "academic_lookup", {}),
+        ("Which students are in DIN24?", "group_students", {}),
+        ("Which courses does DIN24 have?", "group_courses", {}),
+        ("Who teaches Database Systems for DIN24?", "group_course_teachers", {}),
     ],
 )
 def test_realistic_tutor_queries_map_to_capabilities(message, capability, parameters):
@@ -236,3 +240,37 @@ def test_course_lookup_rendering_remains_unchanged():
     assert "Digital Innovation" in result.summary
     assert "course code: DIN24" in result.summary
     assert "credits: 5" in result.summary
+
+
+def test_group_capabilities_render_canonical_content_and_validate_composition():
+    gateway = Mock()
+    gateway.get_student_group = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24", "group_name": "Digital Innovation", "programme_code": "DIN2024S"}})
+    gateway.get_student_group_students = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24"}, "students": [{"student_number": "S002", "name": "Aino Mäkinen"}]})
+    gateway.get_student_group_courses = AsyncMock(return_value={"success": True, "group": {"group_code": "DIN24"}, "courses": [{"id": 101, "course_code": "DII101", "course_name": "Database Systems"}]})
+    gateway.get_course_teachers = AsyncMock(return_value={"success": True, "teachers": [{"display_name": "Matti Virtanen", "email": "matti@example.test"}]})
+    group = {"entity_type": "STUDENT_GROUP", "status": "RESOLVED", "canonical_id": 24}
+    course = {"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 101}
+
+    lookup = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_lookup", [group])))
+    students = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_students", [group])))
+    courses = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_courses", [group])))
+    teachers = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_course_teachers", [group, course])))
+
+    assert "DIN24" in lookup.summary and "Digital Innovation" in lookup.summary
+    assert "Aino Mäkinen" in students.summary
+    assert "DII101" in courses.summary and "Database Systems" in courses.summary
+    assert "Matti Virtanen" in teachers.summary
+    assert "query completed" not in teachers.summary.lower()
+
+
+def test_group_course_teacher_query_rejects_unassociated_course_without_teacher_call():
+    gateway = Mock()
+    gateway.get_student_group_courses = AsyncMock(return_value={"success": True, "courses": []})
+    gateway.get_course_teachers = AsyncMock()
+    entities = [
+        {"entity_type": "STUDENT_GROUP", "status": "RESOLVED", "canonical_id": 24},
+        {"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 999},
+    ]
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("group_course_teachers", entities)))
+    assert "not associated" in result.summary
+    gateway.get_course_teachers.assert_not_awaited()
