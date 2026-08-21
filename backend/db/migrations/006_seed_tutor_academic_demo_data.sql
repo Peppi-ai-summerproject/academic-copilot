@@ -75,7 +75,9 @@ BEGIN
         FROM (
             VALUES
                 ('DEMO22101', 'DII101', 'PASSED', '5', DATE '2025-05-20'),
-                ('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20')
+                ('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20'),
+                ('DEMO22101', 'DBS24', 'PASSED', '4', DATE '2025-06-10'),
+                ('DEMO22102', 'DBS24', 'FAILED', '0', DATE '2025-06-10')
         ) AS values(student_number, course_code, result_status, grade, completion_date)
         JOIN students AS student ON student.student_number = values.student_number
         JOIN courses AS course ON course.course_code = values.course_code
@@ -94,7 +96,9 @@ BEGIN
         FROM (
             VALUES
                 ('DEMO22101', 'DII101', 'PASSED', '5', DATE '2025-05-20'),
-                ('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20')
+                ('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20'),
+                ('DEMO22101', 'DBS24', 'PASSED', '4', DATE '2025-06-10'),
+                ('DEMO22102', 'DBS24', 'FAILED', '0', DATE '2025-06-10')
         ) AS values(student_number, course_code, result_status, grade, completion_date)
         JOIN students AS student ON student.student_number = values.student_number
         JOIN courses AS course ON course.course_code = values.course_code

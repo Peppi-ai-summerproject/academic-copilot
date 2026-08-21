@@ -28,7 +28,7 @@ class DeterministicAcademicGateway:
         {"id": 2, "student_number": "S002", "name": "Aino Mäkinen", "email": "aino@example.test", "programme": "ICT"},
         {"id": 40, "student_number": "DEMO22101", "name": "Elina Demo", "email": "elina@example.test", "programme": "ICT"},
         {"id": 41, "student_number": "DEMO22102", "name": "Oskari Example", "email": "oskari@example.test", "programme": "ICT"},
-        {"id": 42, "student_number": "DEMO22103", "name": "Noora Noresult", "email": "noora@example.test", "programme": "ICT"},
+        {"id": 42, "student_number": "DEMO22103", "name": "Sofia Sample", "email": "sofia@example.test", "programme": "ICT"},
     ]
     courses = [
         {"id": 24, "course_code": "DII101", "course_name": "Digital Innovation Foundations", "credits": 5},
@@ -136,10 +136,11 @@ class DeterministicAcademicGateway:
 
     async def get_course_results(self, **kwargs):
         self._record("get_course_results", **kwargs)
+        elina_grade = 4 if kwargs["course_code"] == "DBS24" else 5
         rows = [
             {"student_id": 7, "student_name": "Anna Korhonen", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 4},
             {"student_id": 8, "student_name": "John Smith", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 1},
-            {"student_id": 40, "student_name": "Elina Demo", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": 5},
+            {"student_id": 40, "student_name": "Elina Demo", "course_code": kwargs["course_code"], "result_status": "PASSED", "grade": elina_grade},
             {"student_id": 41, "student_name": "Oskari Example", "course_code": kwargs["course_code"], "result_status": "FAILED", "grade": 0},
         ]
         if kwargs.get("status"):
@@ -149,9 +150,15 @@ class DeterministicAcademicGateway:
     async def get_student_results(self, **kwargs):
         self._record("get_student_results", **kwargs)
         rows_by_student = {
-            40: [{"student_name": "Elina Demo", "course_code": "DII101", "result_status": "PASSED", "grade": 5}],
-            41: [{"student_name": "Oskari Example", "course_code": "DII101", "result_status": "FAILED", "grade": 0}],
-            42: [{"student_name": "Noora Noresult", "course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
+            40: [
+                {"student_name": "Elina Demo", "course_code": "DII101", "result_status": "PASSED", "grade": 5},
+                {"student_name": "Elina Demo", "course_code": "DBS24", "result_status": "PASSED", "grade": 4},
+            ],
+            41: [
+                {"student_name": "Oskari Example", "course_code": "DII101", "result_status": "FAILED", "grade": 0},
+                {"student_name": "Oskari Example", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
+            ],
+            42: [{"student_name": "Sofia Sample", "course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
         }
         rows = rows_by_student.get(
             kwargs["student_id"],
@@ -328,20 +335,22 @@ def test_group_course_teacher_rejects_course_outside_group(copilot):
 
 @pytest.mark.e2e
 @pytest.mark.parametrize(
-    ("status", "included", "excluded", "outsider"),
+    ("status", "included", "grade", "excluded", "outsider"),
     [
-        ("passed", "Elina Demo", "Oskari Example", "Anna Korhonen"),
-        ("failed", "Oskari Example", "Elina Demo", "John Smith"),
+        ("passed", "Elina Demo", 4, "Oskari Example", "Anna Korhonen"),
+        ("failed", "Oskari Example", 0, "Elina Demo", "John Smith"),
     ],
 )
 def test_group_scoped_results_filter_status_and_exclude_outside_students(
-    copilot, status, included, excluded, outsider
+    copilot, status, included, grade, excluded, outsider
 ):
     reply = ask(copilot, f"Who {status} Database Systems in DIN24?").reply
 
     assert included in reply
+    assert f"grade {grade}" in reply
     assert excluded not in reply
     assert outsider not in reply
+    assert "Sofia Sample" not in reply
     entities = active_entities(copilot)
     assert entities["STUDENT_GROUP"]["canonical_id"] == 240
     assert entities["COURSE"]["canonical_id"] == 25
@@ -409,7 +418,7 @@ def test_student_course_yes_no_returns_actual_pass_or_fail_result(
 
 @pytest.mark.e2e
 def test_student_course_yes_no_reports_none_when_student_has_no_course_result(copilot):
-    ask(copilot, "Show me Noora Noresult.")
+    ask(copilot, "Show me Sofia Sample.")
 
     assert ask(copilot, "Did she pass DII101?").reply.endswith("Results: none found.")
 

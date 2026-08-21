@@ -30,6 +30,11 @@ Use a non-production test environment with Issue #243 data and verify:
 5. `Show me Elina Demo.`
 6. `Did she pass DII101?`
 7. `What grade did she get?`
+8. `Who passed Database Systems in DIN24?`
+9. `Who failed Database Systems in DIN24?`
 
 Expected results identify DIN24 as a group, list its canonical students and
 courses, return the course's teacher, and report Elina's stored status and grade.
+The DBS24 group-scoped results should report Elina Demo as PASSED with grade 4
+and Oskari Example as FAILED with grade 0. Sofia Sample has no DBS24 completion
+and must not appear in either result.

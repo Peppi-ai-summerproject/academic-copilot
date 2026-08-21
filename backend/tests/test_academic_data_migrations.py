@@ -156,3 +156,36 @@ def test_completion_conflict_policy_aborts_on_any_meaningful_difference() -> Non
     assert "require manual resolution" in sql
     assert "to_jsonb(incorrect)" in sql
     assert "to_jsonb(replacement)" in sql
+
+
+def test_dbs24_demo_completion_migration_adds_expected_canonical_records() -> None:
+    sql = (MIGRATIONS / "009_seed_dbs24_demo_completions.sql").read_text()
+
+    assert "('DEMO22101', 'DBS24', 'PASSED', '4', DATE '2025-06-10')" in sql
+    assert "('DEMO22102', 'DBS24', 'FAILED', '0', DATE '2025-06-10')" in sql
+    assert "DEMO22103" not in sql
+    assert "student.student_number = demo.student_number" in sql
+    assert "course.course_code = demo.course_code" in sql
+
+
+def test_dbs24_demo_completion_migration_is_additive_and_idempotent() -> None:
+    sql = (MIGRATIONS / "009_seed_dbs24_demo_completions.sql").read_text()
+
+    assert "WHERE NOT EXISTS" in sql
+    assert "ON CONFLICT (student_id, course_id) WHERE course_id IS NOT NULL" in sql
+    assert "DO NOTHING" in sql
+    assert "UPDATE course_completions" not in sql
+    assert "DELETE FROM course_completions" not in sql
+    assert "existing.course_id = course.id" in sql
+    assert "LOWER(existing.course_code) = LOWER(course.course_code)" in sql
+
+
+def test_fresh_seed_converges_on_dii101_and_dbs24_demo_results() -> None:
+    sql = (MIGRATIONS / "006_seed_tutor_academic_demo_data.sql").read_text()
+
+    assert sql.count("('DEMO22101', 'DII101', 'PASSED', '5', DATE '2025-05-20')") == 2
+    assert sql.count("('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20')") == 2
+    assert sql.count("('DEMO22101', 'DBS24', 'PASSED', '4', DATE '2025-06-10')") == 2
+    assert sql.count("('DEMO22102', 'DBS24', 'FAILED', '0', DATE '2025-06-10')") == 2
+    assert "('DEMO22103', 'DBS24', 'PASSED'" not in sql
+    assert "('DEMO22103', 'DBS24', 'FAILED'" not in sql
