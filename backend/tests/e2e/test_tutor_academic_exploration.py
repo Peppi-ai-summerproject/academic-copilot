@@ -24,6 +24,8 @@ class DeterministicAcademicGateway:
         {"id": 7, "student_number": "1234567", "name": "Anna Korhonen", "email": "anna@example.test", "programme": "ICT"},
         {"id": 8, "student_number": "7654321", "name": "John Smith", "email": "john@example.test", "programme": "ICT"},
         {"id": 9, "student_number": "1111111", "name": "Anna Laine", "email": "laine@example.test", "programme": "Business"},
+        {"id": 1, "student_number": "S001", "name": "Mikael Virtanen", "email": "mikael@example.test", "programme": "ICT"},
+        {"id": 2, "student_number": "S002", "name": "Aino Mäkinen", "email": "aino@example.test", "programme": "ICT"},
     ]
     courses = [
         {"id": 24, "course_code": "DIN24", "course_name": "Digital Innovation", "credits": 5},
@@ -178,6 +180,40 @@ def test_student_discovery_number_contact_and_minimal_context(copilot):
     context = active_entities(copilot)["STUDENT"]
     assert context["canonical_id"] == 7
     assert "email" not in repr(context) and "programme" not in repr(context)
+
+
+@pytest.mark.e2e
+def test_unicode_student_lookup_replaces_active_student_for_progress(copilot):
+    assert "Mikael Virtanen" in ask(copilot, "Show me Mikael Virtanen.").reply
+    assert "Mikael Virtanen" in ask(copilot, "How is he progressing?").reply
+
+    lookup = ask(copilot, "Show me Aino Mäkinen.").reply
+    progress = ask(copilot, "How is she progressing?").reply
+
+    assert "Aino Mäkinen" in lookup
+    assert "Aino Mäkinen" in progress
+    assert "Mikael Virtanen" not in progress
+    assert active_entities(copilot)["STUDENT"]["canonical_id"] == 2
+
+
+@pytest.mark.e2e
+def test_alphanumeric_student_number_resolves_canonical_student(copilot):
+    reply = ask(copilot, "Find student S002.").reply
+
+    assert "Aino Mäkinen" in reply
+    assert "S002" in reply
+    assert active_entities(copilot)["STUDENT"]["canonical_id"] == 2
+
+
+@pytest.mark.e2e
+def test_failed_or_ambiguous_switch_keeps_previous_canonical_student(copilot):
+    ask(copilot, "Show me Mikael Virtanen.")
+
+    assert "could not find" in ask(copilot, "Show me Nobody Missing.").reply
+    assert "Mikael Virtanen" in ask(copilot, "How is he progressing?").reply
+    assert "multiple matching students" in ask(copilot, "Find Anna.").reply
+    assert "Mikael Virtanen" in ask(copilot, "How is he progressing?").reply
+    assert active_entities(copilot)["STUDENT"]["canonical_id"] == 1
 
 
 @pytest.mark.e2e

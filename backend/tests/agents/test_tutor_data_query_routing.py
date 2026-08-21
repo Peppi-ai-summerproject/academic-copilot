@@ -12,7 +12,9 @@ from app.agents.tutor_data_query_agent import TutorDataQueryAgent
     ("message", "capability", "parameters"),
     [
         ("Find Anna Korhonen.", "student_lookup", {}),
+        ("Show me Aino Mäkinen.", "student_lookup", {}),
         ("Find student 202600123.", "student_lookup", {}),
+        ("Find student S002.", "student_lookup", {}),
         ("How is Anna Korhonen progressing?", "student_progress", {}),
         ("What is DIN24?", "course_lookup", {}),
         ("Show me all courses.", "course_search", {}),
@@ -39,6 +41,16 @@ def test_realistic_tutor_queries_map_to_capabilities(message, capability, parame
 def test_multi_entity_query_preserves_student_and_course_references():
     result = detect_intent("Did Anna Korhonen pass DIN24?")
     assert result.entity_references == (("STUDENT", "Anna Korhonen"), ("COURSE", "DIN24"))
+
+
+def test_unicode_student_name_and_alphanumeric_number_are_preserved_for_resolution():
+    by_name = detect_intent("Show me Aino Mäkinen.")
+    by_decomposed_name = detect_intent("Show me Aino Ma\u0308kinen.")
+    by_number = detect_intent("Find student S002.")
+
+    assert by_name.entity_references == (("STUDENT", "Aino Mäkinen"),)
+    assert by_decomposed_name.entity_references == (("STUDENT", "Aino Mäkinen"),)
+    assert by_number.entity_references == (("STUDENT", "S002"),)
 
 
 def _state(capability, entities, query_parameters=None):

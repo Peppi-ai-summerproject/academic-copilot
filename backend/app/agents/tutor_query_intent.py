@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
+import unicodedata
 
 
 @dataclass(frozen=True)
@@ -14,12 +15,14 @@ class TutorQueryMatch:
 
 
 _COURSE_CODE = re.compile(r"\b[A-Za-z]{2,}\d{2,}[A-Za-z0-9-]*\b")
-_STUDENT_NUMBER = re.compile(r"\b\d{6,12}\b")
+_STUDENT_NUMBER = re.compile(r"(?<!\w)(?:[^\W\d_]\d{3,}|\d{6,12})(?!\w)")
+_NAME_WORD = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
+_PERSON_NAME = rf"{_NAME_WORD}(?:\s+{_NAME_WORD})?"
 
 
 def detect_tutor_query(message: str) -> TutorQueryMatch | None:
     """Return a structured academic-data capability without querying data."""
-    text = " ".join(message.strip().split())
+    text = unicodedata.normalize("NFC", " ".join(message.strip().split()))
     lower = text.casefold()
     course = _course_reference(text)
     student = _student_reference(text)
@@ -74,7 +77,11 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         or re.match(r"^show (?:me )?", lower)
     ) and course:
         return _match("course_lookup", course)
-    if match := re.search(r"^(?:now\s+)?(?:find|show me|show)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)\.?$", text, re.IGNORECASE):
+    if match := re.search(
+        rf"^(?:now\s+)?(?:find|show me|show)\s+({_PERSON_NAME})\.?$",
+        text,
+        re.IGNORECASE,
+    ):
         return _match("student_lookup", ("STUDENT", match.group(1)))
     return None
 
@@ -104,8 +111,8 @@ def _student_reference(text: str) -> tuple[str, str] | None:
     if match := _STUDENT_NUMBER.search(text):
         return ("STUDENT", match.group(0))
     patterns = (
-        r"(?:student|has|did|is|how is)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)",
-        r"which courses is\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)",
+        rf"(?:student|has|did|is|how is)\s+({_PERSON_NAME})",
+        rf"which courses is\s+({_PERSON_NAME})",
     )
     for pattern in patterns:
         if match := re.search(pattern, text, re.IGNORECASE):
@@ -120,10 +127,10 @@ def _student_reference(text: str) -> tuple[str, str] | None:
 
 def _teacher_reference(text: str) -> tuple[str, str] | None:
     patterns = (
-        r"teacher\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)",
-        r"(?:does|is)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)\s+(?:teach|teaching)",
-        r"show\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)'s courses",
-        r"what is\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)'s email",
+        rf"teacher\s+({_PERSON_NAME})",
+        rf"(?:does|is)\s+({_PERSON_NAME})\s+(?:teach|teaching)",
+        rf"show\s+({_PERSON_NAME})'s courses",
+        rf"what is\s+({_PERSON_NAME})'s email",
     )
     for pattern in patterns:
         if match := re.search(pattern, text, re.IGNORECASE):
