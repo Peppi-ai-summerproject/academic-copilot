@@ -25,6 +25,7 @@ from app.mcp.tools.enrollments import (
 )
 from app.mcp.tools.teacher_assignments import get_course_teachers, get_teacher_courses
 from app.mcp.tools.results import get_course_results, get_student_results, get_course_completion_analytics
+from app.mcp.tools.student_groups import search_student_groups, get_student_group, get_student_group_students, get_student_group_courses
 
 ToolResponse = dict[str, Any]
 AcademicTool = Callable[[int], ToolResponse]
@@ -78,6 +79,10 @@ class AcademicToolGateway(Protocol):
     async def get_course_teachers(self, **kwargs: Any) -> ToolResponse: ...
 
     async def get_teacher_courses(self, **kwargs: Any) -> ToolResponse: ...
+    async def search_student_groups(self, **kwargs: Any) -> ToolResponse: ...
+    async def get_student_group(self, group_id: int) -> ToolResponse: ...
+    async def get_student_group_students(self, group_id: int) -> ToolResponse: ...
+    async def get_student_group_courses(self, group_id: int) -> ToolResponse: ...
 
 
 class MCPAcademicToolGateway:
@@ -108,6 +113,10 @@ class MCPAcademicToolGateway:
         course_results_tool: SearchTool = get_course_results,
         student_results_tool: SearchTool = get_student_results,
         completion_analytics_tool: SearchTool = get_course_completion_analytics,
+        search_student_groups_tool: SearchTool = search_student_groups,
+        student_group_tool: AcademicTool = get_student_group,
+        student_group_students_tool: AcademicTool = get_student_group_students,
+        student_group_courses_tool: AcademicTool = get_student_group_courses,
     ) -> None:
         self._student_tool = student_tool
         self._progress_tool = progress_tool
@@ -126,6 +135,10 @@ class MCPAcademicToolGateway:
         self._course_results_tool = course_results_tool
         self._student_results_tool = student_results_tool
         self._completion_analytics_tool = completion_analytics_tool
+        self._search_student_groups_tool = search_student_groups_tool
+        self._student_group_tool = student_group_tool
+        self._student_group_students_tool = student_group_students_tool
+        self._student_group_courses_tool = student_group_courses_tool
 
     async def get_student(self, student_id: int) -> ToolResponse:
         return await self._invoke("get_student", self._student_tool, student_id)
@@ -178,6 +191,18 @@ class MCPAcademicToolGateway:
 
     async def get_teacher_courses(self, **kwargs: Any) -> ToolResponse:
         return await self._invoke_kwargs("get_teacher_courses", self._teacher_courses_tool, kwargs)
+
+    async def search_student_groups(self, **kwargs: Any) -> ToolResponse:
+        return await self._invoke_kwargs("search_student_groups", self._search_student_groups_tool, kwargs)
+
+    async def get_student_group(self, group_id: int) -> ToolResponse:
+        return await self._invoke("get_student_group", self._student_group_tool, group_id)
+
+    async def get_student_group_students(self, group_id: int) -> ToolResponse:
+        return await self._invoke("get_student_group_students", self._student_group_students_tool, group_id)
+
+    async def get_student_group_courses(self, group_id: int) -> ToolResponse:
+        return await self._invoke("get_student_group_courses", self._student_group_courses_tool, group_id)
 
     @staticmethod
     async def _invoke(

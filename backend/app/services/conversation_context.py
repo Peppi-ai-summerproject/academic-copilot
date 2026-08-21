@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 
-ENTITY_TYPES = ("STUDENT", "COURSE", "TEACHER")
+ENTITY_TYPES = ("STUDENT", "COURSE", "TEACHER", "STUDENT_GROUP")
 
 CAPABILITY_ENTITY_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "student_lookup": ("STUDENT",),
@@ -21,6 +21,10 @@ CAPABILITY_ENTITY_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "teacher_contact": ("TEACHER",),
     "course_teachers": ("COURSE",),
     "teacher_courses": ("TEACHER",),
+    "group_lookup": ("STUDENT_GROUP",),
+    "group_students": ("STUDENT_GROUP",),
+    "group_courses": ("STUDENT_GROUP",),
+    "group_course_teachers": ("STUDENT_GROUP", "COURSE"),
 }
 
 
@@ -89,6 +93,7 @@ def _minimal_entity(entity: dict[str, Any]) -> dict[str, Any]:
                 "STUDENT": ("student_number",),
                 "COURSE": ("course_code",),
                 "TEACHER": (),
+                "STUDENT_GROUP": ("group_code",),
             }[entity["entity_type"]]
             identity = {key: candidate[key] for key in allowed if candidate.get(key) is not None}
             if identity:

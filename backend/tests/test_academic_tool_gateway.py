@@ -120,3 +120,26 @@ def test_gateway_delegates_teacher_assignment_tools() -> None:
         role="LEAD_TEACHER",
     )
     teacher_courses_tool.assert_called_once_with(teacher_id=8)
+
+
+def test_gateway_delegates_student_group_tools() -> None:
+    search = Mock(return_value={"success": True, "groups": []})
+    lookup = Mock(return_value={"success": True, "group": {"id": 24}})
+    students = Mock(return_value={"success": True, "students": []})
+    courses = Mock(return_value={"success": True, "courses": []})
+    gateway = MCPAcademicToolGateway(
+        search_student_groups_tool=search,
+        student_group_tool=lookup,
+        student_group_students_tool=students,
+        student_group_courses_tool=courses,
+    )
+
+    asyncio.run(gateway.search_student_groups(query="DIN24"))
+    asyncio.run(gateway.get_student_group(24))
+    asyncio.run(gateway.get_student_group_students(24))
+    asyncio.run(gateway.get_student_group_courses(24))
+
+    search.assert_called_once_with(query="DIN24")
+    lookup.assert_called_once_with(24)
+    students.assert_called_once_with(24)
+    courses.assert_called_once_with(24)

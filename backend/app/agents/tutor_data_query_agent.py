@@ -23,8 +23,9 @@ class TutorDataQueryAgent:
         student = _entity(state, "STUDENT")
         course = _entity(state, "COURSE")
         teacher = _entity(state, "TEACHER")
+        group = _entity(state, "STUDENT_GROUP")
         try:
-            response = await self._execute(capability, parameters, student, course, teacher)
+            response = await self._execute(capability, parameters, student, course, teacher, group)
         except Exception:
             return AgentResult(self.name, "academic_data", "FAILED", "Academic data could not be retrieved.", errors=["ACADEMIC_DATA_TOOL_ERROR"])
         if not response.get("success"):
@@ -38,7 +39,7 @@ class TutorDataQueryAgent:
             data={"capability": capability, "result": response},
         )
 
-    async def _execute(self, capability: str, params: dict[str, Any], student, course, teacher):
+    async def _execute(self, capability: str, params: dict[str, Any], student, course, teacher, group=None):
         if capability == "student_lookup": return await self._gateway.get_student(student["canonical_id"])
         if capability == "student_progress": return await self._gateway.get_progress(student["canonical_id"])
         if capability == "course_search": return await self._gateway.search_courses()
@@ -57,6 +58,16 @@ class TutorDataQueryAgent:
         if capability in {"teacher_lookup", "teacher_contact"}: return await self._gateway.get_teacher(teacher["canonical_id"])
         if capability == "course_teachers": return await self._gateway.get_course_teachers(course_id=course["canonical_id"], role=params.get("role"))
         if capability == "teacher_courses": return await self._gateway.get_teacher_courses(teacher_id=teacher["canonical_id"])
+        if capability == "group_lookup": return await self._gateway.get_student_group(group["canonical_id"])
+        if capability == "group_students": return await self._gateway.get_student_group_students(group["canonical_id"])
+        if capability == "group_courses": return await self._gateway.get_student_group_courses(group["canonical_id"])
+        if capability == "group_course_teachers":
+            group_courses = await self._gateway.get_student_group_courses(group["canonical_id"])
+            if not group_courses.get("success"):
+                return group_courses
+            if not any(row.get("id") == course["canonical_id"] for row in group_courses.get("courses", [])):
+                return {"success": True, "teachers": [], "relationship_valid": False}
+            return await self._gateway.get_course_teachers(course_id=course["canonical_id"])
         return {"success": False, "error": "UNSUPPORTED_TUTOR_QUERY"}
 
 
@@ -105,6 +116,17 @@ def _summary(capability: str, response: dict[str, Any]) -> str:
             teacher.get("display_name") or teacher.get("name") or "Teacher",
             ("email", teacher.get("email")),
         )
+    if capability == "group_lookup":
+        group = response.get("group", {})
+        return _profile(group.get("group_code", "Student group"), ("name", group.get("group_name")), ("programme", group.get("programme_name") or group.get("programme_code")))
+    if capability == "group_students":
+        code = response.get("group", {}).get("group_code", "group")
+        return _rows(f"Students in {code}", response.get("students", []), _student_label)
+    if capability == "group_courses":
+        code = response.get("group", {}).get("group_code", "group")
+        return _rows(f"Courses for {code}", response.get("courses", []), _course_label)
+    if capability == "group_course_teachers" and response.get("relationship_valid") is False:
+        return "That course is not associated with the active student group."
     if capability == "course_roster":
         return _rows(
             "Enrolled students", response.get("students", []), _student_label
@@ -133,7 +155,7 @@ def _summary(capability: str, response: dict[str, Any]) -> str:
         if analytics.get("enrolled_count") is not None:
             parts.append(f"{analytics['enrolled_count']} enrolled")
         return "Course analytics: " + ", ".join(parts) + "."
-    if capability == "course_teachers":
+    if capability in {"course_teachers", "group_course_teachers"}:
         return _rows("Teachers", response.get("teachers", []), _teacher_label)
     if capability == "teacher_courses":
         rows = response.get("courses", response.get("assignments", []))

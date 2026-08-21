@@ -18,6 +18,7 @@ from app.mcp.tools.events import get_upcoming_events
 from app.mcp.tools.search_students import search_students
 from app.mcp.tools.student_dashboard import get_student_dashboard
 from app.mcp.tools.results import get_course_results, get_student_results, get_course_completion_analytics
+from app.mcp.tools.student_groups import search_student_groups, get_student_group, get_student_group_students, get_student_group_courses
 
 
 def register_tools(server: FastMCP) -> None:
@@ -50,6 +51,10 @@ def register_tools(server: FastMCP) -> None:
     server.add_tool(get_course_results, name="get_course_results", description="Return enrolled students' course results, including unfinished records.")
     server.add_tool(get_student_results, name="get_student_results", description="Return a student's course results and unfinished enrollments.")
     server.add_tool(get_course_completion_analytics, name="get_course_completion_analytics", description="Calculate enrollment-based pass, failure, and completion analytics for a course.")
+    server.add_tool(search_student_groups, name="search_student_groups", description="Search canonical student groups by code or name.")
+    server.add_tool(get_student_group, name="get_student_group", description="Retrieve a canonical student group by ID.")
+    server.add_tool(get_student_group_students, name="get_student_group_students", description="List students belonging to a canonical student group.")
+    server.add_tool(get_student_group_courses, name="get_student_group_courses", description="List courses associated with a canonical student group.")
 
     server.add_tool(
         get_progress,

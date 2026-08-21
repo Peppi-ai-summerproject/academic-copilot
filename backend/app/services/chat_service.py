@@ -115,23 +115,35 @@ class ChatService:
                     for entity_type, reference in intent_result.entity_references:
                         resolution = await self._entity_resolver.resolve(entity_type, reference)  # type: ignore[arg-type]
                         current_resolutions.append(resolution.as_dict())
-                    # A bare person lookup is historically classified as a student.
-                    # If no student exists, safely try the teacher namespace instead.
+                    # A bare named lookup is historically classified as a student.
+                    # Resolve it through the remaining canonical namespaces without
+                    # guessing or bypassing AcademicEntityResolver.
                     if (
                         intent_result.capability == "student_lookup"
                         and len(current_resolutions) == 1
                         and current_resolutions[0]["status"] == "NOT_FOUND"
                     ):
-                        teacher = await self._entity_resolver.resolve("TEACHER", intent_result.entity_references[0][1])
-                        if teacher.status != "NOT_FOUND":
-                            current_resolutions = [teacher.as_dict()]
-                            query_parameters["capability"] = "teacher_lookup"
+                        reference = intent_result.entity_references[0][1]
+                        for entity_type, capability in (
+                            ("TEACHER", "teacher_lookup"),
+                            ("COURSE", "course_lookup"),
+                            ("STUDENT_GROUP", "group_lookup"),
+                        ):
+                            alternate = await self._entity_resolver.resolve(entity_type, reference)
+                            if alternate.status != "NOT_FOUND":
+                                current_resolutions = [alternate.as_dict()]
+                                query_parameters["capability"] = capability
+                                break
                     unresolved = [row for row in current_resolutions if row["status"] != "RESOLVED"]
                     if unresolved:
                         routing_failure = _resolution_fallback(unresolved[0])
                         fallback_interaction_status = "completed"
                     else:
                         resolved_entities = merge_canonical_entities(stored_entities, current_resolutions)
+                    if query_parameters.get("capability") == "academic_lookup" and current_resolutions and not unresolved:
+                        query_parameters["capability"] = (
+                            "group_lookup" if current_resolutions[0]["entity_type"] == "STUDENT_GROUP" else "course_lookup"
+                        )
                     missing = missing_entities(query_parameters.get("capability"), resolved_entities)
                     if (
                         query_parameters.get("capability") == "teacher_contact"
@@ -327,16 +339,16 @@ def _format_workflow_reply(state: AgentState) -> str:
 
 
 def _resolution_fallback(entity: dict) -> str:
-    label = str(entity.get("entity_type", "entity")).lower()
+    label = str(entity.get("entity_type", "entity")).lower().replace("_", " ")
     if entity.get("status") == "AMBIGUOUS":
         candidates = entity.get("candidates") or []
-        names = [str(row.get("student_number") or row.get("course_code") or row.get("name") or row.get("course_name")) for row in candidates]
+        names = [str(row.get("student_number") or row.get("group_code") or row.get("course_code") or row.get("name") or row.get("group_name") or row.get("course_name")) for row in candidates]
         return f"I found multiple matching {label}s: {', '.join(names)}. Which one do you mean?"
     return f"I could not find the requested {label}."
 
 
 def _missing_entity_fallback(entity_types: tuple[str, ...]) -> str:
-    labels = {"STUDENT": "student", "COURSE": "course", "TEACHER": "teacher"}
+    labels = {"STUDENT": "student", "COURSE": "course", "TEACHER": "teacher", "STUDENT_GROUP": "student group"}
     if len(entity_types) == 1:
         return f"Which {labels[entity_types[0]]} do you mean?"
     return "Which " + " and ".join(labels[kind] for kind in entity_types) + " do you mean?"
