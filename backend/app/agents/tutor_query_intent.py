@@ -32,13 +32,13 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("course_analytics", course)
     if re.search(r"\b(?:what grade|which grade)\b", lower):
         return _match("student_course_result", student, course)
-    if re.search(r"\b(failed|didn't pass|did not pass)\b", lower):
-        if student and course:
-            return _match("student_course_result", student, course, result_filter="FAILED")
+    if re.search(r"\b(fail(?:ed)?|didn't pass|did not pass)\b", lower):
+        if student or re.search(r"\b(?:she|he|they)\b", lower):
+            return _match("student_course_result", student, course)
         return _match("course_results", course, result_filter="FAILED")
     if re.search(r"\b(passed|pass)\b", lower):
         if student or re.search(r"\b(?:she|he|they)\b", lower):
-            return _match("student_course_result", student, course, result_filter="PASSED")
+            return _match("student_course_result", student, course)
         return _match("course_results", course, result_filter="PASSED")
     if "result" in lower and course:
         return _match("student_course_result" if student else "course_results", student, course)

@@ -23,7 +23,7 @@ from app.agents.tutor_data_query_agent import TutorDataQueryAgent
         ("Who passed DIN24?", "course_results", {"result_filter": "PASSED"}),
         ("Students who didn't pass DIN24", "course_results", {"result_filter": "FAILED"}),
         ("What is the pass rate for DIN24?", "course_analytics", {}),
-        ("Did Anna Korhonen pass DIN24?", "student_course_result", {"result_filter": "PASSED"}),
+        ("Did Anna Korhonen pass DIN24?", "student_course_result", {}),
         ("Find teacher Matti Virtanen.", "teacher_lookup", {}),
         ("What is Matti Virtanen's email?", "teacher_contact", {}),
         ("Who is responsible for DIN24?", "course_teachers", {"role": "LEAD_TEACHER"}),
@@ -86,6 +86,76 @@ def test_data_agent_executes_multi_entity_enrollment_capability():
     result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
     assert result.status == "SUCCESS"
     gateway.get_enrollment.assert_awaited_once_with(student_id=7, course_id=4)
+
+
+@pytest.mark.parametrize(
+    ("result_status", "grade"),
+    [("PASSED", 5), ("FAILED", 0)],
+)
+def test_student_course_yes_no_query_returns_actual_result_without_status_filter(
+    result_status, grade
+):
+    gateway = Mock()
+    gateway.get_student_results = AsyncMock(
+        return_value={
+            "success": True,
+            "results": [
+                {
+                    "course_code": "DIN24",
+                    "result_status": result_status,
+                    "grade": grade,
+                }
+            ],
+        }
+    )
+    state = _state(
+        "student_course_result",
+        [
+            {"entity_type": "STUDENT", "status": "RESOLVED", "canonical_id": 7},
+            {
+                "entity_type": "COURSE",
+                "status": "RESOLVED",
+                "canonical_id": 24,
+                "candidates": [{"course_code": "DIN24"}],
+            },
+        ],
+        {"result_filter": "PASSED"},
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
+
+    assert result_status in result.summary
+    assert f"grade {grade}" in result.summary
+    gateway.get_student_results.assert_awaited_once_with(student_id=7)
+
+
+def test_student_course_query_reports_none_only_when_course_result_is_absent():
+    gateway = Mock()
+    gateway.get_student_results = AsyncMock(
+        return_value={
+            "success": True,
+            "results": [
+                {"course_code": "MAT101", "result_status": "PASSED", "grade": 4}
+            ],
+        }
+    )
+    state = _state(
+        "student_course_result",
+        [
+            {"entity_type": "STUDENT", "status": "RESOLVED", "canonical_id": 7},
+            {
+                "entity_type": "COURSE",
+                "status": "RESOLVED",
+                "canonical_id": 24,
+                "candidates": [{"course_code": "DIN24"}],
+            },
+        ],
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
+
+    assert result.summary == "Results: none found."
+    gateway.get_student_results.assert_awaited_once_with(student_id=7)
 
 
 def test_course_search_renders_multiple_course_codes_and_names():
