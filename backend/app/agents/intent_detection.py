@@ -46,17 +46,20 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
         re.compile(r"\bwhen\s+(?:is|are)\b.*\b(?:deadline|event|exam)\b"),
     ),
     "progress": (
+        re.compile(r"\b(?:how is|how are)\s+(?:she|he|they)\s+progress(?:ing)?\b"),
         re.compile(r"\bstudent\b.*\bprogress(?:ing)?\b"),
         re.compile(r"\bprogress(?:ing)?\b.*\bstudent\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\b(?:on track|falling behind)\b"),
         re.compile(r"\b(?:earned|completed|missing)\s+(?:credits?|ects|courses?)\b"),
     ),
     "study_rights": (
+        re.compile(r"\b(?:her|his|their)\s+study[- ]rights?\b"),
         re.compile(r"\bstudy\s+rights?\b"),
         re.compile(r"\b(?:valid|active|expired?|expiring|extend)\b.*\b(?:study|enrolment)\b"),
         re.compile(r"\b(?:study|enrolment)\b.*\b(?:valid|active|expired?|expiring|extension)\b"),
     ),
     "risk": (
+        re.compile(r"\b(?:is|are)\s+(?:she|he|they)\s+at risk\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\bat risk\b"),
         re.compile(r"\bat risk\b.*\b(?:student|studies|academic)\b"),
         re.compile(r"\bacademic risk\b"),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 from uuid import uuid4
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -80,3 +81,24 @@ def test_concurrent_mapping_conflict_reloads_only_the_exact_pair():
     final_params = session.execute.call_args_list[-1].args[1]
     assert final_params == {"user_id": 10, "chat_id": 20}
     session.close.assert_called_once_with()
+
+
+def test_load_restores_latest_canonical_entity_context():
+    session = MagicMock()
+    result = MagicMock()
+    result.mappings.return_value.all.return_value = [
+        {
+            "role": "user",
+            "content": "Show DIN24",
+            "interaction_status": "completed",
+            "created_at": datetime.now(UTC),
+            "resolved_entities": [
+                {"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 24}
+            ],
+        }
+    ]
+    session.execute.return_value = result
+
+    snapshot = SQLAlchemyConversationMemoryStore(lambda: session).load(scope())
+
+    assert snapshot.resolved_entities[0]["canonical_id"] == 24

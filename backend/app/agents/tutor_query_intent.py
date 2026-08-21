@@ -27,17 +27,19 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
 
     if re.search(r"\b(pass rate|failure rate|completion rate|how many .*completed)\b", lower):
         return _match("course_analytics", course)
+    if re.search(r"\b(?:what grade|which grade)\b", lower):
+        return _match("student_course_result", student, course)
     if re.search(r"\b(failed|didn't pass|did not pass)\b", lower):
         if student and course:
             return _match("student_course_result", student, course, result_filter="FAILED")
         return _match("course_results", course, result_filter="FAILED")
     if re.search(r"\b(passed|pass)\b", lower) and course:
-        if student:
+        if student or re.search(r"\b(?:she|he|they)\b", lower):
             return _match("student_course_result", student, course, result_filter="PASSED")
         return _match("course_results", course, result_filter="PASSED")
     if "result" in lower and course:
         return _match("student_course_result" if student else "course_results", student, course)
-    if re.search(r"\b(who|students?|how many)\b.*\b(enrolled|taking)\b", lower) and course:
+    if re.search(r"\b(who|students?|how many)\b.*\b(enrolled|taking)\b", lower):
         return _match("course_roster", course)
     if re.search(r"\b(which|what) courses?\b", lower) and re.search(r"\b(enrolled|taking)\b", lower):
         return _match("student_enrollments", student)
@@ -48,7 +50,7 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("course_teachers", course, role=role)
     if re.search(r"\b(which|what|show).*courses?\b.*\b(teach|teaching)\b", lower) or re.search(r"\bcourses? does\b.*\bteach", lower):
         return _match("teacher_courses", teacher)
-    if re.search(r"\b(email|contact)\b", lower) and ("teacher" in lower or teacher):
+    if re.search(r"\b(email|contact)\b", lower) and ("teacher" in lower or teacher or re.search(r"\b(?:his|her|their)\b", lower)):
         return _match("teacher_contact", teacher)
     if re.search(r"\b(find|show) teacher\b", lower):
         return _match("teacher_lookup", teacher)
@@ -60,9 +62,9 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("student_lookup", student)
     if re.search(r"\b(show me all courses|list (?:all )?courses)\b", lower):
         return TutorQueryMatch("course_search")
-    if re.search(r"\b(find course|what is|show (?:me )?course)\b", lower) and course:
+    if (re.search(r"\b(find course|what is|what about|show (?:me )?course)\b", lower) or re.match(r"^show (?:me )?", lower)) and course:
         return _match("course_lookup", course)
-    if match := re.search(r"^(?:find|show me|show)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)\.?$", text, re.IGNORECASE):
+    if match := re.search(r"^(?:now\s+)?(?:find|show me|show)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)\.?$", text, re.IGNORECASE):
         return _match("student_lookup", ("STUDENT", match.group(1)))
     return None
 
@@ -97,7 +99,12 @@ def _student_reference(text: str) -> tuple[str, str] | None:
     )
     for pattern in patterns:
         if match := re.search(pattern, text, re.IGNORECASE):
-            return ("STUDENT", match.group(1).strip())
+            value = match.group(1).strip()
+            words = value.casefold().split()
+            if words and words[0] not in {"she", "he", "they", "her", "him", "them"} and not any(
+                word in {"taking", "pass", "passed", "get", "progressing"} for word in words
+            ):
+                return ("STUDENT", value)
     return None
 
 
@@ -110,5 +117,7 @@ def _teacher_reference(text: str) -> tuple[str, str] | None:
     )
     for pattern in patterns:
         if match := re.search(pattern, text, re.IGNORECASE):
-            return ("TEACHER", match.group(1).strip())
+            value = match.group(1).strip()
+            if value.casefold() not in {"he", "she", "they", "him", "her", "them"}:
+                return ("TEACHER", value)
     return None
