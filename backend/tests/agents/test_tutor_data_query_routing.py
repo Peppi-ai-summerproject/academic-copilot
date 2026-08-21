@@ -74,3 +74,83 @@ def test_data_agent_executes_multi_entity_enrollment_capability():
     result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
     assert result.status == "SUCCESS"
     gateway.get_enrollment.assert_awaited_once_with(student_id=7, course_id=4)
+
+
+def test_course_search_renders_multiple_course_codes_and_names():
+    gateway = Mock()
+    gateway.search_courses = AsyncMock(
+        return_value={
+            "success": True,
+            "pagination": {"returned": 2, "total": 2, "has_more": False},
+            "courses": [
+                {"course_code": "DIN24", "course_name": "Digital Innovation"},
+                {"course_code": "MAT101", "course_name": "Mathematics"},
+            ],
+        }
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("course_search", [])))
+
+    assert result.status == "SUCCESS"
+    assert "DIN24" in result.summary and "Digital Innovation" in result.summary
+    assert "MAT101" in result.summary and "Mathematics" in result.summary
+    assert "query completed" not in result.summary.lower()
+    gateway.search_courses.assert_awaited_once_with()
+
+
+def test_course_search_renders_clear_empty_result():
+    gateway = Mock()
+    gateway.search_courses = AsyncMock(
+        return_value={
+            "success": True,
+            "pagination": {"returned": 0, "total": 0, "has_more": False},
+            "courses": [],
+        }
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("course_search", [])))
+
+    assert result.summary == "Courses: none found."
+
+
+def test_course_search_discloses_when_more_paginated_results_exist():
+    gateway = Mock()
+    gateway.search_courses = AsyncMock(
+        return_value={
+            "success": True,
+            "pagination": {"returned": 2, "total": 27, "has_more": True},
+            "courses": [
+                {"course_code": "DIN24", "course_name": "Digital Innovation"},
+                {"course_code": "MAT101", "course_name": "Mathematics"},
+            ],
+        }
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(_state("course_search", [])))
+
+    assert "Showing 2 of 27 courses on this page" in result.summary
+    assert "more results are available" in result.summary
+
+
+def test_course_lookup_rendering_remains_unchanged():
+    gateway = Mock()
+    gateway.get_course = AsyncMock(
+        return_value={
+            "success": True,
+            "course": {
+                "course_code": "DIN24",
+                "course_name": "Digital Innovation",
+                "credits": 5,
+            },
+        }
+    )
+    state = _state(
+        "course_lookup",
+        [{"entity_type": "COURSE", "status": "RESOLVED", "canonical_id": 24}],
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
+
+    assert "Digital Innovation" in result.summary
+    assert "course code: DIN24" in result.summary
+    assert "credits: 5" in result.summary
