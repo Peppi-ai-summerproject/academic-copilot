@@ -12,7 +12,7 @@ def _session_with_rows(*rows):
 def test_get_course_by_human_facing_code_is_case_insensitive() -> None:
     row = {
         "id": 4,
-        "course_code": "DIN24",
+        "course_code": "DII101",
         "course_name": "Digital Innovation Foundations",
         "credits": 5,
         "programme_code": "DIN2024S",
@@ -44,9 +44,9 @@ def test_course_search_supports_code_or_name_and_empty_results() -> None:
 
 
 def test_list_all_courses_uses_stable_course_code_order() -> None:
-    session = _session_with_rows({"id": 1, "course_code": "DIN24"})
+    session = _session_with_rows({"id": 1, "course_code": "DII101"})
     courses = CourseRepository(session).search()
-    assert courses == [{"id": 1, "course_code": "DIN24"}]
+    assert courses == [{"id": 1, "course_code": "DII101"}]
     statement, params = session.execute.call_args.args
     assert "ORDER BY course_code ASC, id ASC" in statement.text
     assert params == {}

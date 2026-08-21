@@ -11,7 +11,7 @@ def dependencies():
     students = Mock()
     courses = Mock()
     students.get_by_id.return_value = {"id": 7, "student_number": "S007"}
-    courses.get_by_id.return_value = {"id": 1, "course_code": "DIN24"}
+    courses.get_by_id.return_value = {"id": 1, "course_code": "DII101"}
     records.list_students_for_course.return_value = []
     records.list_courses_for_student.return_value = []
     return records, students, courses
@@ -22,7 +22,7 @@ def test_course_roster_preserves_valid_empty_result(dependencies) -> None:
     result = EnrollmentService(records, students, courses).get_course_roster(1)
     assert result == {
         "success": True,
-        "course": {"id": 1, "course_code": "DIN24"},
+        "course": {"id": 1, "course_code": "DII101"},
         "filter": {"enrollment_status": None},
         "student_count": 0,
         "students": [],

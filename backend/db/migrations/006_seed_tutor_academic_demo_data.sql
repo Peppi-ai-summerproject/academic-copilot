@@ -7,11 +7,11 @@ INSERT INTO students (
     start_date, status
 )
 VALUES
-    ('DEMO22101', 'Elina Demo', 'elina.demo@example.invalid', 'DEMO24A',
+    ('DEMO22101', 'Elina Demo', 'elina.demo@example.invalid', 'DIN24',
      'Business IT', 'DIN2024S', DATE '2024-08-20', 'ACTIVE'),
-    ('DEMO22102', 'Oskari Example', 'oskari.example@example.invalid', 'DEMO24A',
+    ('DEMO22102', 'Oskari Example', 'oskari.example@example.invalid', 'DIN24',
      'Business IT', 'DIN2024S', DATE '2024-08-20', 'ACTIVE'),
-    ('DEMO22103', 'Sofia Sample', 'sofia.sample@example.invalid', 'DEMO24B',
+    ('DEMO22103', 'Sofia Sample', 'sofia.sample@example.invalid', 'DIN24',
      'Business IT', 'DIN2024S', DATE '2024-08-20', 'ACTIVE')
 ON CONFLICT (student_number) DO UPDATE
 SET email = EXCLUDED.email;
@@ -26,7 +26,7 @@ INSERT INTO courses (
     course_code, course_name, credits, programme_code, semester
 )
 VALUES
-    ('DIN24', 'Digital Innovation Foundations', 5.0, 'DIN2024S', 1),
+    ('DII101', 'Digital Innovation Foundations', 5.0, 'DIN2024S', 1),
     ('DBS24', 'Database Systems', 5.0, 'DIN2024S', 2),
     ('WEB24', 'Web Application Development', 5.0, 'DIN2024S', 2)
 ON CONFLICT (course_code) DO UPDATE
@@ -39,11 +39,11 @@ INSERT INTO course_enrollments (student_id, course_id, enrollment_status, enroll
 SELECT student.id, course.id, values.enrollment_status, DATE '2024-08-20'
 FROM (
     VALUES
-        ('DEMO22101', 'DIN24', 'COMPLETED'),
+        ('DEMO22101', 'DII101', 'COMPLETED'),
         ('DEMO22101', 'DBS24', 'IN_PROGRESS'),
-        ('DEMO22102', 'DIN24', 'COMPLETED'),
+        ('DEMO22102', 'DII101', 'COMPLETED'),
         ('DEMO22102', 'WEB24', 'IN_PROGRESS'),
-        ('DEMO22103', 'DIN24', 'IN_PROGRESS'),
+        ('DEMO22103', 'DII101', 'IN_PROGRESS'),
         ('DEMO22103', 'DBS24', 'IN_PROGRESS')
 ) AS values(student_number, course_code, enrollment_status)
 JOIN students AS student ON student.student_number = values.student_number
@@ -74,8 +74,8 @@ BEGIN
             values.grade, values.completion_date
         FROM (
             VALUES
-                ('DEMO22101', 'DIN24', 'PASSED', '5', DATE '2025-05-20'),
-                ('DEMO22102', 'DIN24', 'FAILED', '0', DATE '2025-05-20')
+                ('DEMO22101', 'DII101', 'PASSED', '5', DATE '2025-05-20'),
+                ('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20')
         ) AS values(student_number, course_code, result_status, grade, completion_date)
         JOIN students AS student ON student.student_number = values.student_number
         JOIN courses AS course ON course.course_code = values.course_code
@@ -93,8 +93,8 @@ BEGIN
             values.result_status, values.grade, values.completion_date
         FROM (
             VALUES
-                ('DEMO22101', 'DIN24', 'PASSED', '5', DATE '2025-05-20'),
-                ('DEMO22102', 'DIN24', 'FAILED', '0', DATE '2025-05-20')
+                ('DEMO22101', 'DII101', 'PASSED', '5', DATE '2025-05-20'),
+                ('DEMO22102', 'DII101', 'FAILED', '0', DATE '2025-05-20')
         ) AS values(student_number, course_code, result_status, grade, completion_date)
         JOIN students AS student ON student.student_number = values.student_number
         JOIN courses AS course ON course.course_code = values.course_code
@@ -109,7 +109,7 @@ INSERT INTO teacher_course_assignments (tutor_id, course_id, assignment_role)
 SELECT tutor.id, course.id, values.assignment_role
 FROM (
     VALUES
-        ('anna.example@example.invalid', 'DIN24', 'LEAD_TEACHER'),
+        ('anna.example@example.invalid', 'DII101', 'LEAD_TEACHER'),
         ('anna.example@example.invalid', 'DBS24', 'TEACHER'),
         ('matti.demo@example.invalid', 'WEB24', 'LEAD_TEACHER')
 ) AS values(email, course_code, assignment_role)
