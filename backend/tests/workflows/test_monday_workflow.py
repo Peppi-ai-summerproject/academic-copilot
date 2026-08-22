@@ -8,11 +8,14 @@ from fastapi import FastAPI
 
 from app.services.scheduler import DailyTimeTrigger, Scheduler
 from app.workflows.monday import (
+    AutonomousMondayBriefingRunner,
     MONDAY_WORKFLOW_JOB_ID,
     MondayWorkflow,
     create_database_monday_workflow,
     register_monday_workflow,
 )
+from app.telegram.notifications import TelegramSendReceipt
+from app.workflows.execution_logging import WorkflowExecutionRecorder
 
 
 @patch("app.workflows.monday.AcademicRiskScoringService")
@@ -107,6 +110,27 @@ def workflow(*, tutors, students, progress_results, risk_results, events=None):
     )
 
 
+class CapturingTelegramSender:
+    def __init__(self):
+        self.sent = []
+
+    def send_message(self, *, chat_id, text):
+        self.sent.append((chat_id, text))
+        return TelegramSendReceipt(provider_message_id=9001)
+
+
+class CapturingExecutionLogStore:
+    def __init__(self):
+        self.started = []
+        self.finalized = []
+
+    def start_execution(self, record):
+        self.started.append(record)
+
+    def finalize_execution(self, record):
+        self.finalized.append(record)
+
+
 def test_direct_run_groups_students_and_builds_unsent_telegram_briefing():
     tutors = [{"id": 1, "display_name": "Tutor One", "telegram_chat_id": 99}]
     students = {
@@ -141,6 +165,69 @@ def test_direct_run_groups_students_and_builds_unsent_telegram_briefing():
     assert briefing.delivery["delivery_status"] == "NOT_SENT"
     assert "Ada Student" in briefing.delivery["text"]
     assert "Course deadline" in briefing.delivery["text"]
+
+
+def test_demo_scenario_3_executes_logs_and_delivers_meaningful_weekly_briefing():
+    sender = CapturingTelegramSender()
+    log_store = CapturingExecutionLogStore()
+    monday = workflow(
+        tutors=[{"id": 7, "display_name": "DIN24 Tutor", "telegram_chat_id": 7007}],
+        students={
+            7: [
+                {"id": 41, "name": "Oskari Example", "student_number": "DEMO22102"},
+                {"id": 43, "name": "Aava Achiever", "student_number": "DEMO25201"},
+            ]
+        },
+        progress_results={
+            41: progress(41, remaining=30),
+            43: progress(43, remaining=0),
+        },
+        risk_results={
+            41: risk(41, points=30),
+            43: risk(43, points=0),
+        },
+        events={
+            "success": True,
+            "events": [
+                {"event_name": "Course registration deadline", "event_date": "2026-01-07"}
+            ],
+        },
+    )
+    runner = AutonomousMondayBriefingRunner(
+        workflow=monday,
+        sender=sender,
+        execution_recorder=WorkflowExecutionRecorder(log_store),
+    )
+
+    result = runner.run(
+        now=datetime(2026, 1, 5, 8, tzinfo=ZoneInfo("Europe/Helsinki")),
+        trigger_type="direct",
+    )
+
+    assert result.status == "completed"
+    assert result.briefings[0].summary == {
+        "total_students": 2,
+        "analysed_students": 2,
+        "students_needing_attention": 1,
+    }
+    assert result.briefings[0].delivery["delivery_status"] == "DELIVERED"
+    assert result.briefings[0].delivery["provider_message_id"] == 9001
+    assert len(sender.sent) == 1
+    chat_id, message = sender.sent[0]
+    assert chat_id == 7007
+    assert "Monday briefing for DIN24 Tutor" in message
+    assert "Assigned students: 2" in message
+    assert "Students needing attention: 1" in message
+    assert "Oskari Example; 30 ECTS below expected" in message
+    assert "Aava Achiever" not in message
+    assert "Course registration deadline" in message
+    assert len(log_store.started) == len(log_store.finalized) == 1
+    finalized = log_store.finalized[0]
+    assert finalized.workflow_name == "monday_tutor_briefing"
+    assert finalized.trigger_type == "direct"
+    assert finalized.status == "completed"
+    assert (finalized.requested_count, finalized.succeeded_count, finalized.failed_count) == (1, 1, 0)
+    assert "Oskari" not in str(finalized)
 
 
 def test_tutor_without_students_is_safe_and_missing_destination_is_explicit():
