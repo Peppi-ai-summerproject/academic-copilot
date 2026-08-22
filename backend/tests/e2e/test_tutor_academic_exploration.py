@@ -230,6 +230,18 @@ class DeterministicAcademicGateway:
 
     async def get_progress(self, student_id):
         self._record("get_progress", student_id=student_id)
+        if student_id == 41:
+            return {
+                "success": True,
+                "progress": {
+                    "completed_ects": 0,
+                    "expected_ects": 30,
+                    "difference_ects": -30,
+                    "status": "BEHIND",
+                    "current_semester": 1,
+                    "progress_percentage": 0.0,
+                },
+            }
         if student_id == 46:
             return {
                 "success": True,
@@ -692,3 +704,41 @@ def test_demo_scenario_1_student_progress_over_telegram_path(copilot, monkeypatc
     assert "Review the student's study plan" in recommendation
     assert active_entities(copilot, user=127, chat=1270)["STUDENT"]["canonical_id"] == 46
     assert ("get_progress", {"student_id": 46}) in copilot[1].calls
+
+
+@pytest.mark.e2e
+def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
+    copilot, monkeypatch
+):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=128, username="risk-demo-tutor"),
+            effective_chat=SimpleNamespace(id=1280),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    assert "DIN24" in asyncio.run(send("Show me DIN24."))
+    candidates = asyncio.run(send("Who failed Database Systems in DIN24?"))
+    lookup = asyncio.run(send("Show me Oskari Example."))
+    explanation = asyncio.run(send("Why is he at risk?"))
+    recommendation = asyncio.run(
+        send("What academic next steps do you recommend for this student?")
+    )
+
+    assert all(name in candidates for name in ("Oskari Example", "Petra Partial", "Matias Multiple"))
+    assert all(name not in candidates for name in ("Elina Demo", "Aava Achiever", "Sofia Sample"))
+    assert "FAILED" in candidates and "grade 0" in candidates
+    assert "Oskari Example" in lookup and "DEMO22102" in lookup
+    assert "Oskari Example has MEDIUM academic risk" in explanation
+    assert "30 ECTS behind expected progress" in explanation
+    assert "Review the student's study plan" in recommendation
+    assert "Schedule a tutor meeting" in recommendation
+    entities = active_entities(copilot, user=128, chat=1280)
+    assert entities["STUDENT"]["canonical_id"] == 41
+    assert entities["STUDENT_GROUP"]["canonical_id"] == 240
+    assert ("get_progress", {"student_id": 41}) in copilot[1].calls
