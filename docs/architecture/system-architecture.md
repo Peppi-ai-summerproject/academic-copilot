@@ -4,6 +4,9 @@ This is the high-level source of truth for the implemented architecture. It
 shows tutor-initiated conversations and system-initiated workflows; detailed
 component documents remain authoritative for their individual contracts.
 
+For the runtime path and request-level decision branches, see the
+[Academic Copilot system workflow](system-workflow.md).
+
 ## System diagram
 
 ```mermaid
