@@ -1,5 +1,9 @@
 # Multi-Agent Architecture for AI Academic Copilot
 
+> Historical agent-design document. For the implemented end-to-end system,
+> including Telegram, FastAPI, MCP/data, RAG, persistent memory, and autonomous
+> workflows, see [Academic Copilot system architecture](system-architecture.md).
+
 ## 1. Architecture overview
 
 The multi-agent architecture defines a supervised LangGraph workflow for tutor-facing academic tasks. It separates responsibilities into:

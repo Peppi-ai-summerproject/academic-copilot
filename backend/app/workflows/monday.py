@@ -1,14 +1,14 @@
 """Tutor-focused Monday preparation workflow for Issue #101.
 
-The workflow coordinates existing repository and analytics contracts. It never
-calculates academic indicators, persists execution records, or sends Telegram
-messages.
+The core workflow coordinates existing repository and analytics contracts and
+never calculates academic indicators. The autonomous runner composes that core
+with the established execution recorder and Telegram transport boundaries.
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Callable, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -32,6 +32,11 @@ from app.services.student_service import StudentService
 from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
 from app.services.tutor_meeting_risk_service import TutorMeetingRiskService
+from app.workflows.execution_logging import (
+    TriggerType,
+    WorkflowExecutionRecorder,
+    workflow_outcome,
+)
 
 
 logger = logging.getLogger("academic-copilot.workflows.monday")
@@ -60,6 +65,10 @@ class EventProvider(Protocol):
     def get_upcoming_events(
         self, start_date: str | None = None, end_date: str | None = None
     ) -> dict[str, Any]: ...
+
+
+class TelegramBriefingSender(Protocol):
+    def send_message(self, *, chat_id: int, text: str) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -335,6 +344,81 @@ class MondayWorkflow:
             return {"success": False, "error": "RISK_UNAVAILABLE"}
 
 
+class AutonomousMondayBriefingRunner:
+    """Run the established Monday workflow, deliver its rendered briefings, and log it."""
+
+    def __init__(
+        self,
+        *,
+        workflow: MondayWorkflow,
+        sender: TelegramBriefingSender | None,
+        execution_recorder: WorkflowExecutionRecorder | None = None,
+    ) -> None:
+        self._workflow = workflow
+        self._sender = sender
+        self._execution_recorder = execution_recorder
+
+    def run(
+        self,
+        *,
+        now: datetime | None = None,
+        trigger_type: TriggerType = "direct",
+    ) -> MondayWorkflowResult:
+        operation = lambda: self._run(now=now)
+        if self._execution_recorder is None:
+            return operation()
+        return self._execution_recorder.run(
+            workflow_name="monday_tutor_briefing",
+            execution_key=None,
+            trigger_type=trigger_type,
+            operation=operation,
+            outcome_for=_monday_execution_outcome,
+        )
+
+    def _run(self, *, now: datetime | None) -> MondayWorkflowResult:
+        result = self._workflow.run(now=now)
+        if result.status == "failed":
+            return result
+
+        briefings: list[MondayTutorBriefing] = []
+        delivery_warnings: list[str] = []
+        delivery_failed = False
+        for briefing in result.briefings:
+            delivery = dict(briefing.delivery)
+            if delivery.get("delivery_status") == "NO_DESTINATION":
+                briefings.append(briefing)
+                continue
+            if self._sender is None:
+                delivery["delivery_status"] = "UNAVAILABLE"
+                warning = "Telegram delivery is unavailable because the application sender is not configured."
+                delivery_warnings.append(warning)
+                briefings.append(replace(briefing, delivery=delivery, warnings=[*briefing.warnings, warning]))
+                delivery_failed = True
+                continue
+            try:
+                receipt = self._sender.send_message(
+                    chat_id=int(delivery["telegram_chat_id"]),
+                    text=str(delivery["text"]),
+                )
+                delivery["delivery_status"] = "DELIVERED"
+                delivery["provider_message_id"] = getattr(receipt, "provider_message_id", None)
+            except Exception:
+                logger.exception("Monday briefing Telegram delivery failed: tutor_id=%s", briefing.tutor_id)
+                delivery["delivery_status"] = "FAILED"
+                warning = "Telegram briefing delivery failed."
+                delivery_warnings.append(warning)
+                briefing = replace(briefing, warnings=[*briefing.warnings, warning])
+                delivery_failed = True
+            briefings.append(replace(briefing, delivery=delivery))
+
+        return replace(
+            result,
+            status="partial" if delivery_failed and result.status == "completed" else result.status,
+            briefings=briefings,
+            warnings=_deduplicate([*result.warnings, *delivery_warnings]),
+        )
+
+
 def create_database_monday_workflow(*, session: Any, timezone: str) -> MondayWorkflow:
     """Wire the workflow to existing repositories and analytics services."""
     student_service = StudentService(StudentRepository(session))
@@ -361,15 +445,34 @@ def create_database_monday_workflow(*, session: Any, timezone: str) -> MondayWor
     )
 
 
-def run_scheduled_monday_workflow() -> MondayWorkflowResult:
-    """Run from the scheduler with a short-lived database session."""
+def run_database_monday_workflow(
+    *,
+    trigger_type: TriggerType = "direct",
+    now: datetime | None = None,
+    sender: TelegramBriefingSender | None = None,
+) -> MondayWorkflowResult:
+    """Run and deliver through the same database-backed path used by the scheduler."""
     session = SessionLocal()
     try:
+        from app.repositories.workflow_execution_log_repository import (
+            WorkflowExecutionLogRepository,
+        )
+        from app.telegram.notifications import (
+            get_configured_telegram_notification_sender,
+        )
+
         workflow = create_database_monday_workflow(
             session=session,
             timezone=settings.scheduler_timezone,
         )
-        result = workflow.run()
+        runner = AutonomousMondayBriefingRunner(
+            workflow=workflow,
+            sender=sender or get_configured_telegram_notification_sender(),
+            execution_recorder=WorkflowExecutionRecorder(
+                WorkflowExecutionLogRepository(session)
+            ),
+        )
+        result = runner.run(now=now, trigger_type=trigger_type)
         logger.info(
             "Monday workflow finished: status=%s week_start=%s briefing_count=%d",
             result.status,
@@ -379,6 +482,16 @@ def run_scheduled_monday_workflow() -> MondayWorkflowResult:
         return result
     finally:
         session.close()
+
+
+def run_scheduled_monday_workflow() -> MondayWorkflowResult:
+    """Run and deliver from the scheduler with persisted execution metadata."""
+    return run_database_monday_workflow(trigger_type="scheduler")
+
+
+def run_manual_monday_workflow() -> MondayWorkflowResult:
+    """Safe server-side entry point used by the confirmation-gated demo CLI."""
+    return run_database_monday_workflow(trigger_type="direct")
 
 
 async def register_monday_workflow(
@@ -504,6 +617,31 @@ def _load_timezone(value: str) -> ZoneInfo:
 
 def _deduplicate(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
+
+
+def _monday_execution_outcome(result: MondayWorkflowResult):
+    delivered = sum(
+        briefing.delivery.get("delivery_status") == "DELIVERED"
+        for briefing in result.briefings
+    )
+    failed = sum(
+        briefing.delivery.get("delivery_status") in {"FAILED", "UNAVAILABLE"}
+        for briefing in result.briefings
+    )
+    skipped = sum(
+        briefing.delivery.get("delivery_status") == "NO_DESTINATION"
+        for briefing in result.briefings
+    )
+    return workflow_outcome(
+        status=result.status,
+        requested_count=len(result.briefings),
+        processed_count=len(result.briefings),
+        succeeded_count=delivered,
+        failed_count=failed,
+        skipped_count=skipped,
+        warnings=result.warnings,
+        errors=result.errors,
+    )
 
 
 def _failed_result(

@@ -161,6 +161,11 @@ def clear_telegram_notification_sender() -> None:
     _configured_sender = None
 
 
+def get_configured_telegram_notification_sender() -> TelegramNotificationSender | None:
+    """Return the lifecycle-owned sender for autonomous workflow delivery."""
+    return _configured_sender
+
+
 class AcademicAlertNotificationDelivery:
     """Resolve approved Tutors, render Issue #106 alerts, and send them."""
 
