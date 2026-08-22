@@ -198,6 +198,11 @@ class DeterministicAcademicGateway:
                 {"student_name": "Oskari Example", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
             ],
             42: [{"student_name": "Sofia Sample", "course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
+            46: [
+                {"student_name": "Matias Multiple", "course_code": "DII101", "result_status": "PASSED", "grade": 2},
+                {"student_name": "Matias Multiple", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
+                {"student_name": "Matias Multiple", "course_code": "WEB24", "result_status": "FAILED", "grade": 0},
+            ],
         }
         rows = rows_by_student.get(
             kwargs["student_id"],
@@ -225,6 +230,18 @@ class DeterministicAcademicGateway:
 
     async def get_progress(self, student_id):
         self._record("get_progress", student_id=student_id)
+        if student_id == 46:
+            return {
+                "success": True,
+                "progress": {
+                    "completed_ects": 5,
+                    "expected_ects": 30,
+                    "difference_ects": -25,
+                    "status": "BEHIND",
+                    "current_semester": 1,
+                    "progress_percentage": 16.7,
+                },
+            }
         return {"success": True, "progress": {"completed_ects": 55 if student_id == 7 else 30, "expected_ects": 60, "difference_ects": -5 if student_id == 7 else -30, "status": "BEHIND", "current_semester": 2, "progress_percentage": 91.7 if student_id == 7 else 50.0}}
 
     async def get_study_right(self, student_id):
@@ -640,3 +657,38 @@ def test_telegram_handler_multi_turn_group_and_student_workflow(copilot, monkeyp
     assert "PASSED" in result and "grade 5" in result
     assert "grade 5" in asyncio.run(send("What grade did she get?", 41, 51))
     assert "Which student group" in asyncio.run(send("Which students are in it?", 42, 52))
+
+
+@pytest.mark.e2e
+def test_demo_scenario_1_student_progress_over_telegram_path(copilot, monkeypatch):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=127, username="demo-tutor"),
+            effective_chat=SimpleNamespace(id=1270),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    lookup = asyncio.run(send("Show me Matias Multiple."))
+    progress = asyncio.run(send("How is he progressing?"))
+    dbs_result = asyncio.run(send("Did he pass DBS24?"))
+    web_result = asyncio.run(send("Did he pass WEB24?"))
+    risk = asyncio.run(send("Is he at risk?"))
+    recommendation = asyncio.run(
+        send("What academic next steps do you recommend for this student?")
+    )
+
+    assert "Matias Multiple" in lookup and "DEMO25204" in lookup
+    assert "Matias Multiple" in progress
+    assert "5 ECTS" in progress and "30 ECTS" in progress
+    assert "25 ECTS behind" in progress and "16.7%" in progress
+    assert "Matias Multiple" in dbs_result and "FAILED" in dbs_result and "grade 0" in dbs_result
+    assert "Matias Multiple" in web_result and "FAILED" in web_result and "grade 0" in web_result
+    assert "Matias Multiple" in risk and "LOW academic risk" in risk
+    assert "Review the student's study plan" in recommendation
+    assert active_entities(copilot, user=127, chat=1270)["STUDENT"]["canonical_id"] == 46
+    assert ("get_progress", {"student_id": 46}) in copilot[1].calls

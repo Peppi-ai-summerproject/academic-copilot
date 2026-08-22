@@ -327,10 +327,10 @@ def _format_workflow_reply(state: AgentState) -> str:
         return state.final_response.strip()
 
     summaries = [
-        result.summary.strip()
+        _tutor_facing_summary(result)
         for route in state.selected_agents
         if isinstance((result := state.agent_results.get(route)), AgentResult)
-        and result.summary.strip()
+        and _tutor_facing_summary(result)
     ]
 
     if summaries:
@@ -347,6 +347,18 @@ def _format_workflow_reply(state: AgentState) -> str:
     }.get(state.workflow_status, "Academic analysis ended with an unknown status.")
 
     return f"{status_label}\n\n{body}"
+
+
+def _tutor_facing_summary(result: AgentResult) -> str:
+    """Prefer an agent's existing rendered presentation over metadata summaries."""
+    if result.route == "recommendation":
+        presentation = result.data.get("rendered_recommendation")
+        if isinstance(presentation, dict):
+            rendered = presentation.get("text")
+            if isinstance(rendered, str) and rendered.strip():
+                summary = result.summary.strip()
+                return f"{summary}\n{rendered.strip()}" if summary else rendered.strip()
+    return result.summary.strip()
 
 
 def _resolution_fallback(entity: dict) -> str:
