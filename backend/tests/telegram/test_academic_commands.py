@@ -74,7 +74,7 @@ def test_valid_academic_command_sends_structured_student_request_and_reply(
     assert request["username"] == "tutor"
     assert detect_intent(request["message"]).intent == expected_intent
     update.effective_message.reply_text.assert_awaited_once_with(
-        "Authoritative academic reply"
+        "Authoritative academic reply", parse_mode="HTML"
     )
 
 
@@ -203,5 +203,5 @@ def test_progress_command_uses_same_chat_service_routing_as_normal_request(
     assert workflow.states[0].student_id == 123
     assert workflow.states[0].selected_agents == ["progress"]
     update.message.reply_text.assert_awaited_once_with(
-        "Real progress workflow response"
+        "Real progress workflow response", parse_mode="HTML"
     )

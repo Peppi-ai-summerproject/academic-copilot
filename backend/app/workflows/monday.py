@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
+from app.telegram.formatting import format_telegram_html
 from app.db.database import SessionLocal
 from app.repositories.event_repository import EventRepository
 from app.repositories.progress_repository import ProgressRepository
@@ -614,7 +615,7 @@ def _render_telegram_text(
         )
         lines.extend(f"• {warning}" for warning in _deduplicate(warnings))
         lines.append("Missing information is not interpreted as no academic concern.")
-    return "\n".join(lines)
+    return format_telegram_html("\n".join(lines))
 
 
 def _as_local_datetime(value: datetime | None, timezone: ZoneInfo) -> datetime:

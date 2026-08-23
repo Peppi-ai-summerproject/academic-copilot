@@ -15,6 +15,13 @@ from typing import Any, Literal, Protocol
 
 from telegram.ext import Application
 
+from app.telegram.formatting import (
+    TELEGRAM_PARSE_MODE,
+    format_telegram_html,
+    is_telegram_formatting_error,
+    telegram_html_to_plain,
+)
+
 from app.repositories.tutor_repository import TutorRepository
 from app.workflows.academic_alerts import (
     ALERT_TYPE_ACADEMIC_RISK_DETECTED,
@@ -121,8 +128,23 @@ class TelegramApplicationSender:
         self._timeout_seconds = timeout_seconds
 
     def send_message(self, *, chat_id: int, text: str) -> TelegramSendReceipt:
+        async def send():
+            try:
+                return await self._application.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode=TELEGRAM_PARSE_MODE,
+                )
+            except Exception as exc:
+                if not is_telegram_formatting_error(exc):
+                    raise
+                return await self._application.bot.send_message(
+                    chat_id=chat_id,
+                    text=telegram_html_to_plain(text),
+                )
+
         future = asyncio.run_coroutine_threadsafe(
-            self._application.bot.send_message(chat_id=chat_id, text=text),
+            send(),
             self._application_loop,
         )
         try:
@@ -407,7 +429,21 @@ def render_academic_alert(
     else:
         raise ValueError("unsupported academic alert type")
 
-    return split_telegram_text("\n".join(lines))
+    return _split_and_format_telegram_text("\n".join(lines))
+
+
+def _split_and_format_telegram_text(text: str) -> list[str]:
+    """Split plain content until every encoded HTML chunk fits Telegram."""
+
+    source_limit = TELEGRAM_MAX_MESSAGE_LENGTH
+    while True:
+        chunks = split_telegram_text(text, maximum_length=source_limit)
+        formatted = [format_telegram_html(chunk) for chunk in chunks]
+        if all(len(chunk) <= TELEGRAM_MAX_MESSAGE_LENGTH for chunk in formatted):
+            return formatted
+        source_limit = source_limit * 4 // 5
+        if source_limit < 32:
+            raise ValueError("Telegram HTML expansion cannot be split safely")
 
 
 def split_telegram_text(

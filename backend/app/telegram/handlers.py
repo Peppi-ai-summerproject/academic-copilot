@@ -10,6 +10,11 @@ from app.telegram.logger import (
     log_outgoing_message,
     log_telegram_error,
 )
+from app.telegram.formatting import (
+    TELEGRAM_PARSE_MODE,
+    format_telegram_html,
+    is_telegram_formatting_error,
+)
 
 
 async def handle_message(
@@ -58,7 +63,13 @@ async def handle_message(
         await message.reply_text(error_message)
         return
 
-    await message.reply_text(reply)
+    html_reply = format_telegram_html(reply)
+    try:
+        await message.reply_text(html_reply, parse_mode=TELEGRAM_PARSE_MODE)
+    except Exception as exc:
+        if not is_telegram_formatting_error(exc):
+            raise
+        await message.reply_text(reply)
 
     log_outgoing_message(
         user_id=user.id,

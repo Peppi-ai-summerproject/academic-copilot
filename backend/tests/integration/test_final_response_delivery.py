@@ -79,7 +79,7 @@ def test_chat_api_final_response_reaches_telegram_text_unchanged(monkeypatch) ->
     asyncio.run(handlers.handle_message(update, context=None))
 
     assert direct_response.reply == FINAL_RESPONSE
-    message.reply_text.assert_awaited_once_with(FINAL_RESPONSE)
+    message.reply_text.assert_awaited_once_with(FINAL_RESPONSE, parse_mode="HTML")
     session = sessions.get_session(101)
     assert session is not None
     assert session.message_count == 2

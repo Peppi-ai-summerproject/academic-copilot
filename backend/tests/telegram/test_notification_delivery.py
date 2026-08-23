@@ -5,6 +5,7 @@ import asyncio
 import threading
 
 import pytest
+from telegram.error import BadRequest, Forbidden
 
 from app.telegram.notifications import (
     AcademicAlertNotificationDelivery,
@@ -110,8 +111,8 @@ def test_delayed_progress_alert_uses_the_shared_academic_briefing_structure():
         )
     )
 
-    assert rendered.startswith("Academic alert\nStudent: Oskari Example")
-    assert "Academic concern" in rendered
+    assert rendered.startswith("<b>Academic alert</b>\nStudent: <b>Oskari Example</b>")
+    assert "<b>Academic concern</b>" in rendered
     assert "Delayed academic progress" in rendered
     assert "Completed: 48 ECTS" in rendered
     assert "Expected: 60 ECTS" in rendered
@@ -182,11 +183,11 @@ def test_delivery_uses_only_resolved_tutors_and_preserves_deterministic_order():
     assert batch.failed_count == 0
     assert batch.skipped_count == 0
     assert "Ada_* Student" in sender.sent[0][1]
-    assert "Risk level: HIGH" in sender.sent[0][1]
-    assert "Assessment: PARTIAL" in sender.sent[0][1]
-    assert "Verified academic concern" in sender.sent[0][1]
+    assert "Risk level: <b>HIGH</b>" in sender.sent[0][1]
+    assert "Assessment: <b>PARTIAL</b>" in sender.sent[0][1]
+    assert "<b>Verified academic concern</b>" in sender.sent[0][1]
     assert "Contributing indicators: academic delay, study right" in sender.sent[0][1]
-    assert "Data availability" in sender.sent[0][1]
+    assert "<b>Data availability</b>" in sender.sent[0][1]
     assert "Unavailable indicators: tutor meetings" in sender.sent[0][1]
     assert "303" not in str(batch.to_summary())
     assert "Ada" not in str(batch.to_summary())
@@ -278,13 +279,33 @@ def test_chunking_preserves_all_plain_text_in_order_without_truncation():
     assert "".join(chunk.split(" ", 1)[1] for chunk in chunks) == source
 
 
+def test_alert_html_chunks_respect_encoded_limit_after_entity_expansion():
+    alert = risk_alert(1)
+    alert.evidence["contributing_indicators"] = ["A&B" * 1400]
+
+    chunks = render_academic_alert(
+        alert,
+        recipient=TutorNotificationRecipient(
+            tutor_id=1,
+            telegram_user_id=101,
+            telegram_chat_id=201,
+            student_display_name="Alice <student>",
+        ),
+    )
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 4096 for chunk in chunks)
+    assert "Alice &lt;student&gt;" in chunks[0]
+    assert all("<b>" not in chunk or "</b>" in chunk for chunk in chunks)
+
+
 def test_application_sender_uses_the_existing_application_loop_without_network():
     class FakeBot:
         def __init__(self) -> None:
-            self.calls: list[tuple[int, str]] = []
+            self.calls: list[tuple[int, str, object | None]] = []
 
-        async def send_message(self, *, chat_id: int, text: str):
-            self.calls.append((chat_id, text))
+        async def send_message(self, *, chat_id: int, text: str, parse_mode=None):
+            self.calls.append((chat_id, text, parse_mode))
             return type("Message", (), {"message_id": 77})()
 
     class FakeApplication:
@@ -306,4 +327,71 @@ def test_application_sender_uses_the_existing_application_loop_without_network()
         loop.close()
 
     assert receipt.provider_message_id == 77
-    assert application.bot.calls == [(12, "safe text")]
+    assert application.bot.calls == [(12, "safe text", "HTML")]
+
+
+def test_application_sender_retries_only_formatting_rejection_as_plain_text():
+    class FakeBot:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def send_message(self, **kwargs):
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                raise BadRequest("Can't parse entities")
+            return type("Message", (), {"message_id": 78})()
+
+    class FakeApplication:
+        def __init__(self) -> None:
+            self.bot = FakeBot()
+
+    loop = asyncio.new_event_loop()
+    worker = threading.Thread(target=loop.run_forever)
+    worker.start()
+    application = FakeApplication()
+    try:
+        receipt = TelegramApplicationSender(
+            application=application,  # type: ignore[arg-type]
+            application_loop=loop,
+        ).send_message(chat_id=12, text="<b>Academic risk</b>")
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        worker.join(timeout=2)
+        loop.close()
+
+    assert receipt.provider_message_id == 78
+    assert application.bot.calls == [
+        {"chat_id": 12, "text": "<b>Academic risk</b>", "parse_mode": "HTML"},
+        {"chat_id": 12, "text": "Academic risk"},
+    ]
+
+
+def test_application_sender_does_not_retry_non_formatting_failure():
+    class FakeBot:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def send_message(self, **kwargs):
+            self.calls.append(kwargs)
+            raise Forbidden("blocked")
+
+    class FakeApplication:
+        def __init__(self) -> None:
+            self.bot = FakeBot()
+
+    loop = asyncio.new_event_loop()
+    worker = threading.Thread(target=loop.run_forever)
+    worker.start()
+    application = FakeApplication()
+    try:
+        with pytest.raises(Forbidden):
+            TelegramApplicationSender(
+                application=application,  # type: ignore[arg-type]
+                application_loop=loop,
+            ).send_message(chat_id=12, text="<b>Academic risk</b>")
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        worker.join(timeout=2)
+        loop.close()
+
+    assert len(application.bot.calls) == 1

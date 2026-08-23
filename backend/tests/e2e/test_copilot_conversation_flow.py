@@ -277,10 +277,10 @@ def test_academic_commands_cross_backend_and_run_real_workflow(
     assert PLACEHOLDER not in reply
     if command == "progress":
         assert "Academic progress" in reply
-        assert "Status: BEHIND" in reply
+        assert "Status: <b>BEHIND</b>" in reply
     elif command == "risk":
         assert "Academic risk" in reply
-        assert "Risk level: MEDIUM" in reply
+        assert "Risk level: <b>MEDIUM</b>" in reply
     else:
         assert "Academic analysis" in reply
     assert harness.workflow.inputs[-1].student_id == 123

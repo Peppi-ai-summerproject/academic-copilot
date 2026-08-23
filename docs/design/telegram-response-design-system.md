@@ -282,37 +282,46 @@ or raw Markdown syntax in HTML mode.
 - On formatting rejection, use an intentional escaped plain-text fallback and
   record a safe operational failure; do not drop the response silently.
 
-## Current parse-mode behavior
+## Implemented parse-mode behavior
 
 Audit date: 2026-08-23. The repository uses `python-telegram-bot==22.8`.
 
-Current behavior is plain text throughout the reviewed production paths:
+Issue #265 implements safe HTML for tutor-facing academic responses:
 
-- `app.telegram.handlers.handle_message` calls `reply_text(reply)` without
-  `parse_mode`.
-- Command handlers call `reply_text(...)` without `parse_mode`.
-- `TelegramApplicationSender` calls `application.bot.send_message(chat_id=...,
-  text=...)` without `parse_mode`.
+- `app.telegram.handlers.handle_message` and academic command replies escape
+  the complete backend response, add restricted application-controlled markup,
+  and call `reply_text(..., parse_mode=HTML)`.
+- `TelegramApplicationSender` sends already-safe autonomous messages with
+  `parse_mode=HTML`.
 - `create_bot()` does not configure application-level defaults for parse mode.
-- `CommunicationAgent` explicitly produces a plain-text payload; its contract
-  test asserts that `parse_mode` is absent.
-- Academic alert and Monday/weekly briefing renderers generate plain text.
+- Local `/start`, `/help`, `/status`, validation, and connection-error replies
+  remain plain text. There is intentionally no global parse-mode default.
+- `app.telegram.formatting` centralizes HTML escaping, restricted heading and
+  status markup, HTML-to-plain conversion, and formatting-error detection.
+- `CommunicationAgent` remains delivery-independent and produces plain text;
+  the interactive Telegram boundary performs the safe conversion.
+- Academic alert chunks and Monday briefings use the same formatting helper.
 
-Therefore strings such as `**Risk**`, `<b>Risk</b>`, and `_Risk_` are currently
-displayed literally rather than formatted by these call sites. There is no
-shared rich-text escaping layer.
+All dynamic values are escaped before trusted tags are added. A value such as
+`Alice <b>Admin</b>` is sent as `Alice &lt;b&gt;Admin&lt;/b&gt;` and displayed
+literally rather than interpreted as markup.
+
+If Telegram returns an explicit entity or markup `BadRequest`, the transport
+retries once without parse mode using human-readable plain text. Network,
+authorization, recipient, and ambiguous transport failures do not use this
+fallback.
 
 Long-message handling is also uneven:
 
-- Academic alerts use `split_telegram_text`, enforce the 4,096-character limit,
-  prefer newline/space boundaries, and prefix multiple chunks as `(n/total)`.
+- Academic alerts split plain logical content first, enforce the 4,096-character
+  limit, prefix multiple chunks as `(n/total)`, then escape and format each
+  independent chunk. Tags are therefore never split.
 - Interactive replies, command replies, and Monday briefing delivery do not use
   that splitter at their send boundary.
 
-Follow-up renderer work must introduce HTML parse mode and escaping atomically
-for each delivery path, add structure-aware chunking, and preserve a safe
-plain-text fallback. Setting a global parse mode before every existing string
-is escaped would risk malformed messages and is prohibited.
+Interactive and Monday long-message splitting remains deferred. Neither path
+silently truncates content, but Telegram can reject an over-limit message until
+a dedicated structured splitter is introduced.
 
 ## Realistic before/after examples
 
@@ -447,8 +456,7 @@ signal must not be relabeled as a canonical MEDIUM/HIGH/CRITICAL risk result.
 
 ## Adoption requirements for follow-up UX issues
 
-Production adoption is intentionally out of scope here. Each renderer migration
-must nevertheless satisfy this specification and include:
+Renderer migrations must satisfy this specification and include:
 
 1. a documented mapping from structured domain/delivery states to presentation;
 2. centralized HTML escaping and a restricted formatting API;
@@ -480,4 +488,3 @@ Before approving any Telegram response or renderer:
 - [ ] Each final message part is at most 4,096 characters and independently valid.
 - [ ] No internal/debug/security-sensitive information is exposed.
 - [ ] Academic and business logic remain outside the renderer.
-
