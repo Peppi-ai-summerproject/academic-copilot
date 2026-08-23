@@ -228,6 +228,7 @@ class RecommendationAgent:
                 student_id=state.student_id,
                 data_status=assessment_status,
                 recommendations=tuple(recommendations),
+                student_name=state.student_name,
                 interventions=tuple(interventions),
                 missing_information=tuple(missing),
                 unavailable_dimensions=tuple(unavailable_dimensions or ()),
@@ -254,6 +255,8 @@ class RecommendationAgent:
                 "unavailable_dimensions": unavailable_dimensions or [],
                 "policy_context_used": policy_used,
                 "rendered_recommendation": rendered.to_dict(),
+                "formatted_message": rendered.text,
+                "primary_tutor_facing_presentation": True,
             },
             evidence=[
                 f"{item['category']}: {item['action']}"

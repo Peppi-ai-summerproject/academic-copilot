@@ -280,10 +280,10 @@ def test_risk_request_runs_real_agent_without_external_services():
 
     response = process(service, request(selected_agents=["risk"]))
 
-    assert response.reply == (
-        "Academic analysis completed.\n\n"
-        "- Ada Student has no confirmed academic risk factors."
-    )
+    assert response.reply.startswith("Academic risk\nAda Student")
+    assert "Risk level: NONE" in response.reply
+    assert "Assessment: COMPLETE" in response.reply
+    assert "No confirmed academic risk factors" in response.reply
     assert gateway.calls == [
         ("get_student", 42),
         ("get_progress", 42),
@@ -314,7 +314,12 @@ def test_recommendation_runs_after_real_prerequisite_agents_end_to_end():
         request(selected_agents=["progress", "study_rights", "risk", "recommendation"]),
     )
 
-    assert "Policy-grounded advisory recommendations: 2 action(s)." in response.reply
+    assert response.reply.startswith("Academic recommendations")
+    assert "Assessment: COMPLETE" in response.reply
+    assert "Verified academic concern" in response.reply
+    assert "Recommended actions (advisory)" in response.reply
+    assert "Review the student's study plan" in response.reply
+    assert "Schedule a tutor meeting" in response.reply
     assert policies.queries == [
         ("academic progress deficit tutor support policy", 3)
     ]
@@ -341,7 +346,7 @@ def test_real_communication_agent_formats_final_chat_response_without_delivery()
     assert "Status: ON_TRACK" in response.reply
     assert "Completed: 120 ECTS" in response.reply
     assert "active study right" in response.reply
-    assert "no confirmed academic risk factors" in response.reply
+    assert "No confirmed academic risk factors" in response.reply
     assert "NOT_SENT" not in response.reply
     session = sessions.get_session(7001)
     assert session is not None
@@ -365,7 +370,7 @@ def test_reporting_precedes_communication_in_real_end_to_end_workflow():
     assert "Status: ON_TRACK" in response.reply
     assert "Completed: 120 ECTS" in response.reply
     assert "active study right" in response.reply
-    assert "no confirmed academic risk factors" in response.reply
+    assert "No confirmed academic risk factors" in response.reply
     assert "structured_data" not in response.reply
     session = sessions.get_session(7001)
     assert session is not None

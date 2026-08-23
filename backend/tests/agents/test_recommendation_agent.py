@@ -114,8 +114,11 @@ def test_high_progress_factor_produces_two_actionable_recommendations():
     assert result.status == "SUCCESS"
     presentation = result.data["rendered_recommendation"]
     assert presentation["data_status"] == "COMPLETE"
-    assert "Academic progress support" in presentation["text"]
-    assert "Schedule a tutor meeting." in presentation["text"]
+    assert "Academic recommendations" in presentation["text"]
+    assert "Assessment: COMPLETE" in presentation["text"]
+    assert "Verified academic concern" in presentation["text"]
+    assert "Recommended actions (advisory)" in presentation["text"]
+    assert "Schedule a tutor meeting" in presentation["text"]
     policy.retrieve_policy.assert_awaited_once_with(
         "academic progress deficit tutor support policy", top_k=3
     )
@@ -302,7 +305,10 @@ def test_partial_risk_preserves_confirmed_recommendations_but_stays_partial():
     assert result.data["unavailable_dimensions"] == ["academic_events"]
     assert result.data["recommendations"]
     assert result.data["interventions"]
-    assert "Status: PARTIAL" in result.data["rendered_recommendation"]["text"]
+    presentation = result.data["rendered_recommendation"]["text"]
+    assert "Assessment: PARTIAL" in presentation
+    assert "Academic event information" in presentation
+    assert "academic_events" not in presentation
 
 
 def test_complete_no_risk_returns_policy_grounded_monitoring_recommendation():

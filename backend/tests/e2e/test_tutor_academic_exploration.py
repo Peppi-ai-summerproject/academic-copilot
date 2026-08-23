@@ -574,7 +574,8 @@ def test_contextual_specialized_progress_risk_and_study_right_routes(copilot):
     risk = ask(copilot, "Is she at risk?").reply
     study_right = ask(copilot, "What is her study-right status?").reply
     assert "55 ECTS" in progress
-    assert "academic risk" in risk
+    assert "Academic risk" in risk
+    assert "Risk level: LOW" in risk
     assert "active study right" in study_right.lower()
     assert ("get_progress", {"student_id": 7}) in copilot[1].calls
 
@@ -710,7 +711,7 @@ def test_demo_scenario_1_student_progress_over_telegram_path(copilot, monkeypatc
     assert "DBS24 — Database Systems" in dbs_result
     assert "Matias Multiple" in web_result and "Result: FAILED" in web_result and "Grade: 0" in web_result
     assert "WEB24 — Web Application Development" in web_result
-    assert "Matias Multiple" in risk and "LOW academic risk" in risk
+    assert "Matias Multiple" in risk and "Risk level: LOW" in risk
     assert "Review the student's study plan" in recommendation
     assert active_entities(copilot, user=127, chat=1270)["STUDENT"]["canonical_id"] == 46
     assert ("get_progress", {"student_id": 46}) in copilot[1].calls
@@ -744,10 +745,21 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert all(name not in candidates for name in ("Elina Demo", "Aava Achiever", "Sofia Sample"))
     assert "FAILED" in candidates and "grade 0" in candidates
     assert "Oskari Example" in lookup and "DEMO22102" in lookup
-    assert "Oskari Example has MEDIUM academic risk" in explanation
+    assert explanation.startswith("Academic risk\nOskari Example")
+    assert "Risk level: MEDIUM" in explanation
+    assert "Assessment: COMPLETE" in explanation
+    assert "Why this student needs attention" in explanation
     assert "30 ECTS behind expected progress" in explanation
+    assert recommendation.startswith("Academic recommendations\nOskari Example")
+    assert "Assessment: PARTIAL" in recommendation
+    assert "Verified academic concern" in recommendation
+    assert "Recommended actions (advisory)" in recommendation
     assert "Review the student's study plan" in recommendation
     assert "Schedule a tutor meeting" in recommendation
+    assert "Advisory note" in recommendation
+    assert "not mandatory university policy" in recommendation
+    assert "University policy guidance" in recommendation
+    assert "Policy evidence unavailable" not in recommendation
     entities = active_entities(copilot, user=128, chat=1280)
     assert entities["STUDENT"]["canonical_id"] == 41
     assert entities["STUDENT_GROUP"]["canonical_id"] == 240

@@ -193,7 +193,9 @@ def test_unavailable_dimension_makes_assessment_partial(dimension, changes):
     assert result.data["risk_level"] == "NONE"
     assert result.data["assessment_complete"] is False
     assert dimension in result.data["unavailable_dimensions"]
-    assert "inconclusive" in result.summary.lower()
+    assert "Risk level: UNAVAILABLE" in result.summary
+    assert "Assessment: UNAVAILABLE" in result.summary
+    assert "Data availability" in result.summary
     assert "no confirmed academic risk factors" not in result.summary.lower()
 
 
@@ -207,7 +209,10 @@ def test_partial_high_assessment_remains_high_and_retains_factor():
     assert result.status == "PARTIAL"
     assert result.data["risk_level"] == "HIGH"
     assert result.data["risk_factors"][0]["dimension"] == "progress"
-    assert result.summary.startswith("Partial assessment:")
+    assert result.summary.startswith("Academic risk\nAda Student")
+    assert "Risk level: HIGH" in result.summary
+    assert "Assessment: PARTIAL" in result.summary
+    assert "Why this student needs attention" in result.summary
 
 
 def test_malformed_dimension_is_partial_not_safe():
