@@ -47,6 +47,7 @@ _IDENTITY_HEADINGS = frozenset(
         "Academic risk",
         "Course result",
         "Student overview",
+        "Students needing attention",
     }
 )
 _SAFE_TAG_PATTERN = re.compile(r"</?(?:b|i|code)>", re.IGNORECASE)
