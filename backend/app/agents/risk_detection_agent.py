@@ -102,7 +102,9 @@ class RiskDetectionAgent:
 
         complete = not unavailable
         risk_level = highest_risk_level(factors)
-        summary = self._build_summary(student_name, risk_level, factors, complete)
+        summary = self._build_summary(
+            student_name, risk_level, factors, complete, unavailable
+        )
         evidence = [
             f"{factor['evidence_source']}: {factor['reason']} Values: {factor['values']}"
             for factor in factors
@@ -122,6 +124,7 @@ class RiskDetectionAgent:
                 "risk_factors": factors,
                 "assessment_complete": complete,
                 "unavailable_dimensions": unavailable,
+                "tutor_facing_presentation": True,
             },
             evidence=evidence,
             warnings=warnings,
@@ -161,17 +164,42 @@ class RiskDetectionAgent:
         risk_level: str,
         factors: list[dict[str, Any]],
         complete: bool,
+        unavailable: list[str],
     ) -> str:
+        assessment = "COMPLETE" if complete else ("PARTIAL" if factors else "UNAVAILABLE")
+        displayed_level = risk_level if complete or factors else "UNAVAILABLE"
+        lines = [
+            "Academic risk",
+            student_name,
+            "",
+            f"Risk level: {displayed_level}",
+            f"Assessment: {assessment}",
+        ]
         if factors:
-            reasons = " ".join(factor["reason"] for factor in factors)
-            qualifier = "Partial assessment: " if not complete else ""
-            return f"{qualifier}{student_name} has {risk_level} academic risk. {reasons}"
-        if complete:
-            return f"{student_name} has no confirmed academic risk factors."
-        return (
-            f"Risk assessment for {student_name} is inconclusive because required "
-            "academic data is unavailable."
-        )
+            lines.extend(["", "Why this student needs attention"])
+            lines.extend(f"• {factor['reason'].rstrip('.')}" for factor in factors)
+        elif complete:
+            lines.extend(
+                [
+                    "",
+                    "Verified evidence",
+                    "• No confirmed academic risk factors were found in the assessed dimensions.",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "",
+                    "Required information",
+                    "• Sufficient academic evidence was unavailable for a reliable risk level.",
+                ]
+            )
+        if unavailable:
+            lines.extend(["", "Data availability"])
+            lines.append("Some supporting information was unavailable:")
+            lines.extend(f"• {_dimension_label(item)}" for item in unavailable)
+            lines.append("Missing information is not interpreted as no risk.")
+        return "\n".join(lines)
 
     def _failed_system_result(self) -> AgentResult:
         return AgentResult(
@@ -181,3 +209,11 @@ class RiskDetectionAgent:
             summary="Risk assessment could not be completed due to a system error.",
             errors=["RISK_ASSESSMENT_UNAVAILABLE"],
         )
+
+
+def _dimension_label(value: str) -> str:
+    return {
+        "progress": "Academic progress information",
+        "study_right": "Study-right information",
+        "academic_events": "Academic event information",
+    }.get(value, "Supporting academic information")

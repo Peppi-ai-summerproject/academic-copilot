@@ -146,8 +146,9 @@ def test_partial_data_is_tutor_visible_and_not_treated_as_zero() -> None:
     assert result.status == "PARTIAL"
     assert result.data["data_status"] == "PARTIAL"
     assert result.data["unavailable_dimensions"] == ["tutor_meetings"]
-    assert "Status: PARTIAL" in rendered
-    assert "Unavailable: tutor_meetings" in rendered
+    assert "Assessment: PARTIAL" in rendered
+    assert "Tutor-meeting information" in rendered
+    assert "tutor_meetings" not in rendered
     assert "zero meetings" not in rendered.lower()
 
 

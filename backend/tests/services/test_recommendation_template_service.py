@@ -46,15 +46,17 @@ def test_normal_progress_uses_monitoring_template_without_warning_language():
             student_evidence=[],
         )
     )
-    assert "Normal academic monitoring" in output.text
-    assert "Continue normal progress monitoring." in output.text
+    assert "Academic recommendations" in output.text
+    assert "Assessment: COMPLETE" in output.text
+    assert "Continue normal progress monitoring" in output.text
     assert "Data availability" not in output.text
 
 
 def test_delayed_student_preserves_progress_evidence():
     output = render(recommendation())
-    assert "Academic progress support" in output.text
-    assert "ects_deficit=30" in output.text
+    assert "Verified academic concern" in output.text
+    assert "Confirmed progress concern" in output.text
+    assert "ects_deficit" not in output.text
     assert "HIGH" in output.text
 
 
@@ -66,8 +68,9 @@ def test_high_risk_explanation_is_preserved_when_supplied():
             "warnings": [],
         },
     )
-    assert "Risk explanation" in output.text
-    assert "HIGH risk with score 72/100" in output.text
+    assert "Verified academic concern" in output.text
+    assert "Confirmed progress concern" in output.text
+    assert "score 72/100" not in output.text
 
 
 def test_study_right_scenario_and_progress_explanation_are_supported():
@@ -75,8 +78,9 @@ def test_study_right_scenario_and_progress_explanation_are_supported():
         recommendation("study_right", action="Review study-right support options."),
         progress_explanation={"summary": "Progress status is BEHIND.", "warnings": []},
     )
-    assert "Study-right support" in output.text
-    assert "Progress explanation" in output.text
+    assert "Academic recommendations" in output.text
+    assert "Review study-right support options" in output.text
+    assert "Recommended actions (advisory)" in output.text
 
 
 def test_multiple_interventions_preserve_order_without_introducing_duplicates():
@@ -110,11 +114,13 @@ def test_partial_data_is_visible_and_missing_optional_sections_are_clean():
         missing_information=("Policy evidence unavailable.",),
         unavailable_dimensions=("academic_events",),
     )
-    assert "Status: PARTIAL" in output.text
-    assert "Policy evidence unavailable." in output.text
-    assert "Unavailable: academic_events" in output.text
-    assert "Supporting evidence" not in output.text
-    assert "Relevant guidance" not in output.text
+    assert "Assessment: PARTIAL" in output.text
+    assert "University policy guidance" in output.text
+    assert "Academic event information" in output.text
+    assert "policy evidence" not in output.text.lower()
+    assert "academic_events" not in output.text
+    assert "Verified academic concern" not in output.text
+    assert "policy" not in output.sections
 
 
 def test_rendering_is_deterministic_and_scenarios_are_extensible():
@@ -127,4 +133,5 @@ def test_rendering_is_deterministic_and_scenarios_are_extensible():
         {"custom": ScenarioTemplate("Custom support", "Custom situation")}
     )
     assert service.render(value) == service.render(value)
-    assert "Custom support" in service.render(value).text
+    assert service.render(value).scenarios == ("custom",)
+    assert "Academic recommendations" in service.render(value).text

@@ -25,6 +25,7 @@ class RecommendationTemplateInput:
     student_id: int | None
     data_status: str
     recommendations: tuple[Mapping[str, Any], ...]
+    student_name: str | None = None
     interventions: tuple[Mapping[str, Any], ...] = ()
     missing_information: tuple[str, ...] = ()
     unavailable_dimensions: tuple[str, ...] = ()
@@ -65,8 +66,11 @@ class RecommendationTemplateService:
             self._scenarios.update(scenarios)
 
     def render(self, value: RecommendationTemplateInput) -> RenderedRecommendation:
-        lines = ["Recommendation"]
-        sections = ["recommendation"]
+        lines = ["Academic recommendations"]
+        if _text(value.student_name):
+            lines.append(str(value.student_name))
+        lines.extend(["", f"Assessment: {value.data_status}"])
+        sections = ["recommendation", "assessment"]
         scenario_names: list[str] = []
 
         for recommendation in value.recommendations:
@@ -76,56 +80,37 @@ class RecommendationTemplateService:
                 or "recommendation"
             )
             scenario_names.append(scenario)
-            template = self._scenarios.get(
-                scenario,
-                ScenarioTemplate("Tutor recommendation", "Situation"),
-            )
-            lines.extend(["", template.title])
-            priority = recommendation.get("priority")
-            if priority is not None:
-                lines.append(f"Priority: {priority}")
-            explanation = recommendation.get("explanation")
-            if _text(explanation):
-                lines.append(f"{template.situation_label}: {explanation}")
-            action = recommendation.get("action")
-            if _text(action):
-                lines.append(f"Recommended action: {action}")
 
         evidence = _render_evidence(value.recommendations)
         if evidence:
             sections.append("evidence")
-            lines.extend(["", "Supporting evidence", *evidence])
+            lines.extend(["", "Verified academic concern", *evidence])
 
-        if value.interventions:
+        actions = value.interventions or value.recommendations
+        if actions:
             sections.append("interventions")
             lines.extend(["", "Recommended actions (advisory)"])
-            for index, intervention in enumerate(value.interventions, start=1):
-                action = intervention.get("action")
+            for index, action_item in enumerate(actions, start=1):
+                action = action_item.get("action")
                 if not _text(action):
                     continue
-                priority = intervention.get("priority")
-                label = f"{priority} priority: " if priority is not None else ""
-                lines.append(f"{index}. {label}{action} (advisory)")
-
-        _append_explanation(
-            lines,
-            sections,
-            "risk_explanation",
-            "Risk explanation",
-            value.risk_explanation,
-        )
-        _append_explanation(
-            lines,
-            sections,
-            "progress_explanation",
-            "Progress explanation",
-            value.progress_explanation,
-        )
+                priority = action_item.get("priority")
+                label = f"{priority} priority — " if priority is not None else ""
+                lines.append(f"{index}. {label}{str(action).rstrip('.')}")
+            sections.append("advisory")
+            lines.extend(
+                [
+                    "",
+                    "Advisory note",
+                    "These recommendations support tutor decision-making.",
+                    "They are not mandatory university policy.",
+                ]
+            )
 
         policy = _render_policy(value.recommendations)
         if policy:
             sections.append("policy")
-            lines.extend(["", "Relevant guidance", *policy])
+            lines.extend(["", "University policy guidance", *policy])
 
         if (
             value.data_status == "PARTIAL"
@@ -133,13 +118,13 @@ class RecommendationTemplateService:
             or value.unavailable_dimensions
         ):
             sections.append("availability")
-            lines.extend(["", "Data availability", f"Status: {value.data_status}"])
-            lines.extend(f"- {item}" for item in value.missing_information if _text(item))
-            lines.extend(
-                f"- Unavailable: {item}"
-                for item in value.unavailable_dimensions
-                if _text(item)
-            )
+            availability = _availability_items(value)
+            lines.extend(["", "Data availability"])
+            if availability:
+                lines.append("Some supporting information was unavailable:")
+                lines.extend(f"• {item}" for item in availability)
+            else:
+                lines.append("The requested recommendation could not be fully verified.")
 
         return RenderedRecommendation(
             text="\n".join(lines),
@@ -161,14 +146,10 @@ def _render_evidence(
             if not isinstance(item, dict):
                 continue
             reason = item.get("reason")
-            source = item.get("source_agent")
-            values = item.get("values")
-            parts = [str(reason)] if _text(reason) else []
-            if isinstance(values, dict) and values:
-                parts.append(", ".join(f"{key}={value}" for key, value in values.items()))
-            if parts:
-                prefix = f"{source}: " if _text(source) else ""
-                rendered.append(f"- {prefix}{'; '.join(parts)}")
+            if _text(reason):
+                label = f"• {str(reason).rstrip('.')}"
+                if label not in rendered:
+                    rendered.append(label)
     return rendered
 
 
@@ -187,8 +168,41 @@ def _render_policy(
             excerpt = item.get("excerpt")
             if _text(excerpt):
                 prefix = f"{source}: " if _text(source) else ""
-                rendered.append(f"- {prefix}{excerpt}")
+                line = f"• {prefix}{excerpt}"
+                if line not in rendered:
+                    rendered.append(line)
     return rendered
+
+
+def _availability_items(value: RecommendationTemplateInput) -> list[str]:
+    rendered: list[str] = []
+    for item in value.missing_information:
+        label = _missing_information_label(item)
+        if label and label not in rendered:
+            rendered.append(label)
+    for item in value.unavailable_dimensions:
+        label = {
+            "progress": "Academic progress information",
+            "study_right": "Study-right information",
+            "academic_events": "Academic event information",
+            "tutor_meetings": "Tutor-meeting information",
+        }.get(str(item), "Supporting academic information")
+        if label not in rendered:
+            rendered.append(label)
+    return rendered
+
+
+def _missing_information_label(value: Any) -> str | None:
+    if not _text(value):
+        return None
+    text = str(value).casefold()
+    if "policy evidence" in text or "policy context" in text:
+        return "University policy guidance"
+    if "risk" in text and ("required" in text or "complete" in text):
+        return "Verified academic risk assessment"
+    if "intervention mapping" in text:
+        return "Approved tutor-action guidance"
+    return "Supporting recommendation information"
 
 
 def _append_explanation(

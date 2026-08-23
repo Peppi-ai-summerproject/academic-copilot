@@ -215,6 +215,12 @@ def test_chat_api_runs_real_routing_workflow_and_agents(harness, message, intent
     if intent == "progress":
         assert "Academic progress" in response.json()["reply"]
         assert "Status: BEHIND" in response.json()["reply"]
+    elif intent == "risk":
+        assert "Academic risk" in response.json()["reply"]
+        assert "Risk level: MEDIUM" in response.json()["reply"]
+    elif intent == "recommendation":
+        assert "Academic recommendations" in response.json()["reply"]
+        assert "Recommended actions (advisory)" in response.json()["reply"]
     else:
         assert "Academic analysis" in response.json()["reply"]
     assert harness.workflow.inputs[-1].intent == intent
@@ -272,6 +278,9 @@ def test_academic_commands_cross_backend_and_run_real_workflow(
     if command == "progress":
         assert "Academic progress" in reply
         assert "Status: BEHIND" in reply
+    elif command == "risk":
+        assert "Academic risk" in reply
+        assert "Risk level: MEDIUM" in reply
     else:
         assert "Academic analysis" in reply
     assert harness.workflow.inputs[-1].student_id == 123

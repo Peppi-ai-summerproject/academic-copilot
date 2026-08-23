@@ -355,6 +355,21 @@ def _format_workflow_reply(state: AgentState) -> str:
 
 def _designed_tutor_presentation(state: AgentState) -> str | None:
     """Return an explicitly designed agent presentation without a debug-like wrapper."""
+    primary = [
+        result
+        for result in state.agent_results.values()
+        if isinstance(result, AgentResult)
+        and result.status != "FAILED"
+        and result.data.get("primary_tutor_facing_presentation") is True
+        and isinstance(result.data.get("formatted_message"), str)
+        and result.data["formatted_message"].strip()
+    ]
+    if (
+        len(primary) == 1
+        and state.selected_agents
+        and state.agent_results.get(state.selected_agents[-1]) is primary[0]
+    ):
+        return primary[0].data["formatted_message"].strip()
     if len(state.selected_agents) != 1:
         return None
     result = state.agent_results.get(state.selected_agents[0])
