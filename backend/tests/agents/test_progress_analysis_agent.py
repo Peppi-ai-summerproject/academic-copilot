@@ -83,6 +83,9 @@ def test_progress_unavailable_returns_partial() -> None:
     assert explanation["data_status"] == "PARTIAL"
     assert explanation["completed_ects"] is None
     assert explanation["expected_ects"] is None
+    assert "Assessment: PARTIAL" in result.summary
+    assert "Availability" in result.summary
+    assert "could not be verified" in result.summary
 
 
 def test_on_track_result_preserves_contract() -> None:
@@ -116,8 +119,25 @@ def test_gateway_exception_returns_failed_result() -> None:
 
 
 def test_summary_and_status_helpers() -> None:
-    assert "behind" in _build_summary("Anna", "BIT", 60, 120, -60, "BEHIND", 4, 50).lower()
-    assert "on track" in _build_summary("Anna", "BIT", 120, 120, 0, "ON_TRACK", 4, 100).lower()
-    assert "ahead" in _build_summary("Anna", "BIT", 150, 120, 30, "AHEAD", 4, 125).lower()
+    behind = _build_summary("Anna", "BIT", 60, 120, -60, "BEHIND", 4, 50)
+    on_track = _build_summary("Anna", "BIT", 120, 120, 0, "ON_TRACK", 4, 100)
+    ahead = _build_summary("Anna", "BIT", 150, 120, 30, "AHEAD", 4, 125)
+    assert "Status: BEHIND" in behind and "Difference: 60 ECTS behind" in behind
+    assert "Assessment: PARTIAL" in behind
+    assert "Status: ON_TRACK" in on_track and "Difference: 0 ECTS" in on_track
+    assert "Status: AHEAD" in ahead and "Difference: 30 ECTS ahead" in ahead
     assert _map_progress_status("BEHIND") == "PARTIAL"
     assert _map_progress_status("ON_TRACK") == "SUCCESS"
+
+
+def test_matias_progress_values_are_presented_without_recalculation() -> None:
+    summary = _build_summary(
+        "Matias Multiple", "Business IT", 5, 30, -25, "BEHIND", 1, 16.7
+    )
+
+    assert summary.startswith("Academic progress\nMatias Multiple · Business IT")
+    assert "Status: BEHIND" in summary
+    assert "Completed: 5 ECTS" in summary
+    assert "Expected: 30 ECTS by semester 1" in summary
+    assert "Difference: 25 ECTS behind" in summary
+    assert "Progress: 16.7% of expected" in summary

@@ -326,6 +326,10 @@ def _format_workflow_reply(state: AgentState) -> str:
     ):
         return state.final_response.strip()
 
+    direct = _designed_tutor_presentation(state)
+    if direct is not None:
+        return direct
+
     summaries = [
         _tutor_facing_summary(result)
         for route in state.selected_agents
@@ -347,6 +351,21 @@ def _format_workflow_reply(state: AgentState) -> str:
     }.get(state.workflow_status, "Academic analysis ended with an unknown status.")
 
     return f"{status_label}\n\n{body}"
+
+
+def _designed_tutor_presentation(state: AgentState) -> str | None:
+    """Return an explicitly designed agent presentation without a debug-like wrapper."""
+    if len(state.selected_agents) != 1:
+        return None
+    result = state.agent_results.get(state.selected_agents[0])
+    if (
+        not isinstance(result, AgentResult)
+        or result.status == "FAILED"
+        or result.data.get("tutor_facing_presentation") is not True
+        or not result.summary.strip()
+    ):
+        return None
+    return result.summary.strip()
 
 
 def _tutor_facing_summary(result: AgentResult) -> str:

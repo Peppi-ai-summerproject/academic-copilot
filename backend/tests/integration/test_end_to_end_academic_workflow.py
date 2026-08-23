@@ -144,12 +144,12 @@ def test_progress_request_runs_real_connected_path_and_passes_student_id():
     response = process(service, request())
 
     assert isinstance(response, ChatResponse)
-    assert response.reply == (
-        "Academic analysis completed.\n\n"
-        "- Ada Student (Computer Science) is on track with their studies. "
-        "They have completed 120 ECTS, meeting the expected 120 ECTS milestone "
-        "for semester 4 (100.0% of expected progress)."
-    )
+    assert response.reply.startswith("Academic progress\nAda Student · Computer Science")
+    assert "Status: ON_TRACK" in response.reply
+    assert "Completed: 120 ECTS" in response.reply
+    assert "Expected: 120 ECTS by semester 4" in response.reply
+    assert "Difference: 0 ECTS" in response.reply
+    assert "Progress: 100.0% of expected" in response.reply
     assert gateway.calls == [("get_student", 42), ("get_progress", 42)]
 
 
@@ -177,7 +177,7 @@ def test_multi_agent_response_and_gateway_calls_follow_selected_order():
     )
 
     study_right_summary = "Ada Student (Computer Science) has an active study right"
-    progress_summary = "Ada Student (Computer Science) is on track with their studies"
+    progress_summary = "Academic progress\nAda Student · Computer Science"
     assert response.reply.index(study_right_summary) < response.reply.index(progress_summary)
     assert gateway.calls == [
         ("get_student", 42),
@@ -225,11 +225,11 @@ def test_unavailable_academic_data_produces_controlled_partial_response():
 
     response = process(service, request())
 
-    assert response.reply == (
-        "Academic analysis partially completed.\n\n"
-        "- Ada Student is enrolled in Computer Science. Progress data could not "
-        "be retrieved \u2014 curriculum data may be missing."
-    )
+    assert response.reply.startswith("Academic progress\nAda Student · Computer Science")
+    assert "Assessment: PARTIAL" in response.reply
+    assert "Availability" in response.reply
+    assert "Progress data could not be verified" in response.reply
+    assert "Missing information is not confirmation" in response.reply
     assert "PROGRESS_UNAVAILABLE" not in response.reply
     assert gateway.calls == [("get_student", 42), ("get_progress", 42)]
 
@@ -337,7 +337,9 @@ def test_real_communication_agent_formats_final_chat_response_without_delivery()
 
     assert response.reply.startswith("Tutor summary:")
     assert "Verified facts" in response.reply
-    assert "Ada Student (Computer Science) is on track" in response.reply
+    assert "Academic progress" in response.reply
+    assert "Status: ON_TRACK" in response.reply
+    assert "Completed: 120 ECTS" in response.reply
     assert "active study right" in response.reply
     assert "no confirmed academic risk factors" in response.reply
     assert "NOT_SENT" not in response.reply
@@ -359,7 +361,9 @@ def test_reporting_precedes_communication_in_real_end_to_end_workflow():
 
     assert response.reply.startswith("Tutor summary:")
     assert "Verified facts" in response.reply
-    assert "Ada Student (Computer Science) is on track" in response.reply
+    assert "Academic progress" in response.reply
+    assert "Status: ON_TRACK" in response.reply
+    assert "Completed: 120 ECTS" in response.reply
     assert "active study right" in response.reply
     assert "no confirmed academic risk factors" in response.reply
     assert "structured_data" not in response.reply
