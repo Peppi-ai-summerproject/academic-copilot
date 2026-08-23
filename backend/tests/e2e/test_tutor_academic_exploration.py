@@ -755,6 +755,15 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert "Assessment: <b>PARTIAL</b>" in recommendation
     assert "Verified academic concern" in recommendation
     assert "Recommended actions (advisory)" in recommendation
+    assert recommendation.index("Verified academic concern") < recommendation.index(
+        "Recommended actions (advisory)"
+    )
+    assert recommendation.index("Recommended actions (advisory)") < recommendation.index(
+        "Data availability"
+    )
+    assert "University policy guidance" in recommendation
+    assert "advisory" in recommendation.lower()
+    assert "RAG_RETRIEVAL_UNAVAILABLE" not in recommendation
     assert "Review the student&#x27;s study plan" in recommendation
     assert "Schedule a tutor meeting" in recommendation
     assert "Advisory note" in recommendation

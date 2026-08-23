@@ -221,7 +221,7 @@ def test_demo_scenario_3_executes_logs_and_delivers_meaningful_weekly_briefing()
     assert "Assigned students: 2" in message
     assert "Analysed students: 2" in message
     assert "Students needing attention: 1" in message
-    assert "<b>Students needing attention</b>\nOskari Example" in message
+    assert "<b>Students needing attention</b>\n<b>Oskari Example</b>" in message
     assert "30 ECTS behind expected progress" in message
     assert "Aava Achiever" not in message
     assert "Course registration deadline" in message

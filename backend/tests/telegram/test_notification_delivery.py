@@ -15,6 +15,7 @@ from app.telegram.notifications import (
     render_academic_alert,
     split_telegram_text,
 )
+from app.telegram.formatting import telegram_html_to_plain
 from app.workflows.academic_alerts import (
     ALERT_TYPE_ACADEMIC_RISK_DETECTED,
     ALERT_TYPE_DELAYED_PROGRESS,
@@ -297,6 +298,14 @@ def test_alert_html_chunks_respect_encoded_limit_after_entity_expansion():
     assert all(len(chunk) <= 4096 for chunk in chunks)
     assert "Alice &lt;student&gt;" in chunks[0]
     assert all("<b>" not in chunk or "</b>" in chunk for chunk in chunks)
+    assert chunks[0].startswith("(1/")
+    assert all(chunk.startswith(f"({index}/{len(chunks)}) ") for index, chunk in enumerate(chunks, 1))
+    fallback = "".join(
+        telegram_html_to_plain(chunk).split(" ", 1)[1] for chunk in chunks
+    )
+    assert fallback.count("A&B") == 1400
+    assert "Assessment: PARTIAL" in fallback
+    assert "Data availability" in fallback
 
 
 def test_application_sender_uses_the_existing_application_loop_without_network():
