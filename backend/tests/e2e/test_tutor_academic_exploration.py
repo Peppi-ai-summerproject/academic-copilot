@@ -476,10 +476,10 @@ def test_roster_enrollment_pass_fail_and_analytics(copilot):
 def test_student_course_result_grade_and_unrelated_context_preservation(copilot):
     ask(copilot, "Show Anna Korhonen.")
     assert "PASSED" in ask(copilot, "Did she pass DII101?").reply
-    assert "grade 5" in ask(copilot, "What grade did she get?").reply
+    assert "Grade: 5" in ask(copilot, "What grade did she get?").reply
     ask(copilot, "What about MAT101?")
     reply = ask(copilot, "What grade did she get?").reply
-    assert "MAT101" in reply and "grade 0" in reply
+    assert "MAT101" in reply and "Grade: 0" in reply
     assert {kind: row["canonical_id"] for kind, row in active_entities(copilot).items()} == {"STUDENT": 7, "COURSE": 101}
 
 
@@ -500,16 +500,19 @@ def test_student_course_yes_no_returns_actual_pass_or_fail_result(
     grade = ask(copilot, f"What grade did {pronoun} get?").reply
 
     assert expected_status in result
-    assert f"grade {expected_grade}" in result
+    assert f"Grade: {expected_grade}" in result
     assert expected_status in grade
-    assert f"grade {expected_grade}" in grade
+    assert f"Grade: {expected_grade}" in grade
 
 
 @pytest.mark.e2e
 def test_student_course_yes_no_reports_none_when_student_has_no_course_result(copilot):
     ask(copilot, "Show me Sofia Sample.")
 
-    assert ask(copilot, "Did she pass DII101?").reply.endswith("Results: none found.")
+    reply = ask(copilot, "Did she pass DII101?").reply
+    assert "Course result" in reply
+    assert "Result: unavailable" in reply
+    assert "No recorded result was found" in reply
 
 
 @pytest.mark.e2e
@@ -520,7 +523,7 @@ def test_explicit_student_in_result_question_replaces_stale_student_only(copilot
     reply = ask(copilot, "Did Oskari pass DII101?").reply
 
     assert "Oskari Example" in reply
-    assert "FAILED" in reply and "grade 0" in reply
+    assert "FAILED" in reply and "Grade: 0" in reply
     assert "Elina Demo" not in reply
     entities = active_entities(copilot)
     assert entities["STUDENT"]["canonical_id"] == 41
@@ -666,8 +669,8 @@ def test_telegram_handler_multi_turn_group_and_student_workflow(copilot, monkeyp
     assert "Matti Virtanen" in asyncio.run(send("Who teaches Database Systems?", 41, 51))
     assert "Elina Demo" in asyncio.run(send("Show me Elina Demo.", 41, 51))
     result = asyncio.run(send("Did she pass DII101?", 41, 51))
-    assert "PASSED" in result and "grade 5" in result
-    assert "grade 5" in asyncio.run(send("What grade did she get?", 41, 51))
+    assert "PASSED" in result and "Grade: 5" in result
+    assert "Grade: 5" in asyncio.run(send("What grade did she get?", 41, 51))
     assert "Which student group" in asyncio.run(send("Which students are in it?", 42, 52))
 
 
@@ -695,11 +698,18 @@ def test_demo_scenario_1_student_progress_over_telegram_path(copilot, monkeypatc
     )
 
     assert "Matias Multiple" in lookup and "DEMO25204" in lookup
+    assert lookup.startswith("Student overview\n")
+    assert "Student number: DEMO25204" in lookup
+    assert "Programme: ICT" in lookup
     assert "Matias Multiple" in progress
-    assert "5 ECTS" in progress and "30 ECTS" in progress
-    assert "25 ECTS behind" in progress and "16.7%" in progress
-    assert "Matias Multiple" in dbs_result and "FAILED" in dbs_result and "grade 0" in dbs_result
-    assert "Matias Multiple" in web_result and "FAILED" in web_result and "grade 0" in web_result
+    assert progress.startswith("Academic progress\n")
+    assert "Status: BEHIND" in progress and "Assessment: PARTIAL" in progress
+    assert "Completed: 5 ECTS" in progress and "Expected: 30 ECTS" in progress
+    assert "Difference: 25 ECTS behind" in progress and "Progress: 16.7%" in progress
+    assert "Matias Multiple" in dbs_result and "Result: FAILED" in dbs_result and "Grade: 0" in dbs_result
+    assert "DBS24 — Database Systems" in dbs_result
+    assert "Matias Multiple" in web_result and "Result: FAILED" in web_result and "Grade: 0" in web_result
+    assert "WEB24 — Web Application Development" in web_result
     assert "Matias Multiple" in risk and "LOW academic risk" in risk
     assert "Review the student's study plan" in recommendation
     assert active_entities(copilot, user=127, chat=1270)["STUDENT"]["canonical_id"] == 46

@@ -212,7 +212,11 @@ def test_chat_api_runs_real_routing_workflow_and_agents(harness, message, intent
 
     assert response.status_code == 200
     assert PLACEHOLDER not in response.json()["reply"]
-    assert "Academic analysis" in response.json()["reply"]
+    if intent == "progress":
+        assert "Academic progress" in response.json()["reply"]
+        assert "Status: BEHIND" in response.json()["reply"]
+    else:
+        assert "Academic analysis" in response.json()["reply"]
     assert harness.workflow.inputs[-1].intent == intent
     assert harness.workflow.inputs[-1].selected_agents == routes
     assert harness.workflow.outputs[-1].completed_agents == routes
@@ -265,7 +269,11 @@ def test_academic_commands_cross_backend_and_run_real_workflow(
 
     reply = telegram_update.message.reply_text.await_args.args[0]
     assert PLACEHOLDER not in reply
-    assert "Academic analysis" in reply
+    if command == "progress":
+        assert "Academic progress" in reply
+        assert "Status: BEHIND" in reply
+    else:
+        assert "Academic analysis" in reply
     assert harness.workflow.inputs[-1].student_id == 123
     assert harness.workflow.inputs[-1].selected_agents == routes
 
@@ -311,7 +319,7 @@ def test_academic_data_unavailable_returns_safe_failed_response(monkeypatch):
         "How is student 123 progressing?"
     ))))
 
-    assert "partially completed" in response.reply
-    assert "could not be retrieved" in response.reply
+    assert "Assessment: PARTIAL" in response.reply
+    assert "could not be verified" in response.reply
     for forbidden in ("AgentState", "AgentResult", "traceback", "password", "MCPAcademic"):
         assert forbidden not in response.reply

@@ -35,8 +35,13 @@ class TutorDataQueryAgent:
             self.name,
             "academic_data",
             "SUCCESS",
-            _summary(capability, response),
-            data={"capability": capability, "result": response},
+            _summary(capability, response, student=student, course=course),
+            data={
+                "capability": capability,
+                "result": response,
+                "tutor_facing_presentation": capability
+                in {"student_lookup", "student_course_result"},
+            },
         )
 
     async def _execute(self, capability: str, params: dict[str, Any], student, course, teacher, group=None):
@@ -106,15 +111,16 @@ def _course_code(course: dict[str, Any]) -> str:
     return str(candidates[0].get("course_code") if candidates else course.get("display_name"))
 
 
-def _summary(capability: str, response: dict[str, Any]) -> str:
+def _summary(
+    capability: str,
+    response: dict[str, Any],
+    *,
+    student: dict[str, Any] | None = None,
+    course: dict[str, Any] | None = None,
+) -> str:
     if capability == "student_lookup":
         student = response.get("student", {})
-        return _profile(
-            student.get("name", "Student"),
-            ("student number", student.get("student_number")),
-            ("email", student.get("email")),
-            ("programme", student.get("programme")),
-        )
+        return _student_overview(student)
     if capability == "course_lookup":
         course = response.get("course", {})
         return _profile(
@@ -169,7 +175,11 @@ def _summary(capability: str, response: dict[str, Any]) -> str:
             or "recorded"
         )
         return f"Enrollment status: {status}."
-    if capability in {"course_results", "student_course_result", "group_course_results"}:
+    if capability == "student_course_result":
+        return _student_course_result(
+            response.get("results", []), student=student, course=course
+        )
+    if capability in {"course_results", "group_course_results"}:
         return _rows("Results", response.get("results", []), _result_label)
     if capability == "course_analytics":
         analytics = response.get("analytics", {})
@@ -196,6 +206,55 @@ def _profile(name: Any, *fields: tuple[str, Any]) -> str:
         f"{label}: {value}" for label, value in fields if value not in (None, "")
     ]
     return f"{name}" + (f" — {', '.join(details)}." if details else ".")
+
+
+def _student_overview(student: dict[str, Any]) -> str:
+    lines = ["Student overview", str(student.get("name") or "Student")]
+    for label, value in (
+        ("Student number", student.get("student_number")),
+        ("Programme", student.get("programme")),
+        ("Email", student.get("email")),
+    ):
+        if value not in (None, ""):
+            lines.append(f"{label}: {value}")
+    return "\n".join(lines)
+
+
+def _student_course_result(
+    rows: Any,
+    *,
+    student: dict[str, Any] | None,
+    course: dict[str, Any] | None,
+) -> str:
+    if not isinstance(rows, list) or not rows:
+        return "Course result\n\nResult: unavailable\n\nNo recorded result was found."
+
+    row = next((value for value in rows if isinstance(value, dict)), None)
+    if row is None:
+        return "Course result\n\nResult: unavailable\n\nNo recorded result was found."
+
+    student_name = row.get("student_name") or (
+        student.get("display_name") if isinstance(student, dict) else None
+    ) or "Student"
+    course_code = row.get("course_code") or _course_code(course or {})
+    course_name = course.get("display_name") if isinstance(course, dict) else None
+    course_identity = " — ".join(
+        str(value) for value in (course_code, course_name) if value
+    )
+    status = row.get("result_status") or row.get("status") or "UNAVAILABLE"
+    grade = row.get("grade")
+
+    lines = ["Course result", str(student_name)]
+    if course_identity:
+        lines.append(course_identity)
+    lines.extend(
+        [
+            "",
+            f"Result: {status}",
+            f"Grade: {grade}" if grade is not None else "Grade: unavailable",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _rows(

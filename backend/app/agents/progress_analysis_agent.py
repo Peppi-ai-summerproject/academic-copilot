@@ -103,12 +103,11 @@ class ProgressAnalysisAgent:
                     agent_name=self.name,
                     route="progress",
                     status="PARTIAL",
-                    summary=(
-                        f"{student_name} is enrolled in {programme}. "
-                        "Progress data could not be retrieved — "
-                        "curriculum data may be missing."
-                    ),
-                    data={"progress_explanation": explanation.to_dict()},
+                    summary=_unavailable_progress_summary(student_name, programme),
+                    data={
+                        "progress_explanation": explanation.to_dict(),
+                        "tutor_facing_presentation": True,
+                    },
                     warnings=[progress_result.get("error", "PROGRESS_UNAVAILABLE")],
                 )
 
@@ -153,6 +152,7 @@ class ProgressAnalysisAgent:
                     "is_ahead": status == "AHEAD",
                     "is_on_track": status == "ON_TRACK",
                     "progress_explanation": explanation.to_dict(),
+                    "tutor_facing_presentation": True,
                 },
                 evidence=[
                     f"Completed ECTS: {completed}",
@@ -181,31 +181,45 @@ def _build_summary(
     semester: int | str,
     percentage: float,
 ) -> str:
-    """Build a plain-language progress summary for tutor teachers."""
-    if status == "BEHIND":
-        behind = abs(difference)
-        return (
-            f"{student_name} ({programme}) is behind on academic progress. "
-            f"They have completed {completed} ECTS but {expected} ECTS were "
-            f"expected by semester {semester}. "
-            f"They are {behind} ECTS behind schedule "
-            f"({percentage:.1f}% of expected progress)."
-        )
-    elif status == "AHEAD":
-        ahead = abs(difference)
-        return (
-            f"{student_name} ({programme}) is ahead of schedule. "
-            f"They have completed {completed} ECTS, which is {ahead} ECTS "
-            f"more than the {expected} ECTS expected by semester {semester} "
-            f"({percentage:.1f}% of expected progress)."
-        )
-    else:
-        return (
-            f"{student_name} ({programme}) is on track with their studies. "
-            f"They have completed {completed} ECTS, meeting the expected "
-            f"{expected} ECTS milestone for semester {semester} "
-            f"({percentage:.1f}% of expected progress)."
-        )
+    """Present existing progress values without calculating new classifications."""
+    difference_label = {
+        "BEHIND": f"{abs(difference)} ECTS behind",
+        "AHEAD": f"{abs(difference)} ECTS ahead",
+    }.get(status, f"{difference} ECTS")
+    lines = [
+        "Academic progress",
+        f"{student_name} · {programme}",
+        "",
+        f"Status: {status}",
+    ]
+    if _map_progress_status(status) == "PARTIAL":
+        lines.append("Assessment: PARTIAL")
+    lines.extend(
+        [
+            "",
+            "Key facts",
+            f"• Completed: {completed} ECTS",
+            f"• Expected: {expected} ECTS by semester {semester}",
+            f"• Difference: {difference_label}",
+            f"• Progress: {percentage:.1f}% of expected",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _unavailable_progress_summary(student_name: str, programme: str) -> str:
+    return "\n".join(
+        [
+            "Academic progress",
+            f"{student_name} · {programme}",
+            "",
+            "Assessment: PARTIAL",
+            "",
+            "Availability",
+            "• Progress data could not be verified.",
+            "• Missing information is not confirmation that there is no risk.",
+        ]
+    )
 
 
 def _map_progress_status(progress_status: str) -> str:

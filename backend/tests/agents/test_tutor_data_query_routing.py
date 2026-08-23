@@ -141,8 +141,9 @@ def test_student_course_yes_no_query_returns_actual_result_without_status_filter
 
     result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
 
-    assert result_status in result.summary
-    assert f"grade {grade}" in result.summary
+    assert result.summary.startswith("Course result\n")
+    assert f"Result: {result_status}" in result.summary
+    assert f"Grade: {grade}" in result.summary
     gateway.get_student_results.assert_awaited_once_with(student_id=7)
 
 
@@ -171,8 +172,76 @@ def test_student_course_query_reports_none_only_when_course_result_is_absent():
 
     result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
 
-    assert result.summary == "Results: none found."
+    assert result.summary == (
+        "Course result\n\nResult: unavailable\n\nNo recorded result was found."
+    )
     gateway.get_student_results.assert_awaited_once_with(student_id=7)
+
+
+def test_student_overview_has_stable_professional_structure():
+    gateway = Mock()
+    gateway.get_student = AsyncMock(
+        return_value={
+            "success": True,
+            "student": {
+                "name": "Matias Multiple",
+                "student_number": "DEMO25204",
+                "programme": "Business IT",
+                "email": "matias@example.test",
+            },
+        }
+    )
+    state = _state(
+        "student_lookup",
+        [{"entity_type": "STUDENT", "status": "RESOLVED", "canonical_id": 46}],
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
+
+    assert result.summary == (
+        "Student overview\n"
+        "Matias Multiple\n"
+        "Student number: DEMO25204\n"
+        "Programme: Business IT\n"
+        "Email: matias@example.test"
+    )
+    assert result.data["tutor_facing_presentation"] is True
+
+
+def test_student_course_result_preserves_missing_grade_semantics():
+    gateway = Mock()
+    gateway.get_student_results = AsyncMock(
+        return_value={
+            "success": True,
+            "results": [
+                {
+                    "student_name": "Student Name",
+                    "course_code": "DII101",
+                    "result_status": "PASSED",
+                    "grade": None,
+                }
+            ],
+        }
+    )
+    state = _state(
+        "student_course_result",
+        [
+            {"entity_type": "STUDENT", "status": "RESOLVED", "canonical_id": 7},
+            {
+                "entity_type": "COURSE",
+                "status": "RESOLVED",
+                "canonical_id": 24,
+                "display_name": "Digital Innovation Foundations",
+                "candidates": [{"course_code": "DII101"}],
+            },
+        ],
+    )
+
+    result = asyncio.run(TutorDataQueryAgent(gateway).run(state))
+
+    assert "DII101 — Digital Innovation Foundations" in result.summary
+    assert "Result: PASSED" in result.summary
+    assert "Grade: unavailable" in result.summary
 
 
 def test_course_search_renders_multiple_course_codes_and_names():
