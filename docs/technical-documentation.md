@@ -300,6 +300,8 @@ Application startup initializes the bot and notification sender only when
 
 Autonomous workflows use the notification adapter for proactive tutor messages.
 Tutor-to-chat mappings and tutor assignments must already exist for delivery.
+Tutor-facing message presentation is governed by the authoritative
+[Telegram Response Design System](design/telegram-response-design-system.md).
 See [Telegram webhook setup](deployment/telegram-webhook-setup.md); review all
 environment-specific values in that historical deployment note before reuse.
 
