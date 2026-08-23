@@ -645,7 +645,7 @@ class CapturingMessage:
     async def reply_chat_action(self, action):
         return None
 
-    async def reply_text(self, text):
+    async def reply_text(self, text, **kwargs):
         self.replies.append(text)
 
 
@@ -699,20 +699,21 @@ def test_demo_scenario_1_student_progress_over_telegram_path(copilot, monkeypatc
     )
 
     assert "Matias Multiple" in lookup and "DEMO25204" in lookup
-    assert lookup.startswith("Student overview\n")
+    assert lookup.startswith("<b>Student overview</b>\n")
     assert "Student number: DEMO25204" in lookup
     assert "Programme: ICT" in lookup
     assert "Matias Multiple" in progress
-    assert progress.startswith("Academic progress\n")
-    assert "Status: BEHIND" in progress and "Assessment: PARTIAL" in progress
+    assert progress.startswith("<b>Academic progress</b>\n")
+    assert "Status: <b>BEHIND</b>" in progress
+    assert "Assessment: <b>PARTIAL</b>" in progress
     assert "Completed: 5 ECTS" in progress and "Expected: 30 ECTS" in progress
     assert "Difference: 25 ECTS behind" in progress and "Progress: 16.7%" in progress
-    assert "Matias Multiple" in dbs_result and "Result: FAILED" in dbs_result and "Grade: 0" in dbs_result
+    assert "Matias Multiple" in dbs_result and "Result: <b>FAILED</b>" in dbs_result and "Grade: 0" in dbs_result
     assert "DBS24 — Database Systems" in dbs_result
-    assert "Matias Multiple" in web_result and "Result: FAILED" in web_result and "Grade: 0" in web_result
+    assert "Matias Multiple" in web_result and "Result: <b>FAILED</b>" in web_result and "Grade: 0" in web_result
     assert "WEB24 — Web Application Development" in web_result
-    assert "Matias Multiple" in risk and "Risk level: LOW" in risk
-    assert "Review the student's study plan" in recommendation
+    assert "Matias Multiple" in risk and "Risk level: <b>LOW</b>" in risk
+    assert "Review the student&#x27;s study plan" in recommendation
     assert active_entities(copilot, user=127, chat=1270)["STUDENT"]["canonical_id"] == 46
     assert ("get_progress", {"student_id": 46}) in copilot[1].calls
 
@@ -745,16 +746,16 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert all(name not in candidates for name in ("Elina Demo", "Aava Achiever", "Sofia Sample"))
     assert "FAILED" in candidates and "grade 0" in candidates
     assert "Oskari Example" in lookup and "DEMO22102" in lookup
-    assert explanation.startswith("Academic risk\nOskari Example")
-    assert "Risk level: MEDIUM" in explanation
-    assert "Assessment: COMPLETE" in explanation
+    assert explanation.startswith("<b>Academic risk</b>\n<b>Oskari Example</b>")
+    assert "Risk level: <b>MEDIUM</b>" in explanation
+    assert "Assessment: <b>COMPLETE</b>" in explanation
     assert "Why this student needs attention" in explanation
     assert "30 ECTS behind expected progress" in explanation
-    assert recommendation.startswith("Academic recommendations\nOskari Example")
-    assert "Assessment: PARTIAL" in recommendation
+    assert recommendation.startswith("<b>Academic recommendations</b>\n<b>Oskari Example</b>")
+    assert "Assessment: <b>PARTIAL</b>" in recommendation
     assert "Verified academic concern" in recommendation
     assert "Recommended actions (advisory)" in recommendation
-    assert "Review the student's study plan" in recommendation
+    assert "Review the student&#x27;s study plan" in recommendation
     assert "Schedule a tutor meeting" in recommendation
     assert "Advisory note" in recommendation
     assert "not mandatory university policy" in recommendation

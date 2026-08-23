@@ -215,13 +215,13 @@ def test_demo_scenario_3_executes_logs_and_delivers_meaningful_weekly_briefing()
     assert len(sender.sent) == 1
     chat_id, message = sender.sent[0]
     assert chat_id == 7007
-    assert message.startswith("Weekly tutor briefing\n")
-    assert "Tutor: DIN24 Tutor" in message
+    assert message.startswith("<b>Weekly tutor briefing</b>\n")
+    assert "Tutor: <b>DIN24 Tutor</b>" in message
     assert "Week: 2026-01-05 to 2026-01-11" in message
     assert "Assigned students: 2" in message
     assert "Analysed students: 2" in message
     assert "Students needing attention: 1" in message
-    assert "Students needing attention\nOskari Example" in message
+    assert "<b>Students needing attention</b>\nOskari Example" in message
     assert "30 ECTS behind expected progress" in message
     assert "Aava Achiever" not in message
     assert "Course registration deadline" in message
@@ -267,7 +267,7 @@ def test_one_student_analysis_failure_produces_partial_result():
     assert result.status == "partial"
     assert result.briefings[0].summary["analysed_students"] == 1
     assert any("student 2" in warning.lower() for warning in result.briefings[0].warnings)
-    assert "Data availability" in result.briefings[0].delivery["text"]
+    assert "<b>Data availability</b>" in result.briefings[0].delivery["text"]
     assert "Missing information is not interpreted as no academic concern." in (
         result.briefings[0].delivery["text"]
     )
