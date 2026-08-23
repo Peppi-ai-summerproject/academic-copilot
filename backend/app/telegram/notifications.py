@@ -361,41 +361,49 @@ def render_academic_alert(
     if alert.alert_type == ALERT_TYPE_DELAYED_PROGRESS:
         lines.extend(
             [
-                "Condition: Delayed progress",
-                (
-                    "Confirmed progress: "
-                    f"{_nonnegative_int(evidence, 'completed_ects')} ECTS completed; "
-                    f"{_nonnegative_int(evidence, 'delay_ects')} ECTS below expected "
-                    f"({_nonnegative_int(evidence, 'expected_ects')} ECTS)."
-                ),
+                "",
+                "Academic concern",
+                "Delayed academic progress",
+                f"• Completed: {_nonnegative_int(evidence, 'completed_ects')} ECTS",
+                f"• Expected: {_nonnegative_int(evidence, 'expected_ects')} ECTS",
+                f"• Difference: {_nonnegative_int(evidence, 'delay_ects')} ECTS behind expected progress",
             ]
         )
     elif alert.alert_type in STUDY_RIGHT_ALERT_TYPES:
-        lines.append(f"Condition: {_study_right_label(alert.alert_type)}")
+        lines.extend(["", "Academic concern", _study_right_label(alert.alert_type)])
         expiration_date = evidence.get("expiration_date")
         days_until = evidence.get("days_until_expiration")
         if isinstance(expiration_date, str) and _single_line(expiration_date):
-            lines.append(f"Study-right date: {_single_line(expiration_date)}")
+            lines.append(f"• Study-right date: {_single_line(expiration_date)}")
         if isinstance(days_until, int) and not isinstance(days_until, bool):
-            lines.append(f"Days until date: {days_until}")
+            lines.append(f"• Days until date: {days_until}")
         extension_count = _nonnegative_int(evidence, "extension_count")
         if alert.alert_type == "STUDY_RIGHT_EXTENDED":
-            lines.append(f"Recorded extensions: {extension_count}")
+            lines.append(f"• Recorded extensions: {extension_count}")
     elif alert.alert_type == ALERT_TYPE_ACADEMIC_RISK_DETECTED:
         severity = _risk_level(alert.severity)
         assessment_status = _assessment_status(evidence.get("assessment_status"))
         lines.extend(
             [
-                f"Condition: Academic risk ({severity})",
-                f"Assessment: {assessment_status.lower()} assessment",
-                "Contributing indicators: " + _indicator_labels(
+                f"Risk level: {severity}",
+                f"Assessment: {assessment_status}",
+                "",
+                "Verified academic concern",
+                "• Contributing indicators: " + _indicator_labels(
                     evidence.get("contributing_indicators")
                 ),
             ]
         )
         unavailable = _indicator_labels(evidence.get("unavailable_indicators"))
         if unavailable:
-            lines.append(f"Unavailable indicators: {unavailable}")
+            lines.extend(
+                [
+                    "",
+                    "Data availability",
+                    f"• Unavailable indicators: {unavailable}",
+                    "Assessment uses the academic information currently available.",
+                ]
+            )
     else:
         raise ValueError("unsupported academic alert type")
 

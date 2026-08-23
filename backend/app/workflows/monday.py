@@ -270,6 +270,7 @@ class MondayWorkflow:
             week_start=week_start,
             week_end=week_end,
             assigned_count=counts["assigned"],
+            analysed_count=counts["successful"],
             priority_students=priority_students,
             events=events,
             warnings=warnings,
@@ -538,6 +539,7 @@ def _telegram_delivery(
     week_start: date,
     week_end: date,
     assigned_count: int,
+    analysed_count: int,
     priority_students: list[dict[str, Any]],
     events: list[dict[str, Any]],
     warnings: list[str],
@@ -554,6 +556,7 @@ def _telegram_delivery(
             week_start=week_start,
             week_end=week_end,
             assigned_count=assigned_count,
+            analysed_count=analysed_count,
             priority_students=priority_students,
             events=events,
             warnings=warnings,
@@ -567,35 +570,50 @@ def _render_telegram_text(
     week_start: date,
     week_end: date,
     assigned_count: int,
+    analysed_count: int,
     priority_students: list[dict[str, Any]],
     events: list[dict[str, Any]],
     warnings: list[str],
 ) -> str:
     lines = [
-        f"Monday briefing for {tutor_name}",
+        "Weekly tutor briefing",
         f"Week: {week_start.isoformat()} to {week_end.isoformat()}",
-        f"Assigned students: {assigned_count}",
-        f"Students needing attention: {len(priority_students)}",
+        f"Tutor: {tutor_name}",
+        "",
+        "Overview",
+        f"• Assigned students: {assigned_count}",
+        f"• Analysed students: {analysed_count}",
+        f"• Students needing attention: {len(priority_students)}",
     ]
     if priority_students:
-        lines.extend(["", "Priority students"])
+        lines.extend(["", "Students needing attention"])
         for student in priority_students:
             progress = student.get("progress") or {}
             remaining = progress.get("remaining_to_expected_ects")
-            detail = f"; {remaining} ECTS below expected" if remaining else ""
-            lines.append(f"- {student['student_name']}{detail}")
+            lines.append(str(student["student_name"]))
+            if isinstance(remaining, (int, float)) and not isinstance(remaining, bool):
+                lines.append(f"• {remaining:g} ECTS behind expected progress")
     else:
-        lines.extend(["", "No students need verified attention this week."])
+        lines.extend(
+            ["", "Students needing attention", "No students need verified attention this week."]
+        )
 
     if events:
         lines.extend(["", "Upcoming academic items"])
         for event in events:
             name = str(event.get("event_name") or "Academic event")
             event_date = str(event.get("event_date") or "date unavailable")
-            lines.append(f"- {event_date}: {name}")
+            lines.append(f"• {event_date} — {name}")
     if warnings:
-        lines.extend(["", "Availability notes"])
-        lines.extend(f"- {warning}" for warning in _deduplicate(warnings))
+        lines.extend(
+            [
+                "",
+                "Data availability",
+                "Some supporting information was unavailable:",
+            ]
+        )
+        lines.extend(f"• {warning}" for warning in _deduplicate(warnings))
+        lines.append("Missing information is not interpreted as no academic concern.")
     return "\n".join(lines)
 
 

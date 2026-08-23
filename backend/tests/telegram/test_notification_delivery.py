@@ -97,6 +97,28 @@ def risk_alert(student_id: int) -> AcademicAlert:
     )
 
 
+def test_delayed_progress_alert_uses_the_shared_academic_briefing_structure():
+    rendered = "".join(
+        render_academic_alert(
+            delay_alert(1),
+            recipient=TutorNotificationRecipient(
+                tutor_id=1,
+                telegram_user_id=101,
+                telegram_chat_id=201,
+                student_display_name="Oskari Example",
+            ),
+        )
+    )
+
+    assert rendered.startswith("Academic alert\nStudent: Oskari Example")
+    assert "Academic concern" in rendered
+    assert "Delayed academic progress" in rendered
+    assert "Completed: 48 ECTS" in rendered
+    assert "Expected: 60 ECTS" in rendered
+    assert "Difference: 12 ECTS behind expected progress" in rendered
+    assert "delay_ects" not in rendered
+
+
 @pytest.mark.parametrize(
     ("alert_type", "expected_condition"),
     [
@@ -131,6 +153,7 @@ def test_study_right_templates_render_established_alert_facts(
     rendered = "".join(render_academic_alert(alert, recipient=recipient_value))
 
     assert expected_condition in rendered
+    assert "Academic concern" in rendered
     assert "Study-right date: 2026-08-31" in rendered
     if alert_type == "STUDY_RIGHT_EXTENDED":
         assert "Recorded extensions: 2" in rendered
@@ -159,7 +182,11 @@ def test_delivery_uses_only_resolved_tutors_and_preserves_deterministic_order():
     assert batch.failed_count == 0
     assert batch.skipped_count == 0
     assert "Ada_* Student" in sender.sent[0][1]
+    assert "Risk level: HIGH" in sender.sent[0][1]
+    assert "Assessment: PARTIAL" in sender.sent[0][1]
+    assert "Verified academic concern" in sender.sent[0][1]
     assert "Contributing indicators: academic delay, study right" in sender.sent[0][1]
+    assert "Data availability" in sender.sent[0][1]
     assert "Unavailable indicators: tutor meetings" in sender.sent[0][1]
     assert "303" not in str(batch.to_summary())
     assert "Ada" not in str(batch.to_summary())
