@@ -13,3 +13,8 @@ Demo walkthroughs:
 - [Scenario 1: student progress](demo/demo-scenario-1-student-progress.md)
 - [Scenario 2: risk detection](demo/demo-scenario-2-risk-detection.md)
 - [Scenario 3: autonomous weekly briefing](demo/demo-scenario-3-autonomous-weekly-briefing.md)
+
+Design standards:
+
+- [Telegram Response Design System](design/telegram-response-design-system.md) —
+  authoritative tutor-facing message structure, states, rich text, and examples
