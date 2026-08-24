@@ -189,3 +189,35 @@ def test_fresh_seed_converges_on_dii101_and_dbs24_demo_results() -> None:
     assert sql.count("('DEMO22102', 'DBS24', 'FAILED', '0', DATE '2025-06-10')") == 2
     assert "('DEMO22103', 'DBS24', 'PASSED'" not in sql
     assert "('DEMO22103', 'DBS24', 'FAILED'" not in sql
+
+
+def test_legacy_tutor_meeting_upgrade_is_additive_and_row_preserving() -> None:
+    sql = (MIGRATIONS / "011_upgrade_legacy_tutor_meetings.sql").read_text()
+
+    assert "ADD COLUMN IF NOT EXISTS tutor_id" in sql
+    assert "ADD COLUMN IF NOT EXISTS scheduled_at" in sql
+    assert "meeting_date::date::timestamp AT TIME ZONE 'UTC'" in sql
+    assert "SET legacy_status = status" in sql
+    assert "FOREIGN KEY (tutor_id) REFERENCES tutors(id)" in sql
+    assert "NOT VALID" in sql
+    assert "DROP TABLE" not in sql
+    assert "TRUNCATE" not in sql
+    assert "DELETE FROM tutor_meetings" not in sql
+    assert "SET tutor_id =" not in sql
+    assert "SET completed_at =" not in sql
+    assert "SET cancelled_at =" not in sql
+
+
+def test_legacy_tutor_meeting_upgrade_preserves_unmappable_facts() -> None:
+    sql = (MIGRATIONS / "011_upgrade_legacy_tutor_meetings.sql").read_text()
+
+    assert "WHEN 'CANCELED' THEN 'CANCELLED'" in sql
+    assert "ELSE NULL" in sql
+    for legacy_column in (
+        "academic_event_id",
+        "meeting_date",
+        "meeting_type",
+        "notes",
+        "action_items",
+    ):
+        assert f"DROP COLUMN {legacy_column}" not in sql
