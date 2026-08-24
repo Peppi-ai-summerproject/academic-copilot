@@ -357,7 +357,10 @@ def test_course_catalogue_response_contains_meaningful_course_content(copilot):
 
 @pytest.mark.e2e
 def test_student_group_lookup_lists_students_and_courses_with_context(copilot):
-    assert "DIN24" in ask(copilot, "Show me DIN24.").reply
+    cohort = ask(copilot, "Show me DIN24.").reply
+    assert cohort.startswith("Cohort overview\nDIN24\n")
+    assert "Digital Innovation 2024" in cohort
+    assert "Academic analysis completed." not in cohort
     courses = ask(copilot, "Which courses does it have?").reply
     students = ask(copilot, "Which students are in it?").reply
 
@@ -415,7 +418,7 @@ def test_group_scoped_results_filter_status_and_exclude_outside_students(
     reply = ask(copilot, f"Who {status} Database Systems in DIN24?").reply
 
     assert included in reply
-    assert f"grade {grade}" in reply
+    assert f"Grade: {grade}" in reply
     assert excluded not in reply
     assert outsider not in reply
     assert "Sofia Sample" not in reply
@@ -428,6 +431,10 @@ def test_group_scoped_results_filter_status_and_exclude_outside_students(
         else {"Oskari Example", "Petra Partial", "Matias Multiple"}
     )
     assert all(name in reply for name in expected)
+    assert reply.startswith("Course results\nDatabase Systems · DIN24\n")
+    assert f"Students with {status} results: {len(expected)}" in reply
+    assert "Academic analysis completed." not in reply
+    assert ";" not in reply
 
 
 @pytest.mark.e2e
@@ -670,8 +677,8 @@ def test_telegram_handler_multi_turn_group_and_student_workflow(copilot, monkeyp
     assert "Matti Virtanen" in asyncio.run(send("Who teaches Database Systems?", 41, 51))
     assert "Elina Demo" in asyncio.run(send("Show me Elina Demo.", 41, 51))
     result = asyncio.run(send("Did she pass DII101?", 41, 51))
-    assert "PASSED" in result and "Grade: 5" in result
-    assert "Grade: 5" in asyncio.run(send("What grade did she get?", 41, 51))
+    assert "PASSED" in result and "Grade: <b>5</b>" in result
+    assert "Grade: <b>5</b>" in asyncio.run(send("What grade did she get?", 41, 51))
     assert "Which student group" in asyncio.run(send("Which students are in it?", 42, 52))
 
 
@@ -708,9 +715,9 @@ def test_demo_scenario_1_student_progress_over_telegram_path(copilot, monkeypatc
     assert "Assessment: <b>PARTIAL</b>" in progress
     assert "Completed: 5 ECTS" in progress and "Expected: 30 ECTS" in progress
     assert "Difference: 25 ECTS behind" in progress and "Progress: 16.7%" in progress
-    assert "Matias Multiple" in dbs_result and "Result: <b>FAILED</b>" in dbs_result and "Grade: 0" in dbs_result
+    assert "Matias Multiple" in dbs_result and "Result: <b>FAILED</b>" in dbs_result and "Grade: <b>0</b>" in dbs_result
     assert "DBS24 — Database Systems" in dbs_result
-    assert "Matias Multiple" in web_result and "Result: <b>FAILED</b>" in web_result and "Grade: 0" in web_result
+    assert "Matias Multiple" in web_result and "Result: <b>FAILED</b>" in web_result and "Grade: <b>0</b>" in web_result
     assert "WEB24 — Web Application Development" in web_result
     assert "Matias Multiple" in risk and "Risk level: <b>LOW</b>" in risk
     assert "Review the student&#x27;s study plan" in recommendation
@@ -743,8 +750,14 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     )
 
     assert all(name in candidates for name in ("Oskari Example", "Petra Partial", "Matias Multiple"))
+    assert candidates.startswith(
+        "<b>Course results</b>\n<b>Database Systems · DIN24</b>"
+    )
+    assert "Students with failed results: <b>3</b>" in candidates
+    assert "• Grade: <b>0</b>" in candidates
+    assert "Academic analysis completed." not in candidates
     assert all(name not in candidates for name in ("Elina Demo", "Aava Achiever", "Sofia Sample"))
-    assert "FAILED" in candidates and "grade 0" in candidates
+    assert "FAILED" in candidates and "Grade: <b>0</b>" in candidates
     assert "Oskari Example" in lookup and "DEMO22102" in lookup
     assert explanation.startswith("<b>Academic risk</b>\n<b>Oskari Example</b>")
     assert "Risk level: <b>MEDIUM</b>" in explanation

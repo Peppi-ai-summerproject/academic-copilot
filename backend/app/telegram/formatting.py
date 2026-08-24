@@ -23,6 +23,8 @@ _HEADINGS = frozenset(
         "Availability",
         "Availability note",
         "Course result",
+        "Course results",
+        "Cohort overview",
         "Data availability",
         "Key facts",
         "Overview",
@@ -38,7 +40,7 @@ _HEADINGS = frozenset(
         "Why this student needs attention",
     }
 )
-_STATUS_LABELS = frozenset({"Assessment", "Result", "Risk level", "Status"})
+_STATUS_LABELS = frozenset({"Assessment", "Grade", "Result", "Risk level", "Status"})
 _PROMINENT_VALUE_LABELS = frozenset({"Student", "Tutor"})
 _IDENTITY_HEADINGS = frozenset(
     {
@@ -46,6 +48,8 @@ _IDENTITY_HEADINGS = frozenset(
         "Academic recommendations",
         "Academic risk",
         "Course result",
+        "Course results",
+        "Cohort overview",
         "Student overview",
         "Students needing attention",
     }
@@ -77,15 +81,34 @@ def format_telegram_html(plain_text: str) -> str:
 
     formatted: list[str] = []
     previous_line = ""
-    for line in plain_text.split("\n"):
+    lines = plain_text.split("\n")
+    in_course_results = False
+    for index, line in enumerate(lines):
         escaped = escape_telegram_html(line)
         if line in _HEADINGS:
             formatted.append(f"<b>{escaped}</b>")
+            in_course_results = line == "Course results"
             previous_line = line
             continue
-        label, separator, value = line.partition(": ")
+        bullet = "• " if line.startswith("• ") else ""
+        content = line[len(bullet):]
+        label, separator, value = content.partition(": ")
         if separator and label in _STATUS_LABELS | _PROMINENT_VALUE_LABELS:
-            formatted.append(f"{escape_telegram_html(label)}: <b>{escape_telegram_html(value)}</b>")
+            formatted.append(
+                f"{bullet}{escape_telegram_html(label)}: "
+                f"<b>{escape_telegram_html(value)}</b>"
+            )
+            previous_line = line
+            continue
+        if re.fullmatch(r"Students with .+ results", label) and separator:
+            formatted.append(
+                f"{escape_telegram_html(label)}: <b>{escape_telegram_html(value)}</b>"
+            )
+            previous_line = line
+            continue
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        if in_course_results and line and next_line.startswith("• Result: "):
+            formatted.append(f"<b>{escaped}</b>")
             previous_line = line
             continue
         formatted.append(
