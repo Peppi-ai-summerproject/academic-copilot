@@ -13,6 +13,7 @@ from typing import Literal, cast
 from app.agents.routing import ROUTE_INTENT_MAP
 from app.agents.types import AgentRoute
 from app.agents.tutor_query_intent import detect_tutor_query, extract_student_reference
+from app.agents.intent_normalization import normalize_intent_text
 
 
 IntentName = Literal[
@@ -52,6 +53,7 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
         re.compile(r"\bhow (?:is|are)\s+[^?.,]+\s+doing\b"),
         re.compile(r"\b(?:tell me about|show)\s+(?!(?:student|academic)\s+progress\b)[^?.,]+\bprogress\b"),
         re.compile(r"\bhow\s+[^?.,]+\s+is\s+progress(?:ing)?\b"),
+        re.compile(r"\bhow\s+[^?.,]+\s+(?:is\s+)?doing\b"),
         re.compile(r"\bstudent\b.*\bprogress(?:ing)?\b"),
         re.compile(r"\bprogress(?:ing)?\b.*\bstudent\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\b(?:on track|falling behind)\b"),
@@ -69,10 +71,13 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
         re.compile(r"\b(?:student|studies|academic)\b.*\bat risk\b"),
         re.compile(r"\bat risk\b.*\b(?:student|studies|academic)\b"),
         re.compile(r"\bacademic risk\b"),
+        re.compile(r"\brisk\s+for\s+[^?.,]+"),
         re.compile(r"\bwarning signs?\b"),
     ),
     "recommendation": (
         re.compile(r"\bwhat do (?:you|we) recommend\s+for\s+[^?.,]+"),
+        re.compile(r"\bwhat (?:would )?(?:you|we) recommend\s+for\s+[^?.,]+"),
+        re.compile(r"\bwhat should (?:i|we) do\s+for\s+[^?.,]+"),
         re.compile(r"\b(?:recommend(?:ations?)?|advice|next steps?)\b.*\b(?:student|studies|academic)\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\b(?:recommend(?:ations?)?|advice|next steps?)\b"),
         re.compile(r"\bwhat should (?:i|we) do\b.*\b(?:student|studies|academic)\b"),
@@ -123,10 +128,11 @@ class IntentDetector:
         normalized = " ".join(message.casefold().split())
         if not normalized:
             raise ValueError("message must not be empty")
+        intent_text = normalize_intent_text(normalized)
 
         matches: dict[AgentRoute, list[str]] = {}
         for route, patterns in _PATTERNS.items():
-            found = [match.group(0) for pattern in patterns if (match := pattern.search(normalized))]
+            found = [match.group(0) for pattern in patterns if (match := pattern.search(intent_text))]
             if found:
                 matches[route] = found
 
@@ -142,7 +148,7 @@ class IntentDetector:
             if len(winners) == 1:
                 route = winners[0]
                 terms = tuple(dict.fromkeys(matches[route]))
-                student_reference = extract_student_reference(message)
+                student_reference = extract_student_reference(message, route)
                 return IntentResult(
                     intent=cast(IntentName, route),
                     route=route,

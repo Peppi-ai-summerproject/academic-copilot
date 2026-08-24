@@ -58,6 +58,33 @@ def test_named_natural_progress_uses_primary_progress_agent_route():
     assert result.entity_references == (("STUDENT", "Anna Korhonen"),)
 
 
+@pytest.mark.parametrize("verb", ["failed", "faild", "faiked"])
+def test_group_failed_result_tolerates_one_edit_in_intent_verb_only(verb):
+    result = detect_intent(f"Who {verb} Database Systems in DIN24?")
+
+    assert result.capability == "group_course_results"
+    assert result.parameters == {"result_filter": "FAILED"}
+    assert result.entity_references == (
+        ("STUDENT_GROUP", "DIN24"),
+        ("COURSE", "Database Systems"),
+    )
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Give me an overview of Anna Korhonen",
+        "Give me overview of Anna Korhonen",
+        "Tell me about Anna Korhonen",
+    ],
+)
+def test_student_overview_natural_variations_use_lookup_capability(message):
+    result = detect_intent(message)
+
+    assert result.capability == "student_lookup"
+    assert result.entity_references == (("STUDENT", "Anna Korhonen"),)
+
+
 def test_multi_entity_query_preserves_student_and_course_references():
     result = detect_intent("Did Anna Korhonen pass DII101?")
     assert result.entity_references == (("STUDENT", "Anna Korhonen"), ("COURSE", "DII101"))

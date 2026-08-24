@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import re
 import unicodedata
+from app.agents.intent_normalization import canonical_intent_keyword
 
 
 @dataclass(frozen=True)
@@ -33,13 +34,17 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("group_course_teachers", ("STUDENT_GROUP", match.group(2)), ("COURSE", match.group(1)))
     if match := re.search(r"^who teaches\s+(?!it\b)(.+?)\??$", text, re.IGNORECASE):
         return _match("group_course_teachers", ("COURSE", match.group(1)))
-    if match := re.search(r"\bwho\s+(passed|failed)\s+(.+?)\s+in\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
-        return _match(
-            "group_course_results",
-            ("STUDENT_GROUP", match.group(3)),
-            ("COURSE", match.group(2)),
-            result_filter=match.group(1).upper(),
+    if match := re.search(r"\bwho\s+([^\W\d_]+)\s+(.+?)\s+in\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
+        result_word = canonical_intent_keyword(
+            match.group(1), frozenset({"passed", "failed"})
         )
+        if result_word:
+            return _match(
+                "group_course_results",
+                ("STUDENT_GROUP", match.group(3)),
+                ("COURSE", match.group(2)),
+                result_filter=result_word.upper(),
+            )
     if match := re.search(r"\bwhich students? (?:are )?in\s+([A-Za-z]{2,}\d{2,})\b", text, re.IGNORECASE):
         return _match("group_students", ("STUDENT_GROUP", match.group(1)))
     if re.search(r"\bwhich students? (?:are )?in it\b", lower):
@@ -52,6 +57,11 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
         return _match("academic_lookup", ("ACADEMIC_CODE", match.group(1)))
     if match := re.search(r"^(?:show me|show|find)\s+(?:group|cohort)\s+(.+?)\.?$", text, re.IGNORECASE):
         return _match("group_lookup", ("STUDENT_GROUP", match.group(1)))
+    if match := re.search(
+        rf"^(?:give me\s+(?:an\s+)?overview\s+of|tell me about)\s+({_PERSON_NAME})\.?$",
+        text, re.IGNORECASE,
+    ):
+        return _match("student_lookup", ("STUDENT", match.group(1)))
 
     if re.search(r"\b(pass rate|failure rate|completion rate|how many .*completed)\b", lower):
         return _match("course_analytics", course)
@@ -111,10 +121,12 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
     return None
 
 
-def extract_student_reference(message: str) -> tuple[str, str] | None:
+def extract_student_reference(
+    message: str, intent_hint: str | None = None
+) -> tuple[str, str] | None:
     """Extract an explicit student reference without choosing an intent."""
     text = unicodedata.normalize("NFC", " ".join(message.strip().split()))
-    return _student_reference(text)
+    return _student_reference(text, intent_hint)
 
 
 def _match(capability: str, *references, **parameters) -> TutorQueryMatch:
@@ -138,11 +150,28 @@ def _course_reference(text: str) -> tuple[str, str] | None:
     return None
 
 
-def _student_reference(text: str) -> tuple[str, str] | None:
+def _student_reference(
+    text: str, intent_hint: str | None = None
+) -> tuple[str, str] | None:
     if match := _STUDENT_NUMBER.search(text):
         return ("STUDENT", match.group(0))
-    patterns = (
+    hinted_patterns: tuple[str, ...] = ()
+    if intent_hint == "recommendation":
+        hinted_patterns = (
+            rf"\bfor\s+({_PERSON_NAME})(?:[?.]|$)",
+        )
+    elif intent_hint == "risk":
+        hinted_patterns = (
+            rf"\brisk\s+for\s+({_PERSON_NAME})(?:[?.]|$)",
+        )
+    elif intent_hint == "progress":
+        hinted_patterns = (
+            rf"\bhow\s+(?:is\s+)?({_PERSON_NAME})\s+(?:is\s+)?[^\W\d_]+(?:[?.]|$)",
+            rf"\bshow\s+({_PERSON_NAME})\s+[^\W\d_]+(?:[?.]|$)",
+        )
+    patterns = hinted_patterns + (
         rf"\bhow\s+(?:is|are)\s+({_PERSON_NAME})\s+doing\b",
+        rf"\bhow\s+({_PERSON_NAME})\s+(?:is\s+)?doing\b",
         rf"\btell me about\s+({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+progress\b",
         rf"\bshow\s+({_PERSON_NAME})\s+progress\b",
         rf"\bhow\s+({_PERSON_NAME})\s+is\s+progress(?:ing)?\b",
@@ -156,6 +185,8 @@ def _student_reference(text: str) -> tuple[str, str] | None:
     for pattern in patterns:
         if match := re.search(pattern, text, re.IGNORECASE):
             value = match.group(1).strip()
+            if intent_hint and re.search(r"['’]s$", value, re.IGNORECASE):
+                value = value[:-2]
             words = value.casefold().split()
             if words and words[0] not in {
                 "she", "he", "they", "her", "him", "them", "the", "this", "student"
