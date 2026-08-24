@@ -11,6 +11,9 @@ def _service(rows):
         row for row in rows if row.get("result_status") == result_status
     ]
     records.list_student_result_view.return_value = rows
+    records.list_results_for_student.return_value = [
+        row for row in rows if row.get("result_status") in {"PASSED", "FAILED"}
+    ]
     return CourseResultsService(records, courses, students)
 
 def test_course_results_preserve_no_result_and_filter():
@@ -70,3 +73,47 @@ def test_results_validate_identifiers_and_statuses():
     assert service.course_results("", None)["error"] == "INVALID_COURSE_CODE"
     assert service.course_results("DII101", "UNKNOWN")["error"] == "INVALID_RESULT_STATUS"
     assert service.student_results(0)["error"] == "INVALID_STUDENT_ID"
+
+
+def test_student_results_include_completion_without_enrollment_and_preserve_failed_zero():
+    records, courses, students = Mock(), Mock(), Mock()
+    students.get_by_id.return_value = {"id": 41, "name": "Oskari Example"}
+    completion = {
+        "course_id": 25,
+        "course_code": "DBS24",
+        "result_status": "FAILED",
+        "grade": 0,
+    }
+    in_progress = {
+        "course_id": 26,
+        "course_code": "WEB24",
+        "result_status": "IN_PROGRESS",
+        "grade": None,
+    }
+    records.list_results_for_student.return_value = [completion]
+    records.list_student_result_view.return_value = [in_progress]
+
+    result = CourseResultsService(records, courses, students).student_results(41)
+
+    assert result["results"] == [completion, in_progress]
+    assert result["results"][0]["result_status"] == "FAILED"
+    assert result["results"][0]["grade"] == 0
+
+
+def test_student_completion_takes_precedence_over_enrollment_derived_status():
+    records, courses, students = Mock(), Mock(), Mock()
+    students.get_by_id.return_value = {"id": 7, "name": "Student"}
+    completion = {
+        "course_id": 9,
+        "course_code": "DBS24",
+        "result_status": "FAILED",
+        "grade": "0",
+    }
+    records.list_results_for_student.return_value = [completion]
+    records.list_student_result_view.return_value = [
+        {"course_id": 9, "course_code": "DBS24", "result_status": "IN_PROGRESS", "grade": None}
+    ]
+
+    rows = CourseResultsService(records, courses, students).student_results(7)["results"]
+
+    assert rows == [completion]

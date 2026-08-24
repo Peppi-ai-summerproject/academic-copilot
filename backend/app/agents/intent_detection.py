@@ -48,6 +48,7 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
     "progress": (
         re.compile(r"\b(?:how is|how are)\s+(?:she|he|they)\s+progress(?:ing)?\b"),
         re.compile(r"\bhow is\s+[^?.,]+\s+progress(?:ing)?\b"),
+        re.compile(r"\bhow are\s+[^?.,]+['’]s\s+studies\s+progress(?:ing)?\b"),
         re.compile(r"\bstudent\b.*\bprogress(?:ing)?\b"),
         re.compile(r"\bprogress(?:ing)?\b.*\bstudent\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\b(?:on track|falling behind)\b"),
@@ -69,8 +70,8 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
     ),
     "recommendation": (
         re.compile(r"\bwhat do (?:you|we) recommend\s+for\s+[^?.,]+"),
-        re.compile(r"\b(?:recommend(?:ation)?|advice|next steps?)\b.*\b(?:student|studies|academic)\b"),
-        re.compile(r"\b(?:student|studies|academic)\b.*\b(?:recommend(?:ation)?|advice|next steps?)\b"),
+        re.compile(r"\b(?:recommend(?:ations?)?|advice|next steps?)\b.*\b(?:student|studies|academic)\b"),
+        re.compile(r"\b(?:student|studies|academic)\b.*\b(?:recommend(?:ations?)?|advice|next steps?)\b"),
         re.compile(r"\bwhat should (?:i|we) do\b.*\b(?:student|studies|academic)\b"),
         re.compile(r"\bhow (?:can|should) (?:i|we) (?:help|support)\b.*\bstudent\b"),
     ),

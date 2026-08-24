@@ -104,3 +104,22 @@ def test_natural_named_student_requests_keep_route_and_entity_reference(
     assert result.intent == intent
     assert result.route == intent
     assert result.entity_references == (("STUDENT", student_name),)
+
+
+@pytest.mark.parametrize(
+    ("message", "intent", "student_name"),
+    [
+        ("What is Alice Smith's academic risk?", "risk", "Alice Smith"),
+        ("What is Åsa Berg’s academic risk?", "risk", "Åsa Berg"),
+        ("How are John Doe's studies progressing?", "progress", "John Doe"),
+        ("What recommendations would you give for Jane Example's studies?", "recommendation", "Jane Example"),
+        ("What is Sean O'Brien's academic risk?", "risk", "Sean O'Brien"),
+    ],
+)
+def test_possessive_student_names_are_extracted_without_damaging_name_apostrophes(
+    message: str, intent: str, student_name: str
+) -> None:
+    result = detect_intent(message)
+
+    assert result.intent == intent
+    assert result.entity_references == (("STUDENT", student_name),)

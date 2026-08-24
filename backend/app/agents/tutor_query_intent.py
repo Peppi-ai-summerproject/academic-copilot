@@ -18,6 +18,7 @@ _COURSE_CODE = re.compile(r"\b[A-Za-z]{2,}\d{2,}[A-Za-z0-9-]*\b")
 _STUDENT_NUMBER = re.compile(r"(?<!\w)(?:[^\W\d_]\d{3,}|\d{6,12})(?!\w)")
 _NAME_WORD = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
 _PERSON_NAME = rf"{_NAME_WORD}(?:\s+{_NAME_WORD})?"
+_POSSESSIVE = r"['\u2019]s"
 
 
 def detect_tutor_query(message: str) -> TutorQueryMatch | None:
@@ -141,6 +142,7 @@ def _student_reference(text: str) -> tuple[str, str] | None:
     if match := _STUDENT_NUMBER.search(text):
         return ("STUDENT", match.group(0))
     patterns = (
+        rf"\b({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+(?:academic\s+risk|stud(?:y|ies)|progress|recommendations?|next\s+steps?)\b",
         rf"\b(?:did|has)\s+({_PERSON_NAME})\s+(?:pass|passed|fail|failed|complete|completed)\b",
         rf"(?:student|has|did|is|how is)\s+({_PERSON_NAME})",
         rf"which courses is\s+({_PERSON_NAME})",
