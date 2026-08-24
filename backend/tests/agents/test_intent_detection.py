@@ -123,3 +123,24 @@ def test_possessive_student_names_are_extracted_without_damaging_name_apostrophe
 
     assert result.intent == intent
     assert result.entity_references == (("STUDENT", student_name),)
+
+
+@pytest.mark.parametrize(
+    ("message", "student_name"),
+    [
+        ("How is Ada doing?", "Ada"),
+        ("Tell me about Ada's progress", "Ada"),
+        ("Tell me about Åsa’s progress", "Åsa"),
+        ("Show Ada progress", "Ada"),
+        ("How Ada Lovelace is progressing?", "Ada Lovelace"),
+        ("How Sean O'Brien is progressing?", "Sean O'Brien"),
+    ],
+)
+def test_natural_progress_variations_route_with_clean_student_reference(
+    message: str, student_name: str
+) -> None:
+    result = detect_intent(message)
+
+    assert result.intent == "progress"
+    assert result.route == "progress"
+    assert result.entity_references == (("STUDENT", student_name),)

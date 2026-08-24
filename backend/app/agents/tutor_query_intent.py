@@ -142,6 +142,10 @@ def _student_reference(text: str) -> tuple[str, str] | None:
     if match := _STUDENT_NUMBER.search(text):
         return ("STUDENT", match.group(0))
     patterns = (
+        rf"\bhow\s+(?:is|are)\s+({_PERSON_NAME})\s+doing\b",
+        rf"\btell me about\s+({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+progress\b",
+        rf"\bshow\s+({_PERSON_NAME})\s+progress\b",
+        rf"\bhow\s+({_PERSON_NAME})\s+is\s+progress(?:ing)?\b",
         rf"\b({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+(?:academic\s+risk|stud(?:y|ies)|progress|recommendations?|next\s+steps?)\b",
         rf"\b(?:did|has)\s+({_PERSON_NAME})\s+(?:pass|passed|fail|failed|complete|completed)\b",
         rf"(?:student|has|did|is|how is)\s+({_PERSON_NAME})",

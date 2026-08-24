@@ -838,3 +838,42 @@ def test_named_natural_progress_and_recommendation_use_primary_presentations(
     )
     assert "Recommended actions (advisory)" in recommendation
     assert other_progress.startswith("<b>Academic progress</b>\n<b>Aava Achiever")
+
+
+@pytest.mark.e2e
+def test_partial_natural_progress_and_typo_confirmation_over_telegram_path(
+    copilot, monkeypatch
+):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=267, username="partial-name-tutor"),
+            effective_chat=SimpleNamespace(id=2670),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    for prompt in (
+        "How is Liisa doing?",
+        "Tell me about Liisa's progress",
+        "Show Liisa progress",
+        "How Liisa Delayed is progressing?",
+    ):
+        reply = asyncio.run(send(prompt))
+        assert reply.startswith("<b>Academic progress</b>\n<b>Liisa Delayed")
+
+    suggestion = asyncio.run(send("How is Lissa Delayed progressing?"))
+    assert suggestion == (
+        "Did you mean Liisa Delayed? Please confirm or use the corrected name."
+    )
+    assert active_entities(copilot, user=267, chat=2670)["STUDENT"]["canonical_id"] == 47
+    assert asyncio.run(send("How is she progressing?")).startswith(
+        "<b>Academic progress</b>\n<b>Liisa Delayed"
+    )
+
+    ambiguous = asyncio.run(send("How is Anna doing?"))
+    assert "multiple matching students" in ambiguous
+    assert "1234567" in ambiguous and "1111111" in ambiguous

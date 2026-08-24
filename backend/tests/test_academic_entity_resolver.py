@@ -9,6 +9,18 @@ class Gateway:
     async def get_student_group_courses(self, group_id): return {"success": True, "courses": self.group_courses}
     students=[]; courses=[]; teachers=[]; groups=[]; group_courses=[]
 
+
+class FilteringGateway(Gateway):
+    async def search_students(self, **kwargs):
+        query = str(kwargs.get("query") or "").casefold()
+        return {
+            "success": True,
+            "students": [
+                row for row in self.students
+                if query in row["name"].casefold() or query in row["student_number"].casefold()
+            ],
+        }
+
 def test_resolves_exact_identifiers_and_names():
     g=Gateway(); g.students=[{"id": 1,"student_number":"S1","name":"Aino"}]; g.courses=[{"id":2,"course_code":"DII101","course_name":"Digital"}]
     r=AcademicEntityResolver(g)
@@ -87,3 +99,64 @@ def test_group_narrowing_preserves_zero_and_multiple_candidate_ambiguity():
     still_ambiguous=asyncio.run(resolver.narrow_ambiguous_course_to_group(ambiguous, 240))
     assert still_ambiguous.status == "AMBIGUOUS"
     assert len(still_ambiguous.candidates) == 2
+
+
+def test_unique_partial_student_name_resolves_but_shared_first_name_is_ambiguous():
+    gateway = FilteringGateway()
+    gateway.students = [
+        {"id": 1, "student_number": "S1", "name": "Liisa Delayed"},
+        {"id": 2, "student_number": "S2", "name": "Anna North"},
+        {"id": 3, "student_number": "S3", "name": "Anna South"},
+    ]
+    resolver = AcademicEntityResolver(gateway)
+
+    liisa = asyncio.run(resolver.resolve("STUDENT", "Liisa"))
+    anna = asyncio.run(resolver.resolve("STUDENT", "Anna"))
+
+    assert (liisa.status, liisa.canonical_id, liisa.display_name) == (
+        "RESOLVED", 1, "Liisa Delayed"
+    )
+    assert anna.status == "AMBIGUOUS"
+    assert {row["name"] for row in anna.candidates} == {"Anna North", "Anna South"}
+
+
+def test_small_student_name_typo_is_suggested_and_never_silently_resolved():
+    gateway = FilteringGateway()
+    gateway.students = [
+        {"id": 1, "student_number": "S1", "name": "Liisa Delayed"},
+        {"id": 2, "student_number": "S2", "name": "Aava Achiever"},
+    ]
+
+    result = asyncio.run(AcademicEntityResolver(gateway).resolve("STUDENT", "Lissa Delayed"))
+
+    assert result.status == "SUGGESTED"
+    assert result.canonical_id is None
+    assert result.display_name == "Liisa Delayed"
+
+
+def test_multiple_close_typo_candidates_are_ambiguous_and_unrelated_name_is_not_found():
+    gateway = FilteringGateway()
+    gateway.students = [
+        {"id": 1, "student_number": "S1", "name": "Liisa Delayed"},
+        {"id": 2, "student_number": "S2", "name": "Lissa Delayes"},
+    ]
+    resolver = AcademicEntityResolver(gateway)
+
+    ambiguous = asyncio.run(resolver.resolve("STUDENT", "Lisa Delayed"))
+    missing = asyncio.run(resolver.resolve("STUDENT", "Completely Unrelated"))
+
+    assert ambiguous.status == "AMBIGUOUS"
+    assert len(ambiguous.candidates) == 2
+    assert missing.status == "NOT_FOUND"
+
+
+def test_exact_unicode_and_internal_apostrophe_names_remain_canonical():
+    gateway = FilteringGateway()
+    gateway.students = [
+        {"id": 1, "student_number": "S1", "name": "Åsa Mäkelä"},
+        {"id": 2, "student_number": "S2", "name": "Sean O'Brien"},
+    ]
+    resolver = AcademicEntityResolver(gateway)
+
+    assert asyncio.run(resolver.resolve("STUDENT", "Åsa Mäkelä")).canonical_id == 1
+    assert asyncio.run(resolver.resolve("STUDENT", "Sean O'Brien")).canonical_id == 2
