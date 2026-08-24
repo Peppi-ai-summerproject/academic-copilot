@@ -146,6 +146,7 @@ def _student_reference(text: str) -> tuple[str, str] | None:
         rf"\btell me about\s+({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+progress\b",
         rf"\bshow\s+({_PERSON_NAME})\s+progress\b",
         rf"\bhow\s+({_PERSON_NAME})\s+is\s+progress(?:ing)?\b",
+        rf"\bwhat is\s+({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+academic\s+risk\b",
         rf"\b({_PERSON_NAME})(?={_POSSESSIVE}\b){_POSSESSIVE}\s+(?:academic\s+risk|stud(?:y|ies)|progress|recommendations?|next\s+steps?)\b",
         rf"\b(?:did|has)\s+({_PERSON_NAME})\s+(?:pass|passed|fail|failed|complete|completed)\b",
         rf"(?:student|has|did|is|how is)\s+({_PERSON_NAME})",

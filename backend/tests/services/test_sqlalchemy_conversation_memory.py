@@ -102,3 +102,31 @@ def test_load_restores_latest_canonical_entity_context():
     snapshot = SQLAlchemyConversationMemoryStore(lambda: session).load(scope())
 
     assert snapshot.resolved_entities[0]["canonical_id"] == 24
+
+
+def test_load_restores_pending_clarification_from_context_envelope():
+    session = MagicMock()
+    result = MagicMock()
+    pending = {
+        "intent": "risk",
+        "resolution_status": "SUGGESTED",
+        "candidates": [{"student_id": 7, "name": "Åsa Mäkelä"}],
+    }
+    result.mappings.return_value.all.return_value = [
+        {
+            "role": "assistant",
+            "content": "Did you mean Åsa Mäkelä?",
+            "interaction_status": "completed",
+            "created_at": datetime.now(UTC),
+            "resolved_entities": {
+                "entities": [],
+                "pending_clarification": pending,
+            },
+        }
+    ]
+    session.execute.return_value = result
+
+    snapshot = SQLAlchemyConversationMemoryStore(lambda: session).load(scope())
+
+    assert snapshot.pending_clarification == pending
+    assert snapshot.resolved_entities == []

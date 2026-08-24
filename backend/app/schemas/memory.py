@@ -19,3 +19,4 @@ class ConversationMemorySnapshot(BaseModel):
     student_id: int | None = None
     messages: list[MemoryMessage] = Field(default_factory=list, max_length=20)
     resolved_entities: list[dict] = Field(default_factory=list)
+    pending_clarification: dict | None = None
