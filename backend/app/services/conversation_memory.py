@@ -37,6 +37,7 @@ class ConversationMemoryStore(Protocol):
         selected_agents: list[str],
         interaction_status: str,
         resolved_entities: list[dict] | None = None,
+        pending_clarification: dict | None = None,
     ) -> None: ...
 
 
@@ -51,6 +52,7 @@ class InMemoryConversationMemoryStore:
         self._mappings: dict[tuple[int, int], UUID] = {}
         self._messages: dict[MemoryScope, list[MemoryMessage]] = {}
         self._entities: dict[MemoryScope, list[dict]] = {}
+        self._pending: dict[MemoryScope, dict] = {}
 
     def resolve_telegram_conversation(self, user_id: int, chat_id: int) -> UUID:
         return self._mappings.setdefault((user_id, chat_id), uuid4())
@@ -61,6 +63,7 @@ class InMemoryConversationMemoryStore:
             student_id=scope.student_id,
             messages=list(self._messages.get(scope, [])),
             resolved_entities=list(self._entities.get(scope, [])),
+            pending_clarification=self._pending.get(scope),
         )
 
     def save_turn(
@@ -72,6 +75,7 @@ class InMemoryConversationMemoryStore:
         selected_agents: list[str],
         interaction_status: str,
         resolved_entities: list[dict] | None = None,
+        pending_clarification: dict | None = None,
     ) -> None:
         del selected_agents
         if interaction_status not in {"completed", "partial"}:
@@ -85,6 +89,10 @@ class InMemoryConversationMemoryStore:
         self._messages[scope] = messages[-MAX_MEMORY_MESSAGES:]
         if resolved_entities:
             self._entities[scope] = list(resolved_entities)
+        if pending_clarification is None:
+            self._pending.pop(scope, None)
+        else:
+            self._pending[scope] = dict(pending_clarification)
 
 
 class SQLAlchemyConversationMemoryStore:
@@ -149,14 +157,16 @@ class SQLAlchemyConversationMemoryStore:
                 """),
                 {**_scope_params(scope), "limit": MAX_MEMORY_MESSAGES},
             ).mappings().all()
-            entities = next(
-                (
-                    list(row["resolved_entities"])
-                    for row in reversed(rows)
-                    if row.get("resolved_entities")
-                ),
+            context = next(
+                (row["resolved_entities"] for row in reversed(rows) if row.get("resolved_entities")),
                 [],
             )
+            if isinstance(context, dict):
+                entities = list(context.get("entities") or [])
+                pending_clarification = context.get("pending_clarification")
+            else:
+                entities = list(context)
+                pending_clarification = None
             return ConversationMemorySnapshot(
                 conversation_id=scope.conversation_id,
                 student_id=scope.student_id,
@@ -175,6 +185,7 @@ class SQLAlchemyConversationMemoryStore:
                     for row in rows
                 ],
                 resolved_entities=entities,
+                pending_clarification=pending_clarification,
             )
         finally:
             session.close()
@@ -188,6 +199,7 @@ class SQLAlchemyConversationMemoryStore:
         selected_agents: list[str],
         interaction_status: str,
         resolved_entities: list[dict] | None = None,
+        pending_clarification: dict | None = None,
     ) -> None:
         if interaction_status not in {"completed", "partial"}:
             return
@@ -201,7 +213,10 @@ class SQLAlchemyConversationMemoryStore:
                 **_scope_params(scope),
                 "selected_agents": json.dumps(selected_agents),
                 "interaction_status": interaction_status,
-                "resolved_entities": json.dumps(resolved_entities or []),
+                "resolved_entities": json.dumps({
+                    "entities": resolved_entities or [],
+                    "pending_clarification": pending_clarification,
+                }),
             }
             for role, content in (("user", user_message), ("assistant", assistant_message)):
                 session.execute(

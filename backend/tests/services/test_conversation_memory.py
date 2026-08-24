@@ -114,3 +114,32 @@ def test_message_text_is_bounded():
     )
 
     assert [len(item.content) for item in store.load(memory_scope).messages] == [4000, 4000]
+
+
+def test_pending_clarification_is_persisted_and_explicitly_cleared():
+    store = InMemoryConversationMemoryStore()
+    memory_scope = scope(student=None)
+    pending = {
+        "intent": "progress",
+        "resolution_status": "AMBIGUOUS",
+        "candidates": [{"student_id": 1, "name": "Åsa One"}],
+    }
+    store.save_turn(
+        memory_scope,
+        user_message="How is Åsa doing?",
+        assistant_message="Which student?",
+        selected_agents=[],
+        interaction_status="completed",
+        pending_clarification=pending,
+    )
+    assert store.load(memory_scope).pending_clarification == pending
+
+    store.save_turn(
+        memory_scope,
+        user_message="cancel",
+        assistant_message="Cancelled.",
+        selected_agents=[],
+        interaction_status="completed",
+        pending_clarification=None,
+    )
+    assert store.load(memory_scope).pending_clarification is None

@@ -877,3 +877,84 @@ def test_partial_natural_progress_and_typo_confirmation_over_telegram_path(
     ambiguous = asyncio.run(send("How is Anna doing?"))
     assert "multiple matching students" in ambiguous
     assert "1234567" in ambiguous and "1111111" in ambiguous
+
+
+@pytest.mark.e2e
+def test_pending_student_clarification_resumes_original_routes_over_telegram(
+    copilot, monkeypatch
+):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text, user=268, chat=2680):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=user, username=f"clarify-{user}"),
+            effective_chat=SimpleNamespace(id=chat),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    progress_clarification = asyncio.run(send("How is Anna doing?"))
+    progress = asyncio.run(send("Anna Korhonen"))
+    assert "multiple matching students" in progress_clarification
+    assert progress.startswith("<b>Academic progress</b>\n<b>Anna Korhonen")
+
+    risk_clarification = asyncio.run(send("What is Anna's academic risk?"))
+    risk = asyncio.run(send("1111111"))
+    assert "multiple matching students" in risk_clarification
+    assert risk.startswith("<b>Academic risk</b>\n<b>Anna Laine</b>")
+
+    recommendation_clarification = asyncio.run(send("What do you recommend for Anna?"))
+    recommendation = asyncio.run(send("Anna Korhonen"))
+    assert "multiple matching students" in recommendation_clarification
+    assert recommendation.startswith(
+        "<b>Academic recommendations</b>\n<b>Anna Korhonen</b>"
+    )
+
+    asyncio.run(send("How is Anna doing?"))
+    still_ambiguous = asyncio.run(send("Anna"))
+    invalid = asyncio.run(send("Aava Achiever"))
+    assert "choose one of these students" in still_ambiguous.lower()
+    assert "does not identify one of the students" in invalid.lower()
+    cancelled = asyncio.run(send("cancel"))
+    assert cancelled == "Okay, I cancelled that request."
+
+    standalone = asyncio.run(send("Anna Korhonen"))
+    assert "focused on student progress" in standalone
+    assert "Academic progress" not in standalone
+
+    suggestion = asyncio.run(send("How is Oskri Example progressing?", 269, 2690))
+    confirmed = asyncio.run(send("yes", 269, 2690))
+    assert suggestion.startswith("Did you mean Oskari Example?")
+    assert confirmed.startswith("<b>Academic progress</b>\n<b>Oskari Example")
+
+    suggestion = asyncio.run(send("How is Oskri Example progressing?", 270, 2700))
+    corrected = asyncio.run(send("Oskari Example", 270, 2700))
+    assert suggestion.startswith("Did you mean Oskari Example?")
+    assert corrected.startswith("<b>Academic progress</b>\n<b>Oskari Example")
+
+    no_pending_yes = asyncio.run(send("yes", 271, 2710))
+    assert "focused on student progress" in no_pending_yes
+
+
+@pytest.mark.e2e
+def test_pending_clarification_is_cleared_by_explicit_new_academic_topic(
+    copilot, monkeypatch
+):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=272, username="topic-change-tutor"),
+            effective_chat=SimpleNamespace(id=2720),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    assert "multiple matching students" in asyncio.run(send("How is Anna doing?"))
+    changed = asyncio.run(send("How is Aava Achiever progressing?"))
+    assert changed.startswith("<b>Academic progress</b>\n<b>Aava Achiever")
+    assert "focused on student progress" in asyncio.run(send("yes"))

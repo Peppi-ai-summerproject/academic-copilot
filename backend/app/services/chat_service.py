@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -100,6 +101,38 @@ class ChatService:
         stored_entities = canonical_entities(memory.resolved_entities if memory else [])
         resolved_entities: list[dict] = list(stored_entities)
         query_parameters: dict = {}
+        pending_to_save: dict | None = None
+        pending_seed: dict | None = None
+        if not selected_routes and memory is not None and memory.pending_clarification:
+            pending_result = await self._resolve_pending_clarification(
+                request.message, memory.pending_clarification
+            )
+            if pending_result[0] == "RESUMED":
+                pending = memory.pending_clarification
+                resolved_entities = merge_canonical_entities(
+                    stored_entities, [pending_result[1]]
+                )
+                reply, interaction_status = await self._run_workflow(
+                    request,
+                    selected_routes=list(pending.get("selected_routes") or []),
+                    detected_intent=str(pending.get("intent") or ""),
+                    conversation_id=conversation_id,
+                    memory=memory,
+                    include_telegram_context=memory_scope is None,
+                    resolved_entities=resolved_entities,
+                    query_parameters=dict(pending.get("query_parameters") or {}),
+                )
+                return self._finish_turn(
+                    request, reply, interaction_status, conversation_id,
+                    memory_scope, list(pending.get("selected_routes") or []),
+                    resolved_entities, None,
+                )
+            if pending_result[0] in {"RETRY", "CANCELLED"}:
+                return self._finish_turn(
+                    request, str(pending_result[2]), "completed", conversation_id,
+                    memory_scope, [], resolved_entities,
+                    memory.pending_clarification if pending_result[0] == "RETRY" else None,
+                )
         if selected_routes:
             routing_failure = self._validate_explicit_routes(selected_routes)
         else:
@@ -121,6 +154,7 @@ class ChatService:
                     if unresolved:
                         routing_failure = _resolution_fallback(unresolved[0])
                         fallback_interaction_status = "completed"
+                        pending_seed = _pending_request(intent_result, unresolved[0], {})
                     else:
                         resolved_entities = merge_canonical_entities(
                             stored_entities, current_resolutions
@@ -168,6 +202,9 @@ class ChatService:
                     if unresolved:
                         routing_failure = _resolution_fallback(unresolved[0])
                         fallback_interaction_status = "completed"
+                        pending_seed = _pending_request(
+                            intent_result, unresolved[0], query_parameters
+                        )
                     else:
                         resolved_entities = merge_canonical_entities(stored_entities, current_resolutions)
                     if query_parameters.get("capability") == "academic_lookup" and current_resolutions and not unresolved:
@@ -188,6 +225,11 @@ class ChatService:
                         fallback_interaction_status = "completed"
                 routing_result = self._agent_selector.select(intent_result)
                 plan = self._dependency_resolver.resolve(routing_result)
+                if pending_seed is not None and plan.succeeded:
+                    pending_to_save = {
+                        **pending_seed,
+                        "selected_routes": [str(route) for route in plan.ordered_routes],
+                    }
                 if plan.succeeded:
                     if routing_failure is None:
                         selected_routes = list(plan.ordered_routes)
@@ -253,10 +295,81 @@ class ChatService:
                     selected_agents=[str(route) for route in selected_routes],
                     interaction_status=interaction_status,
                     resolved_entities=resolved_entities,
+                    pending_clarification=pending_to_save,
                 )
             except Exception:
                 logger.warning("Conversation memory could not be saved safely.")
 
+        return ChatResponse(reply=reply, conversation_id=conversation_id)
+
+    async def _resolve_pending_clarification(
+        self, message: str, pending: dict
+    ) -> tuple[str, dict | None, str | None]:
+        normalized = " ".join(message.strip().split())
+        folded = normalized.casefold().rstrip(".!?")
+        if folded in {"cancel", "cancel that", "never mind", "nevermind", "stop"}:
+            return ("CANCELLED", None, "Okay, I cancelled that request.")
+        candidates = pending.get("candidates") or []
+        allowed_ids = {
+            row.get("student_id") for row in candidates
+            if isinstance(row, dict) and isinstance(row.get("student_id"), int)
+        }
+        if folded in {"yes", "yes please", "correct", "that's right", "that is right"}:
+            if pending.get("resolution_status") != "SUGGESTED" or len(candidates) != 1:
+                return ("RETRY", None, _pending_clarification_prompt(pending))
+            reference = str(candidates[0].get("name") or candidates[0].get("student_number") or "")
+        elif _looks_like_student_selection(normalized):
+            reference = normalized.rstrip(".")
+        else:
+            return ("NEW_TOPIC", None, None)
+        resolution = await self._entity_resolver.resolve("STUDENT", reference)
+        if resolution.status == "RESOLVED" and resolution.canonical_id in allowed_ids:
+            return ("RESUMED", resolution.as_dict(), None)
+        if resolution.status == "AMBIGUOUS":
+            matching = tuple(
+                row for row in resolution.candidates
+                if row.get("student_id") in allowed_ids
+            )
+            if matching:
+                retry = {**pending, "candidates": list(matching), "resolution_status": "AMBIGUOUS"}
+                return ("RETRY", None, _pending_clarification_prompt(retry))
+        return (
+            "RETRY", None,
+            "That does not identify one of the students from the clarification. "
+            + _pending_clarification_prompt(pending),
+        )
+
+    def _finish_turn(
+        self,
+        request: ChatRequest,
+        reply: str,
+        interaction_status: str,
+        conversation_id: UUID,
+        memory_scope: MemoryScope | None,
+        selected_routes: list[str],
+        resolved_entities: list[dict],
+        pending_clarification: dict | None,
+    ) -> ChatResponse:
+        self._session_service.add_assistant_message(
+            telegram_user_id=request.telegram_user_id, reply=reply
+        )
+        if (
+            memory_scope is not None
+            and self._memory_store is not None
+            and interaction_status in {"completed", "partial"}
+        ):
+            try:
+                self._memory_store.save_turn(
+                    memory_scope,
+                    user_message=request.message,
+                    assistant_message=reply,
+                    selected_agents=selected_routes,
+                    interaction_status=interaction_status,
+                    resolved_entities=resolved_entities,
+                    pending_clarification=pending_clarification,
+                )
+            except Exception:
+                logger.warning("Conversation memory could not be saved safely.")
         return ChatResponse(reply=reply, conversation_id=conversation_id)
 
     async def _run_workflow(
@@ -412,6 +525,50 @@ def _tutor_facing_summary(result: AgentResult) -> str:
                 summary = result.summary.strip()
                 return f"{summary}\n{rendered.strip()}" if summary else rendered.strip()
     return result.summary.strip()
+
+
+def _pending_request(intent_result, unresolved: dict, query_parameters: dict) -> dict:
+    return {
+        "intent": intent_result.intent,
+        "capability": intent_result.capability,
+        "query_parameters": dict(query_parameters),
+        "entity_type": unresolved.get("entity_type"),
+        "reference": unresolved.get("input"),
+        "resolution_status": unresolved.get("status"),
+        "candidates": list(unresolved.get("candidates") or []),
+    }
+
+
+def _pending_clarification_prompt(pending: dict) -> str:
+    candidates = pending.get("candidates") or []
+    if pending.get("resolution_status") == "SUGGESTED" and len(candidates) == 1:
+        name = candidates[0].get("name")
+        if name:
+            return f"Did you mean {name}? Please answer yes or use the corrected name."
+    labels = [
+        str(row.get("student_number") or row.get("name"))
+        for row in candidates if isinstance(row, dict)
+    ]
+    return (
+        f"Please choose one of these students: {', '.join(labels)}."
+        if labels else "Please provide the student's full name or student number."
+    )
+
+
+def _looks_like_student_selection(message: str) -> bool:
+    value = message.strip().rstrip(".")
+    if not value or len(value) > 120:
+        return False
+    first = value.casefold().split()[0]
+    if first in {
+        "show", "find", "what", "how", "tell", "who", "check", "recommend",
+        "cancel", "teacher", "student", "course", "email", "contact",
+    }:
+        return False
+    if re.fullmatch(r"(?:[^\W\d_]\d{3,}|\d{6,12})", value, re.UNICODE):
+        return True
+    word = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
+    return re.fullmatch(rf"{word}(?:\s+{word}){{0,4}}", value, re.UNICODE) is not None
 
 
 def _resolution_fallback(entity: dict) -> str:
