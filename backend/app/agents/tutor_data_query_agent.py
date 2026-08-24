@@ -35,12 +35,25 @@ class TutorDataQueryAgent:
             self.name,
             "academic_data",
             "SUCCESS",
-            _summary(capability, response, student=student, course=course),
+            _summary(
+                capability,
+                response,
+                student=student,
+                course=course,
+                group=group,
+                parameters=parameters,
+            ),
             data={
                 "capability": capability,
                 "result": response,
                 "tutor_facing_presentation": capability
-                in {"student_lookup", "student_course_result"},
+                in {
+                    "student_lookup",
+                    "student_course_result",
+                    "group_lookup",
+                    "course_results",
+                    "group_course_results",
+                },
             },
         )
 
@@ -117,6 +130,8 @@ def _summary(
     *,
     student: dict[str, Any] | None = None,
     course: dict[str, Any] | None = None,
+    group: dict[str, Any] | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> str:
     if capability == "student_lookup":
         student = response.get("student", {})
@@ -149,8 +164,7 @@ def _summary(
             ("email", teacher.get("email")),
         )
     if capability == "group_lookup":
-        group = response.get("group", {})
-        return _profile(group.get("group_code", "Student group"), ("name", group.get("group_name")), ("programme", group.get("programme_name") or group.get("programme_code")))
+        return _cohort_overview(response.get("group", {}))
     if capability == "group_students":
         code = response.get("group", {}).get("group_code", "group")
         return _rows(f"Students in {code}", response.get("students", []), _student_label)
@@ -180,7 +194,12 @@ def _summary(
             response.get("results", []), student=student, course=course
         )
     if capability in {"course_results", "group_course_results"}:
-        return _rows("Results", response.get("results", []), _result_label)
+        return _course_results(
+            response.get("results", []),
+            course=course,
+            group=response.get("group") or group,
+            result_filter=(parameters or {}).get("result_filter"),
+        )
     if capability == "course_analytics":
         analytics = response.get("analytics", {})
         pass_rate = analytics.get("pass_rate")
@@ -217,6 +236,53 @@ def _student_overview(student: dict[str, Any]) -> str:
     ):
         if value not in (None, ""):
             lines.append(f"{label}: {value}")
+    return "\n".join(lines)
+
+
+def _cohort_overview(group: dict[str, Any]) -> str:
+    code = group.get("group_code") or "Cohort"
+    lines = ["Cohort overview", str(code), ""]
+    for label, value in (
+        ("Name", group.get("group_name")),
+        ("Programme", group.get("programme_name") or group.get("programme_code")),
+    ):
+        if value not in (None, ""):
+            lines.append(f"{label}: {value}")
+    return "\n".join(lines)
+
+
+def _course_results(
+    rows: Any,
+    *,
+    course: dict[str, Any] | None,
+    group: dict[str, Any] | None,
+    result_filter: Any,
+) -> str:
+    values = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    status = str(result_filter).strip().upper() if result_filter else None
+    qualifier = status.lower() if status else "recorded"
+    course_name = (
+        course.get("display_name") if isinstance(course, dict) else None
+    ) or _course_code(course or {})
+    group_code = group.get("group_code") if isinstance(group, dict) else None
+    identity = " · ".join(str(value) for value in (course_name, group_code) if value)
+    lines = ["Course results", identity or "Course", ""]
+    lines.append(f"Students with {qualifier} results: {len(values)}")
+    if not values:
+        lines.extend(["", f"No students with {qualifier} results were found."])
+        return "\n".join(lines)
+    for row in values:
+        student_name = row.get("student_name") or row.get("name") or "Student"
+        result_status = row.get("result_status") or row.get("status") or "UNAVAILABLE"
+        grade = row.get("grade")
+        lines.extend(
+            [
+                "",
+                str(student_name),
+                f"• Result: {result_status}",
+                f"• Grade: {grade}" if grade is not None else "• Grade: unavailable",
+            ]
+        )
     return "\n".join(lines)
 
 

@@ -43,7 +43,7 @@ def test_interactive_reply_escapes_dynamic_html_and_sets_html_mode(monkeypatch):
     assert "Alice &lt;b&gt;Admin&lt;/b&gt;" in sent.args[0]
     assert "Databases &amp; APIs" in sent.args[0]
     assert "Status: <b>FAILED</b>" in sent.args[0]
-    assert "Grade: 0" in sent.args[0]
+    assert "Grade: <b>0</b>" in sent.args[0]
 
 
 def test_interactive_formatting_rejection_retries_once_as_plain_text(monkeypatch):

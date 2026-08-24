@@ -5,7 +5,12 @@ import pytest
 
 from app.agents.intent_detection import detect_intent
 from app.agents.state import create_initial_state
-from app.agents.tutor_data_query_agent import TutorDataQueryAgent
+from app.agents.tutor_data_query_agent import (
+    TutorDataQueryAgent,
+    _cohort_overview,
+    _course_results,
+)
+from app.telegram.formatting import format_telegram_html
 
 
 @pytest.mark.parametrize(
@@ -383,3 +388,72 @@ def test_group_course_results_compose_roster_and_existing_course_results():
     assert "Elina Demo" in result.summary
     assert "Outside Student" not in result.summary
     gateway.get_course_results.assert_awaited_once_with(course_code="DBS24", status="PASSED")
+
+
+def test_cohort_overview_is_structured_unicode_safe_and_escaped_by_formatter():
+    plain = _cohort_overview({
+        "group_code": "DIN<24>",
+        "group_name": "Digitaalinen innovaatio & yrittäjyys",
+        "programme_name": "Data Engineering <script>",
+    })
+
+    rendered = format_telegram_html(plain)
+
+    assert rendered.startswith("<b>Cohort overview</b>\n<b>DIN&lt;24&gt;</b>\n")
+    assert "Name: Digitaalinen innovaatio &amp; yrittäjyys" in rendered
+    assert "Programme: Data Engineering &lt;script&gt;" in rendered
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected_count"),
+    [
+        ([], 0),
+        ([{"student_name": "Åsa", "result_status": "FAILED", "grade": 0}], 1),
+        ([
+            {"student_name": "Åsa", "result_status": "FAILED", "grade": 0},
+            {"student_name": "Béla", "result_status": "FAILED", "grade": 2},
+        ], 2),
+    ],
+)
+def test_course_results_are_structured_for_empty_single_and_multiple_rows(
+    rows, expected_count
+):
+    plain = _course_results(
+        rows,
+        course={"display_name": "Databases & APIs <advanced>"},
+        group={"group_code": "DIN<24>"},
+        result_filter="FAILED",
+    )
+    rendered = format_telegram_html(plain)
+
+    assert rendered.startswith(
+        "<b>Course results</b>\n"
+        "<b>Databases &amp; APIs &lt;advanced&gt; · DIN&lt;24&gt;</b>"
+    )
+    assert f"Students with failed results: <b>{expected_count}</b>" in rendered
+    assert ";" not in plain
+    if rows:
+        assert "<b>Åsa</b>" in rendered
+        assert "• Result: <b>FAILED</b>" in rendered
+        assert "• Grade: <b>0</b>" in rendered
+    else:
+        assert "No students with failed results were found." in rendered
+
+
+def test_course_result_dynamic_student_status_and_grade_are_escaped():
+    rendered = format_telegram_html(
+        _course_results(
+            [{
+                "student_name": "<b>Matti & Co</b>",
+                "result_status": "<FAILED>",
+                "grade": "0<script>",
+            }],
+            course={"display_name": "Tietokannat"},
+            group={"group_code": "Ryhmä Ω"},
+            result_filter="FAILED",
+        )
+    )
+
+    assert "<b>&lt;b&gt;Matti &amp; Co&lt;/b&gt;</b>" in rendered
+    assert "• Result: <b>&lt;FAILED&gt;</b>" in rendered
+    assert "• Grade: <b>0&lt;script&gt;</b>" in rendered
