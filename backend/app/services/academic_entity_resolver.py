@@ -1,11 +1,13 @@
 """Resolve tutor-supplied entity text through the academic gateway only."""
 from __future__ import annotations
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from typing import Any, Literal, Protocol
+import unicodedata
 
 EntityType = Literal["STUDENT", "COURSE", "TEACHER", "STUDENT_GROUP"]
 ResolvableEntityType = Literal["STUDENT", "COURSE", "TEACHER", "STUDENT_GROUP", "ACADEMIC_CODE"]
-ResolutionStatus = Literal["RESOLVED", "AMBIGUOUS", "NOT_FOUND", "INVALID"]
+ResolutionStatus = Literal["RESOLVED", "AMBIGUOUS", "SUGGESTED", "NOT_FOUND", "INVALID"]
 
 class SearchGateway(Protocol):
     async def search_students(self, **kwargs: Any) -> dict[str, Any]: ...
@@ -48,6 +50,8 @@ class AcademicEntityResolver:
         response = await getattr(self._gateway, operation)(query=normalized)
         key = {"STUDENT": "students", "COURSE": "courses", "TEACHER": "teachers", "STUDENT_GROUP": "groups"}[entity_type]
         rows = response.get(key, []) if response.get("success") else []
+        if entity_type == "STUDENT":
+            return await self._resolve_student(normalized, rows)
         exact = [r for r in rows if self._exact(entity_type, r, normalized)]
         candidates = exact or rows
         safe = tuple(self._safe(entity_type, row) for row in candidates)
@@ -55,6 +59,72 @@ class AcademicEntityResolver:
         if len(candidates) != 1: return ResolvedAcademicEntity(entity_type, normalized, "AMBIGUOUS", candidates=safe)
         row = candidates[0]; identifier = int(row["id"])
         return ResolvedAcademicEntity(entity_type, normalized, "RESOLVED", identifier, self._name(entity_type, row), safe)
+
+    async def _resolve_student(
+        self, normalized: str, rows: list[dict[str, Any]]
+    ) -> ResolvedAcademicEntity:
+        exact = [row for row in rows if self._exact("STUDENT", row, normalized)]
+        if exact:
+            return self._student_candidates(normalized, exact)
+
+        partial = [row for row in rows if _token_partial(normalized, row.get("name"))]
+        if partial:
+            return self._student_candidates(normalized, partial)
+
+        pool = list(rows)
+        if not pool:
+            pool = await self._student_suggestion_pool(normalized)
+        ranked = _rank_student_suggestions(normalized, pool)
+        if not ranked:
+            return ResolvedAcademicEntity("STUDENT", normalized, "NOT_FOUND")
+        best_score = ranked[0][0]
+        plausible = [row for score, row in ranked if score >= 0.82]
+        if best_score < 0.88:
+            if len(plausible) > 1:
+                return ResolvedAcademicEntity(
+                    "STUDENT", normalized, "AMBIGUOUS",
+                    candidates=tuple(self._safe("STUDENT", row) for row in plausible),
+                )
+            return ResolvedAcademicEntity("STUDENT", normalized, "NOT_FOUND")
+        if len(ranked) > 1 and ranked[1][0] >= 0.88:
+            close = [row for score, row in ranked if score >= 0.88]
+            return ResolvedAcademicEntity(
+                "STUDENT", normalized, "AMBIGUOUS",
+                candidates=tuple(self._safe("STUDENT", row) for row in close),
+            )
+        candidate = ranked[0][1]
+        return ResolvedAcademicEntity(
+            "STUDENT", normalized, "SUGGESTED",
+            display_name=self._name("STUDENT", candidate),
+            candidates=(self._safe("STUDENT", candidate),),
+        )
+
+    def _student_candidates(
+        self, normalized: str, candidates: list[dict[str, Any]]
+    ) -> ResolvedAcademicEntity:
+        safe = tuple(self._safe("STUDENT", row) for row in candidates)
+        if len(candidates) != 1:
+            return ResolvedAcademicEntity("STUDENT", normalized, "AMBIGUOUS", candidates=safe)
+        row = candidates[0]
+        return ResolvedAcademicEntity(
+            "STUDENT", normalized, "RESOLVED", int(row["id"]),
+            self._name("STUDENT", row), safe,
+        )
+
+    async def _student_suggestion_pool(self, normalized: str) -> list[dict[str, Any]]:
+        candidates: dict[Any, dict[str, Any]] = {}
+        terms = _normalized_name(normalized).split()
+        queries = dict.fromkeys(
+            query for term in terms for query in (term, term[:2]) if len(query) >= 2
+        )
+        for query in queries:
+            response = await self._gateway.search_students(query=query)
+            if not response.get("success"):
+                continue
+            for row in response.get("students", []):
+                if isinstance(row, dict) and row.get("id") is not None:
+                    candidates[row["id"]] = row
+        return list(candidates.values())
 
     async def narrow_ambiguous_course_to_group(
         self, resolution: ResolvedAcademicEntity, group_id: int
@@ -100,3 +170,30 @@ class AcademicEntityResolver:
         if kind == "COURSE": return {"course_id": row.get("id"), "course_code": row.get("course_code"), "course_name": row.get("course_name")}
         if kind == "STUDENT_GROUP": return {"group_id": row.get("id"), "group_code": row.get("group_code"), "group_name": row.get("group_name"), "programme_code": row.get("programme_code")}
         return {"teacher_id": row.get("id"), "name": row.get("display_name")}
+
+
+def _normalized_name(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
+def _token_partial(query: str, name: Any) -> bool:
+    query_words = _normalized_name(query).split()
+    name_words = _normalized_name(name).split()
+    if not query_words or not name_words:
+        return False
+    width = len(query_words)
+    return any(name_words[index:index + width] == query_words for index in range(len(name_words) - width + 1))
+
+
+def _rank_student_suggestions(
+    query: str, rows: list[dict[str, Any]]
+) -> list[tuple[float, dict[str, Any]]]:
+    needle = _normalized_name(query)
+    ranked = [
+        (SequenceMatcher(None, needle, _normalized_name(row.get("name"))).ratio(), row)
+        for row in rows
+        if _normalized_name(row.get("name"))
+    ]
+    return sorted(ranked, key=lambda item: (-item[0], str(item[1].get("name") or ""), str(item[1].get("id") or "")))

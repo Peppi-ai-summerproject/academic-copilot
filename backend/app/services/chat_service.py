@@ -416,6 +416,11 @@ def _tutor_facing_summary(result: AgentResult) -> str:
 
 def _resolution_fallback(entity: dict) -> str:
     label = str(entity.get("entity_type", "entity")).lower().replace("_", " ")
+    if entity.get("status") == "SUGGESTED":
+        candidates = entity.get("candidates") or []
+        name = candidates[0].get("name") if len(candidates) == 1 else None
+        if name:
+            return f"Did you mean {name}? Please confirm or use the corrected name."
     if entity.get("status") == "AMBIGUOUS":
         candidates = entity.get("candidates") or []
         names = [str(row.get("student_number") or row.get("group_code") or row.get("course_code") or row.get("name") or row.get("group_name") or row.get("course_name")) for row in candidates]

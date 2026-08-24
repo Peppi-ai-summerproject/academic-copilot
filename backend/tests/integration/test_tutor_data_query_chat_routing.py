@@ -69,6 +69,26 @@ def test_missing_entity_returns_not_found_without_workflow():
     assert "could not find" in response.reply.lower()
 
 
+def test_typo_suggestion_requires_confirmation_and_does_not_execute_workflow():
+    workflow = RecordingWorkflow()
+    suggested = ResolvedAcademicEntity(
+        "STUDENT",
+        "Lissa Delayed",
+        "SUGGESTED",
+        display_name="Liisa Delayed",
+        candidates=({"student_id": 47, "name": "Liisa Delayed"},),
+    )
+
+    response = asyncio.run(
+        _service(workflow, Resolver({("STUDENT", "Lissa Delayed"): suggested})).process_message(
+            _request("How is Lissa Delayed progressing?")
+        )
+    )
+
+    assert response.reply == "Did you mean Liisa Delayed? Please confirm or use the corrected name."
+    assert workflow.states == []
+
+
 @pytest.mark.parametrize(
     ("message", "entity_type", "reference", "candidates"),
     [
