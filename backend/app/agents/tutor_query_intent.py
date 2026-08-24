@@ -110,6 +110,12 @@ def detect_tutor_query(message: str) -> TutorQueryMatch | None:
     return None
 
 
+def extract_student_reference(message: str) -> tuple[str, str] | None:
+    """Extract an explicit student reference without choosing an intent."""
+    text = unicodedata.normalize("NFC", " ".join(message.strip().split()))
+    return _student_reference(text)
+
+
 def _match(capability: str, *references, **parameters) -> TutorQueryMatch:
     refs = tuple(reference for reference in references if reference is not None)
     clean = {key: value for key, value in parameters.items() if value is not None}
@@ -138,12 +144,15 @@ def _student_reference(text: str) -> tuple[str, str] | None:
         rf"\b(?:did|has)\s+({_PERSON_NAME})\s+(?:pass|passed|fail|failed|complete|completed)\b",
         rf"(?:student|has|did|is|how is)\s+({_PERSON_NAME})",
         rf"which courses is\s+({_PERSON_NAME})",
+        rf"\b(?:recommend(?:ation)?|advice|next steps?)\s+for\s+({_PERSON_NAME})\b",
     )
     for pattern in patterns:
         if match := re.search(pattern, text, re.IGNORECASE):
             value = match.group(1).strip()
             words = value.casefold().split()
-            if words and words[0] not in {"she", "he", "they", "her", "him", "them"} and not any(
+            if words and words[0] not in {
+                "she", "he", "they", "her", "him", "them", "the", "this", "student"
+            } and not any(
                 word in {"taking", "pass", "passed", "get", "progressing"} for word in words
             ):
                 return ("STUDENT", value)

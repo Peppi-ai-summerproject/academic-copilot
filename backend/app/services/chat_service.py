@@ -106,6 +106,25 @@ class ChatService:
             try:
                 intent_result = self._intent_detector.detect(request.message)
                 detected_intent = intent_result.intent
+                if (
+                    request.student_id is None
+                    and intent_result.intent != "academic_data"
+                    and intent_result.entity_references
+                ):
+                    current_resolutions = []
+                    for entity_type, reference in intent_result.entity_references:
+                        resolution = await self._entity_resolver.resolve(entity_type, reference)  # type: ignore[arg-type]
+                        current_resolutions.append(resolution.as_dict())
+                    unresolved = [
+                        row for row in current_resolutions if row["status"] != "RESOLVED"
+                    ]
+                    if unresolved:
+                        routing_failure = _resolution_fallback(unresolved[0])
+                        fallback_interaction_status = "completed"
+                    else:
+                        resolved_entities = merge_canonical_entities(
+                            stored_entities, current_resolutions
+                        )
                 if intent_result.intent == "academic_data":
                     query_parameters = {
                         "capability": intent_result.capability,

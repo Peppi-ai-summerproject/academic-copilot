@@ -18,7 +18,7 @@ from app.telegram.notifications import TelegramSendReceipt
 from app.workflows.execution_logging import WorkflowExecutionRecorder
 
 
-@patch("app.workflows.monday.AcademicRiskScoringService")
+@patch("app.workflows.monday.AvailableEvidenceRiskService")
 @patch("app.workflows.monday.TutorMeetingRiskService")
 @patch("app.workflows.monday.TutorMeetingRepository")
 def test_database_workflow_injects_tutor_meeting_evaluator(
@@ -32,7 +32,7 @@ def test_database_workflow_injects_tutor_meeting_evaluator(
 
     repository_type.assert_called_once_with(session)
     evaluator_type.assert_called_once_with(repository)
-    assert risk_type.call_args.args[3] is evaluator
+    assert risk_type.call_args.kwargs["tutor_meeting_provider"] is evaluator
 
 
 class FakeTutorDirectory:
@@ -260,6 +260,83 @@ def test_unavailable_tutor_meeting_evidence_still_finalizes_monday_execution():
     ] == ["tutor_meetings"]
     assert len(log_store.started) == len(log_store.finalized) == 1
     assert log_store.finalized[0].status == "partial"
+
+
+def test_scenario_129_preserves_students_attention_and_destination_behavior():
+    sender = CapturingTelegramSender()
+    log_store = CapturingExecutionLogStore()
+    oskari_progress = {
+        "success": True,
+        "progress": {
+            "student_id": 102,
+            "completed_ects": 0,
+            "expected_ects": 30,
+            "remaining_to_expected_ects": 30,
+            "status": "BEHIND",
+        },
+    }
+    aava_progress = {
+        "success": True,
+        "progress": {
+            "student_id": 104,
+            "completed_ects": 60,
+            "expected_ects": 60,
+            "remaining_to_expected_ects": 0,
+            "status": "ON_TRACK",
+        },
+    }
+    partial_risk = {
+        "success": True,
+        "assessment_status": "PARTIAL",
+        "risk_level": "MEDIUM",
+        "risk_factors": [{"dimension": "progress", "level": "MEDIUM"}],
+        "unavailable_dimensions": ["study_right", "tutor_meetings"],
+    }
+    no_risk = {
+        "success": True,
+        "assessment_status": "PARTIAL",
+        "risk_level": "NONE",
+        "risk_factors": [],
+        "unavailable_dimensions": ["study_right", "tutor_meetings"],
+    }
+    monday = workflow(
+        tutors=[
+            {"id": 1, "display_name": "Anna Example", "telegram_chat_id": 7007},
+            {"id": 2, "display_name": "Matti Demo", "telegram_chat_id": None},
+        ],
+        students={
+            1: [
+                {"id": 102, "name": "Oskari Example"},
+                {"id": 104, "name": "Aava Achiever"},
+            ],
+            2: [],
+        },
+        progress_results={102: oskari_progress, 104: aava_progress},
+        risk_results={102: partial_risk, 104: no_risk},
+    )
+    result = AutonomousMondayBriefingRunner(
+        workflow=monday,
+        sender=sender,
+        execution_recorder=WorkflowExecutionRecorder(log_store),
+    ).run(now=datetime(2026, 1, 5, 8, tzinfo=ZoneInfo("Europe/Helsinki")))
+
+    anna, matti = result.briefings
+    assert anna.summary == {
+        "total_students": 2,
+        "analysed_students": 2,
+        "students_needing_attention": 1,
+    }
+    assert anna.priority_students[0]["student_name"] == "Oskari Example"
+    assert anna.priority_students[0]["delay_ects"] == 30
+    assert anna.priority_students[0]["progress"]["completed_ects"] == 0
+    assert "Aava Achiever" not in anna.delivery["text"]
+    assert anna.delivery["delivery_status"] == "DELIVERED"
+    assert "supporting risk information is unavailable" in anna.delivery["text"]
+    assert matti.delivery["delivery_status"] == "NO_DESTINATION"
+    finalized = log_store.finalized[0]
+    assert (finalized.requested_count, finalized.succeeded_count, finalized.skipped_count) == (
+        2, 1, 1
+    )
 
 
 def test_tutor_without_students_is_safe_and_missing_destination_is_explicit():

@@ -15,7 +15,6 @@ from app.agents.tutor_data_query_agent import TutorDataQueryAgent
         ("Show me Aino Mäkinen.", "student_lookup", {}),
         ("Find student 202600123.", "student_lookup", {}),
         ("Find student S002.", "student_lookup", {}),
-        ("How is Anna Korhonen progressing?", "student_progress", {}),
         ("What is DII101?", "course_lookup", {}),
         ("Show me all courses.", "course_search", {}),
         ("Who is enrolled in DII101?", "course_roster", {}),
@@ -44,6 +43,14 @@ def test_realistic_tutor_queries_map_to_capabilities(message, capability, parame
     assert result.route == "academic_data"
     assert result.capability == capability
     assert result.parameters == parameters
+
+
+def test_named_natural_progress_uses_primary_progress_agent_route():
+    result = detect_intent("How is Anna Korhonen progressing?")
+
+    assert result.intent == "progress"
+    assert result.route == "progress"
+    assert result.entity_references == (("STUDENT", "Anna Korhonen"),)
 
 
 def test_multi_entity_query_preserves_student_and_course_references():

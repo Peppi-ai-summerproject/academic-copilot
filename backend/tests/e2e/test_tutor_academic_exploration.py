@@ -774,3 +774,33 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert entities["STUDENT"]["canonical_id"] == 41
     assert entities["STUDENT_GROUP"]["canonical_id"] == 240
     assert ("get_progress", {"student_id": 41}) in copilot[1].calls
+
+
+@pytest.mark.e2e
+def test_named_natural_progress_and_recommendation_use_primary_presentations(
+    copilot, monkeypatch
+):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=266, username="natural-language-tutor"),
+            effective_chat=SimpleNamespace(id=2660),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    progress = asyncio.run(send("How is Oskari Example progressing?"))
+    recommendation = asyncio.run(send("What do you recommend for Oskari Example?"))
+    other_progress = asyncio.run(send("How is Aava Achiever progressing?"))
+
+    assert progress.startswith("<b>Academic progress</b>\n<b>Oskari Example")
+    assert "Completed: 0 ECTS" in progress and "Expected: 30 ECTS" in progress
+    assert "Academic analysis completed." not in progress
+    assert recommendation.startswith(
+        "<b>Academic recommendations</b>\n<b>Oskari Example</b>"
+    )
+    assert "Recommended actions (advisory)" in recommendation
+    assert other_progress.startswith("<b>Academic progress</b>\n<b>Aava Achiever")
