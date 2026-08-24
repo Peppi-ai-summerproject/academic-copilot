@@ -12,7 +12,7 @@ from typing import Literal, cast
 
 from app.agents.routing import ROUTE_INTENT_MAP
 from app.agents.types import AgentRoute
-from app.agents.tutor_query_intent import detect_tutor_query
+from app.agents.tutor_query_intent import detect_tutor_query, extract_student_reference
 
 
 IntentName = Literal[
@@ -47,6 +47,7 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
     ),
     "progress": (
         re.compile(r"\b(?:how is|how are)\s+(?:she|he|they)\s+progress(?:ing)?\b"),
+        re.compile(r"\bhow is\s+[^?.,]+\s+progress(?:ing)?\b"),
         re.compile(r"\bstudent\b.*\bprogress(?:ing)?\b"),
         re.compile(r"\bprogress(?:ing)?\b.*\bstudent\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\b(?:on track|falling behind)\b"),
@@ -67,6 +68,7 @@ _PATTERNS: dict[AgentRoute, tuple[re.Pattern[str], ...]] = {
         re.compile(r"\bwarning signs?\b"),
     ),
     "recommendation": (
+        re.compile(r"\bwhat do (?:you|we) recommend\s+for\s+[^?.,]+"),
         re.compile(r"\b(?:recommend(?:ation)?|advice|next steps?)\b.*\b(?:student|studies|academic)\b"),
         re.compile(r"\b(?:student|studies|academic)\b.*\b(?:recommend(?:ation)?|advice|next steps?)\b"),
         re.compile(r"\bwhat should (?:i|we) do\b.*\b(?:student|studies|academic)\b"),
@@ -136,6 +138,7 @@ class IntentDetector:
             if len(winners) == 1:
                 route = winners[0]
                 terms = tuple(dict.fromkeys(matches[route]))
+                student_reference = extract_student_reference(message)
                 return IntentResult(
                     intent=cast(IntentName, route),
                     route=route,
@@ -143,6 +146,7 @@ class IntentDetector:
                     matched_terms=terms,
                     is_ambiguous=False,
                     reason="matched",
+                    entity_references=(student_reference,) if student_reference else (),
                 )
             evidence = tuple(
                 dict.fromkeys(term for route in winners for term in matches[route])

@@ -85,3 +85,22 @@ def test_empty_input_is_rejected(message: str) -> None:
 def test_non_string_input_is_rejected() -> None:
     with pytest.raises(TypeError, match="must be a string"):
         IntentDetector().detect(None)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("message", "intent", "student_name"),
+    [
+        ("How is Oskari Example progressing?", "progress", "Oskari Example"),
+        ("How is Aava Achiever progressing?", "progress", "Aava Achiever"),
+        ("What do you recommend for Oskari Example?", "recommendation", "Oskari Example"),
+        ("What do you recommend for Aava Achiever?", "recommendation", "Aava Achiever"),
+    ],
+)
+def test_natural_named_student_requests_keep_route_and_entity_reference(
+    message: str, intent: str, student_name: str
+) -> None:
+    result = detect_intent(message)
+
+    assert result.intent == intent
+    assert result.route == intent
+    assert result.entity_references == (("STUDENT", student_name),)

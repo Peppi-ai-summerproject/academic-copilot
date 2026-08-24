@@ -20,17 +20,13 @@ from app.telegram.formatting import format_telegram_html
 from app.db.database import SessionLocal
 from app.repositories.event_repository import EventRepository
 from app.repositories.progress_repository import ProgressRepository
-from app.repositories.student_repository import StudentRepository
 from app.repositories.study_right_repository import StudyRightRepository
 from app.repositories.tutor_repository import TutorRepository
 from app.repositories.tutor_meeting_repository import TutorMeetingRepository
-from app.services.academic_risk_scoring_service import AcademicRiskScoringService
-from app.services.delay_detection_service import DelayDetectionService
+from app.services.available_evidence_risk_service import AvailableEvidenceRiskService
 from app.services.event_service import EventService
 from app.services.progress_service import ProgressService
 from app.services.scheduler import DailyTimeTrigger, DuplicateJobError, Scheduler
-from app.services.student_service import StudentService
-from app.services.study_right_risk_service import StudyRightRiskService
 from app.services.study_right_service import StudyRightService
 from app.services.tutor_meeting_risk_service import TutorMeetingRiskService
 from app.workflows.execution_logging import (
@@ -308,13 +304,23 @@ class MondayWorkflow:
             warnings.append(f"Academic progress is unavailable for student {student_id}.")
         if not isinstance(risk, dict):
             warnings.append(f"Risk indicators are unavailable for student {student_id}.")
+        elif risk.get("unavailable_dimensions"):
+            warnings.append(
+                f"Some supporting risk information is unavailable for student {student_id}."
+            )
         priority_score = risk.get("raw_subtotal") if risk else None
         contributions = risk.get("indicator_contributions", []) if risk else []
-        requires_attention = any(
+        scored_attention = any(
             isinstance(contribution, dict)
             and int(contribution.get("assigned_points") or 0) > 0
             for contribution in contributions
         )
+        risk_factors = risk.get("risk_factors", []) if risk else []
+        factor_attention = any(isinstance(factor, dict) for factor in risk_factors)
+        if priority_score is None and risk:
+            priority_score = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}.get(
+                str(risk.get("risk_level")), 0
+            )
         return {
             "student_id": student_id,
             "student_name": str(student.get("name") or f"Student {student_id}"),
@@ -326,7 +332,7 @@ class MondayWorkflow:
             "delay_ects": (
                 progress.get("remaining_to_expected_ects", 0) if isinstance(progress, dict) else None
             ),
-            "requires_attention": requires_attention,
+            "requires_attention": scored_attention or factor_attention,
             "successful": bool(progress or risk),
             "warnings": warnings,
         }
@@ -423,20 +429,14 @@ class AutonomousMondayBriefingRunner:
 
 def create_database_monday_workflow(*, session: Any, timezone: str) -> MondayWorkflow:
     """Wire the workflow to existing repositories and analytics services."""
-    student_service = StudentService(StudentRepository(session))
     progress_service = ProgressService(ProgressRepository(session))
     study_right_service = StudyRightService(StudyRightRepository(session))
     event_service = EventService(EventRepository(session))
-    delay_service = DelayDetectionService(progress_service)
-    study_right_risk_service = StudyRightRiskService(
-        study_right_service,
-        student_service,
-    )
-    risk_service = AcademicRiskScoringService(
-        delay_service,
-        study_right_risk_service,
-        event_service,
-        TutorMeetingRiskService(TutorMeetingRepository(session)),
+    risk_service = AvailableEvidenceRiskService(
+        progress_provider=progress_service,
+        study_right_provider=study_right_service,
+        event_provider=event_service,
+        tutor_meeting_provider=TutorMeetingRiskService(TutorMeetingRepository(session)),
     )
     return MondayWorkflow(
         tutor_directory=TutorRepository(session),
