@@ -235,6 +235,33 @@ def test_demo_scenario_3_executes_logs_and_delivers_meaningful_weekly_briefing()
     assert "Oskari" not in str(finalized)
 
 
+def test_unavailable_tutor_meeting_evidence_still_finalizes_monday_execution():
+    log_store = CapturingExecutionLogStore()
+    monday = workflow(
+        tutors=[{"id": 7, "display_name": "Tutor", "telegram_chat_id": None}],
+        students={7: [{"id": 102, "name": "Oskari Example"}]},
+        progress_results={102: progress(102, remaining=30)},
+        risk_results={102: risk(102, points=30)},
+    )
+    runner = AutonomousMondayBriefingRunner(
+        workflow=monday,
+        sender=None,
+        execution_recorder=WorkflowExecutionRecorder(log_store),
+    )
+
+    result = runner.run(
+        now=datetime(2026, 1, 5, 8, tzinfo=ZoneInfo("Europe/Helsinki")),
+        trigger_type="direct",
+    )
+
+    assert result.status == "partial"
+    assert result.briefings[0].priority_students[0]["risk"][
+        "unavailable_indicators"
+    ] == ["tutor_meetings"]
+    assert len(log_store.started) == len(log_store.finalized) == 1
+    assert log_store.finalized[0].status == "partial"
+
+
 def test_tutor_without_students_is_safe_and_missing_destination_is_explicit():
     result = workflow(
         tutors=[{"id": 1, "display_name": "Tutor One", "telegram_chat_id": None}],
