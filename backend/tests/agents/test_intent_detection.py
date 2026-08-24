@@ -144,3 +144,38 @@ def test_natural_progress_variations_route_with_clean_student_reference(
     assert result.intent == "progress"
     assert result.route == "progress"
     assert result.entity_references == (("STUDENT", student_name),)
+
+
+@pytest.mark.parametrize(
+    ("message", "intent", "student_name"),
+    [
+        ("how Ada Lovelace doing?", "progress", "Ada Lovelace"),
+        ("How Ada Lovelace is doing?", "progress", "Ada Lovelace"),
+        ("How is Ada Lovelace progresing?", "progress", "Ada Lovelace"),
+        ("Show Ada Lovelace progres", "progress", "Ada Lovelace"),
+        ("What is Ada Lovelace acadmic risk?", "risk", "Ada Lovelace"),
+        ("What is the risk for Ada Lovelace?", "risk", "Ada Lovelace"),
+        ("what you recomend for Ada Lovelace?", "recommendation", "Ada Lovelace"),
+        ("What would you recommend for Ada Lovelace?", "recommendation", "Ada Lovelace"),
+        ("What should we do for Ada Lovelace?", "recommendation", "Ada Lovelace"),
+    ],
+)
+def test_typo_and_grammar_tolerance_keeps_original_student_reference(
+    message: str, intent: str, student_name: str
+) -> None:
+    result = detect_intent(message)
+
+    assert result.intent == intent
+    assert result.entity_references == (("STUDENT", student_name),)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I recomend this movie.",
+        "The cooking progres is interesting.",
+        "My computer has an acadmic-looking font.",
+    ],
+)
+def test_intent_keyword_typos_without_academic_request_remain_unsupported(message: str) -> None:
+    assert detect_intent(message).intent == "unknown"

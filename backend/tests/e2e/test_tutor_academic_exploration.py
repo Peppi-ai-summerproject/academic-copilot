@@ -958,3 +958,39 @@ def test_pending_clarification_is_cleared_by_explicit_new_academic_topic(
     changed = asyncio.run(send("How is Aava Achiever progressing?"))
     assert changed.startswith("<b>Academic progress</b>\n<b>Aava Achiever")
     assert "focused on student progress" in asyncio.run(send("yes"))
+
+
+@pytest.mark.e2e
+def test_free_form_typo_and_grammar_variations_over_telegram_path(
+    copilot, monkeypatch
+):
+    monkeypatch.setattr(handlers, "backend_client", ChatServiceBackendAdapter(copilot))
+
+    async def send(text):
+        message = CapturingMessage(text)
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=273, username="free-form-tutor"),
+            effective_chat=SimpleNamespace(id=2730),
+        )
+        await handlers.handle_message(update, None)
+        return message.replies[0]
+
+    failed = asyncio.run(send("who faild Database Systems in DIN24?"))
+    overview = asyncio.run(send("Give me overview of Petra Partial"))
+    progress = asyncio.run(send("how Petra Partial doing?"))
+    risk = asyncio.run(send("What is Petra Partial acadmic risk?"))
+    recommendation = asyncio.run(send("what you recomend for Petra Partial?"))
+
+    assert failed.startswith("<b>Course results</b>")
+    assert "Students with failed results: <b>3</b>" in failed
+    assert overview.startswith("<b>Student overview</b>\n<b>Petra Partial</b>")
+    assert progress.startswith("<b>Academic progress</b>\n<b>Petra Partial")
+    assert risk.startswith("<b>Academic risk</b>\n<b>Petra Partial</b>")
+    assert recommendation.startswith(
+        "<b>Academic recommendations</b>\n<b>Petra Partial</b>"
+    )
+    assert active_entities(copilot, user=273, chat=2730)["STUDENT"]["canonical_id"] == 45
+
+    suggestion = asyncio.run(send("How is Perta Partial progressing?"))
+    assert suggestion.startswith("Did you mean Petra Partial?")
