@@ -33,7 +33,12 @@ class CourseResultsService:
         if student is None: return {"success": False, "error": "STUDENT_NOT_FOUND", "message": "Student was not found."}
         valid = self._status(status)
         if valid is not None: return valid
-        rows = self._records.list_student_result_view(student_id)
+        # Completion records are authoritative and can legitimately pre-date an
+        # enrollment row in upgraded deployments. Start with them, then add
+        # unfinished enrollment-only courses without replacing a completion.
+        completions = self._records.list_results_for_student(student_id)
+        enrollment_view = self._records.list_student_result_view(student_id)
+        rows = _merge_student_results(completions, enrollment_view)
         if status: rows = [row for row in rows if row["result_status"] == status.upper()]
         return {"success": True, "student": student, "count": len(rows), "results": rows}
 
@@ -53,3 +58,29 @@ class CourseResultsService:
     def _status(self, status: str | None) -> dict[str, Any] | None:
         if status is not None and (not isinstance(status, str) or status.upper() not in VALID_STATUSES): return {"success": False, "error": "INVALID_RESULT_STATUS", "message": "status must be PASSED, FAILED, IN_PROGRESS, or NO_RESULT."}
         return None
+
+
+def _merge_student_results(
+    completions: list[dict[str, Any]],
+    enrollment_view: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return each course once, preferring its authoritative completion."""
+    rows: dict[tuple[str, Any], dict[str, Any]] = {}
+    for row in completions:
+        rows[_course_identity(row)] = row
+    for row in enrollment_view:
+        rows.setdefault(_course_identity(row), row)
+    return sorted(
+        rows.values(),
+        key=lambda row: (
+            str(row.get("course_code") or ""),
+            str(row.get("course_id") or ""),
+        ),
+    )
+
+
+def _course_identity(row: dict[str, Any]) -> tuple[str, Any]:
+    course_id = row.get("course_id")
+    if course_id is not None:
+        return ("id", course_id)
+    return ("code", str(row.get("course_code") or "").casefold())

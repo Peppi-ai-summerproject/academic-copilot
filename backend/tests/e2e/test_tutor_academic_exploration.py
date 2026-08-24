@@ -196,6 +196,7 @@ class DeterministicAcademicGateway:
             41: [
                 {"student_name": "Oskari Example", "course_code": "DII101", "result_status": "FAILED", "grade": 0},
                 {"student_name": "Oskari Example", "course_code": "DBS24", "result_status": "FAILED", "grade": 0},
+                {"student_name": "Oskari Example", "course_code": "WEB24", "result_status": "IN_PROGRESS", "grade": None},
             ],
             42: [{"student_name": "Sofia Sample", "course_code": "MAT101", "result_status": "PASSED", "grade": 4}],
             46: [
@@ -744,10 +745,14 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert "DIN24" in asyncio.run(send("Show me DIN24."))
     candidates = asyncio.run(send("Who failed Database Systems in DIN24?"))
     lookup = asyncio.run(send("Show me Oskari Example."))
-    explanation = asyncio.run(send("Why is he at risk?"))
+    progress = asyncio.run(send("How is Oskari Example progressing?"))
+    explanation = asyncio.run(send("What is Oskari Example's academic risk?"))
+    named_recommendation = asyncio.run(send("What do you recommend for Oskari Example?"))
     recommendation = asyncio.run(
         send("What academic next steps do you recommend for this student?")
     )
+    dbs_result = asyncio.run(send("Did he pass DBS24?"))
+    web_result = asyncio.run(send("Did he pass WEB24?"))
 
     assert all(name in candidates for name in ("Oskari Example", "Petra Partial", "Matias Multiple"))
     assert candidates.startswith(
@@ -759,11 +764,15 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert all(name not in candidates for name in ("Elina Demo", "Aava Achiever", "Sofia Sample"))
     assert "FAILED" in candidates and "Grade: <b>0</b>" in candidates
     assert "Oskari Example" in lookup and "DEMO22102" in lookup
+    assert progress.startswith("<b>Academic progress</b>\n<b>Oskari Example")
     assert explanation.startswith("<b>Academic risk</b>\n<b>Oskari Example</b>")
     assert "Risk level: <b>MEDIUM</b>" in explanation
     assert "Assessment: <b>COMPLETE</b>" in explanation
     assert "Why this student needs attention" in explanation
     assert "30 ECTS behind expected progress" in explanation
+    assert named_recommendation.startswith(
+        "<b>Academic recommendations</b>\n<b>Oskari Example</b>"
+    )
     assert recommendation.startswith("<b>Academic recommendations</b>\n<b>Oskari Example</b>")
     assert "Assessment: <b>PARTIAL</b>" in recommendation
     assert "Verified academic concern" in recommendation
@@ -783,10 +792,22 @@ def test_demo_scenario_2_cohort_attention_to_explanation_over_telegram_path(
     assert "not mandatory university policy" in recommendation
     assert "University policy guidance" in recommendation
     assert "Policy evidence unavailable" not in recommendation
+    assert "Oskari Example" in dbs_result
+    assert "Result: <b>FAILED</b>" in dbs_result
+    assert "Grade: <b>0</b>" in dbs_result
+    assert "Oskari Example" in web_result
+    assert "Result: <b>IN_PROGRESS</b>" in web_result
+    assert "Grade: <b>unavailable</b>" in web_result
     entities = active_entities(copilot, user=128, chat=1280)
     assert entities["STUDENT"]["canonical_id"] == 41
     assert entities["STUDENT_GROUP"]["canonical_id"] == 240
     assert ("get_progress", {"student_id": 41}) in copilot[1].calls
+
+    aava_progress = asyncio.run(send("How is Aava Achiever progressing?"))
+    aava_risk = asyncio.run(send("Is she at risk?"))
+    assert aava_progress.startswith("<b>Academic progress</b>\n<b>Aava Achiever")
+    assert aava_risk.startswith("<b>Academic risk</b>\n<b>Aava Achiever</b>")
+    assert active_entities(copilot, user=128, chat=1280)["STUDENT"]["canonical_id"] == 43
 
 
 @pytest.mark.e2e
